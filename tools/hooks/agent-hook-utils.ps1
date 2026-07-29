@@ -8,7 +8,7 @@ function Test-HookProperty {
         [object]$Object,
         [string]$Name
     )
-    return ($null -ne $Object -and $Object.PSObject.Properties.Name -contains $Name)
+    return ($null -ne $Object -and $null -ne $Object.PSObject.Properties[$Name])
 }
 
 function Get-HookPropertyValue {
@@ -46,6 +46,120 @@ function Test-ShellToolName {
     return ($Name -match "(?i)^(Bash|PowerShell|shell_command|functions[.]shell_command)$")
 }
 
+function Test-FileToolName {
+    param([string]$Name)
+    return ($Name -match "(?i)^(apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch)$")
+}
+
+function Test-ParallelToolName {
+    param([string]$Name)
+    return ($Name -match "(?i)^multi_tool_use[.]parallel$")
+}
+
+function Add-HookToolNamesFromValue {
+    param(
+        [object]$Value,
+        [System.Collections.Generic.List[string]]$Names
+    )
+    if ($null -eq $Value) { return }
+
+    $toolName = Get-HookToolName -Object $Value
+    if ($toolName) { Add-HookString -List $Names -Value $toolName }
+
+    foreach ($containerName in @("input", "tool_input", "parameters")) {
+        Add-HookToolNamesFromValue -Value (Get-HookPropertyValue -Object $Value -Name $containerName) -Names $Names
+    }
+
+    $toolUses = Get-HookPropertyValue -Object $Value -Name "tool_uses"
+    if ($toolUses) {
+        foreach ($toolUse in @($toolUses)) {
+            Add-HookToolNamesFromValue -Value $toolUse -Names $Names
+        }
+    }
+}
+
+function Get-HookToolNames {
+    param([object]$Event)
+    $names = New-Object System.Collections.Generic.List[string]
+    if ($null -ne $Event) { Add-HookToolNamesFromValue -Value $Event -Names $names }
+    return @($names | Select-Object -Unique)
+}
+
+function Get-HookParallelToolUses {
+    param([object]$Event)
+    $uses = @()
+    if ($null -eq $Event) { return @() }
+
+    $topLevelUses = Get-HookPropertyValue -Object $Event -Name "tool_uses"
+    if ($topLevelUses) {
+        foreach ($toolUse in @($topLevelUses)) { $uses += ,$toolUse }
+    }
+
+    foreach ($containerName in @("tool_input", "input", "parameters")) {
+        $container = Get-HookPropertyValue -Object $Event -Name $containerName
+        if ($null -eq $container) { continue }
+        $containerUses = Get-HookPropertyValue -Object $container -Name "tool_uses"
+        if ($containerUses) {
+            foreach ($toolUse in @($containerUses)) { $uses += ,$toolUse }
+        }
+    }
+
+    return $uses
+}
+
+function Get-HookParallelValidationError {
+    param(
+        [object]$Event,
+        [ValidateSet("Command", "File")]
+        [string]$GuardKind
+    )
+    if ($null -eq $Event) { return "parallel event is null" }
+    if (-not (Test-ParallelToolName -Name (Get-HookToolName -Object $Event))) {
+        return "parallel event name is missing or invalid"
+    }
+
+    $parallelUses = @(Get-HookParallelToolUses -Event $Event)
+    if ($parallelUses.Count -eq 0) { return "parallel wrapper schema is unknown" }
+
+    foreach ($toolUse in $parallelUses) {
+        $toolName = Get-HookToolName -Object $toolUse
+        if (-not $toolName) { return "parallel tool call is unnamed" }
+
+        if (Test-ParallelToolName -Name $toolName) {
+            $nestedError = Get-HookParallelValidationError -Event $toolUse -GuardKind $GuardKind
+            if ($nestedError) { return $nestedError }
+            continue
+        }
+
+        if ($GuardKind -eq "Command" -and (Test-ShellToolName -Name $toolName)) {
+            if (@(Get-HookCommands -Event $toolUse).Count -eq 0) {
+                return "parallel shell call is incomplete"
+            }
+        }
+        elseif ($GuardKind -eq "File" -and (Test-FileToolName -Name $toolName)) {
+            if (@(Get-HookPaths -Event $toolUse).Count -eq 0) {
+                return "parallel file call is incomplete"
+            }
+        }
+    }
+
+    return $null
+}
+
+function Write-HookDeny {
+    param(
+        [string]$HookEventName,
+        [string]$Reason
+    )
+    @{
+        hookSpecificOutput = @{
+            hookEventName = $HookEventName
+            permissionDecision = "deny"
+            permissionDecisionReason = $Reason
+        }
+    } | ConvertTo-Json -Depth 5 -Compress
+}
+
 function Add-HookCommandsFromWrapper {
     param(
         [object]$Object,
@@ -58,12 +172,15 @@ function Add-HookCommandsFromWrapper {
         foreach ($toolUse in @($toolUses)) {
             $toolName = Get-HookToolName -Object $toolUse
             if (Test-ShellToolName -Name $toolName) {
-                $parameters = Get-HookPropertyValue -Object $toolUse -Name "parameters"
-                $command = Get-HookPropertyValue -Object $parameters -Name "command"
-                Add-HookString -List $Commands -Value $command
+                foreach ($containerName in @("parameters", "tool_input", "input")) {
+                    $container = Get-HookPropertyValue -Object $toolUse -Name $containerName
+                    $command = Get-HookPropertyValue -Object $container -Name "command"
+                    Add-HookString -List $Commands -Value $command
+                }
             }
-            Add-HookCommandsFromWrapper -Object (Get-HookPropertyValue -Object $toolUse -Name "parameters") -Commands $Commands
-            Add-HookCommandsFromWrapper -Object (Get-HookPropertyValue -Object $toolUse -Name "tool_input") -Commands $Commands
+            foreach ($containerName in @("parameters", "tool_input", "input")) {
+                Add-HookCommandsFromWrapper -Object (Get-HookPropertyValue -Object $toolUse -Name $containerName) -Commands $Commands
+            }
         }
     }
 }
@@ -137,7 +254,10 @@ function Add-HookPathsFromValue {
     $toolUses = Get-HookPropertyValue -Object $Value -Name "tool_uses"
     if ($toolUses) {
         foreach ($toolUse in @($toolUses)) {
-            Add-HookPathsFromValue -Value $toolUse -Paths $Paths
+            $toolName = Get-HookToolName -Object $toolUse
+            if ((Test-FileToolName -Name $toolName) -or (Test-ParallelToolName -Name $toolName) -or -not $toolName) {
+                Add-HookPathsFromValue -Value $toolUse -Paths $Paths
+            }
         }
     }
 }
@@ -149,67 +269,226 @@ function Get-HookPaths {
     return @($paths | Select-Object -Unique)
 }
 
+function Get-CommandTokenStatements {
+    param([string]$Command)
+
+    $statements = New-Object System.Collections.Generic.List[object]
+    $tokens = New-Object System.Collections.Generic.List[string]
+    $token = New-Object Text.StringBuilder
+    $quote = [char]0
+    $singleQuote = [char]39
+    $doubleQuote = [char]34
+    for ($index = 0; $index -lt $Command.Length; $index++) {
+        $character = $Command[$index]
+        if ($quote -ne [char]0) {
+            if ($character -eq $quote) {
+                if ($quote -eq $singleQuote -and
+                    $index + 1 -lt $Command.Length -and
+                    $Command[$index + 1] -eq $singleQuote) {
+                    [void]$token.Append($singleQuote)
+                    $index++
+                }
+                else {
+                    $quote = [char]0
+                }
+            }
+            else {
+                [void]$token.Append($character)
+            }
+            continue
+        }
+        if ($character -eq $singleQuote -or $character -eq $doubleQuote) {
+            $quote = $character
+            continue
+        }
+        if ($character -eq ";" -or $character -eq "|" -or $character -eq "&" -or
+            $character -eq "`r" -or $character -eq "`n") {
+            if ($token.Length -gt 0) {
+                $tokens.Add($token.ToString()) | Out-Null
+                [void]$token.Clear()
+            }
+            if ($tokens.Count -gt 0) {
+                $statements.Add([pscustomobject]@{ Tokens = $tokens.ToArray() }) | Out-Null
+                $tokens = New-Object System.Collections.Generic.List[string]
+            }
+            continue
+        }
+        if ([char]::IsWhiteSpace($character)) {
+            if ($token.Length -gt 0) {
+                $tokens.Add($token.ToString()) | Out-Null
+                [void]$token.Clear()
+            }
+            continue
+        }
+        [void]$token.Append($character)
+    }
+    if ($token.Length -gt 0) { $tokens.Add($token.ToString()) | Out-Null }
+    if ($tokens.Count -gt 0) {
+        $statements.Add([pscustomobject]@{ Tokens = $tokens.ToArray() }) | Out-Null
+    }
+    return $statements.ToArray()
+}
+
+function Get-GitCommandInfo {
+    param([string[]]$Tokens)
+
+    if ($Tokens.Count -eq 0 -or $Tokens[0] -notmatch "(?i)^git(?:[.]exe)?$") {
+        return $null
+    }
+    $noValueOptions = @(
+        "-p", "-P", "--paginate", "--no-pager", "--no-replace-objects",
+        "--bare", "--no-optional-locks", "--literal-pathspecs",
+        "--glob-pathspecs", "--noglob-pathspecs", "--icase-pathspecs",
+        "--no-advice", "--no-lazy-fetch"
+    )
+    $terminalOptions = @("--version", "-v", "--help", "-h", "--exec-path", "--html-path", "--man-path", "--info-path")
+    $valueOptions = @("-C", "-c", "--git-dir", "--work-tree", "--namespace", "--super-prefix", "--config-env")
+    $index = 1
+    while ($index -lt $Tokens.Count) {
+        $value = $Tokens[$index]
+        if ($terminalOptions -contains $value) {
+            return [pscustomobject]@{
+                Subcommand = "__safe_terminal__"
+                Arguments = [string[]]@()
+                Error = $null
+            }
+        }
+        if (-not $value.StartsWith("-")) {
+            $arguments = if ($index + 1 -lt $Tokens.Count) {
+                [string[]]$Tokens[($index + 1)..($Tokens.Count - 1)]
+            }
+            else {
+                [string[]]@()
+            }
+            return [pscustomobject]@{
+                Subcommand = $value.ToLowerInvariant()
+                Arguments = $arguments
+                Error = $null
+            }
+        }
+        if ($noValueOptions -contains $value) {
+            $index++
+            continue
+        }
+        if ($valueOptions -contains $value) {
+            if ($index + 1 -ge $Tokens.Count) {
+                return [pscustomobject]@{ Subcommand = $null; Arguments = [string[]]@(); Error = "missing Git global option value" }
+            }
+            $index += 2
+            continue
+        }
+        if ($value -match "^-C.+" -or $value -match "^-c.+" -or
+            $value -match "^--(?:git-dir|work-tree|namespace|super-prefix|config-env|exec-path)=") {
+            $index++
+            continue
+        }
+        return [pscustomobject]@{
+            Subcommand = $null
+            Arguments = [string[]]@()
+            Error = ("unrecognized Git global option: " + $value)
+        }
+    }
+    return [pscustomobject]@{ Subcommand = $null; Arguments = [string[]]@(); Error = "missing Git subcommand" }
+}
+
 function Test-DangerousCommand {
     param([string]$Command)
     if (-not $Command) { return $null }
-    $cmd = ($Command -replace "[`r`n]+", " ")
-    $argValue = '(?:"[^"]+"|''[^'']+''|\S+)'
-    $gitPrefix = "\bgit(?:[.]exe)?\b(?:\s+(?:-[A-Za-z]\s+$argValue|--[A-Za-z0-9-]+(?:=$argValue|\s+$argValue)?))*\s+"
-
-    if ($cmd -match ("(?i)" + $gitPrefix + "reset\s+--hard\b")) {
-        return "Blocked: 'git reset --hard' can destroy uncommitted work. Ask for explicit approval and explain the rollback scope."
-    }
-    if ($cmd -match ("(?i)" + $gitPrefix + "clean\b[^\r\n]*-[A-Za-z]*f")) {
-        return "Blocked: 'git clean -f' can delete untracked files. Ask for explicit approval and list target paths."
-    }
-    if ($cmd -match "(?i)\bgit(?:[.]exe)?\b[^\r\n]*\bpush\b[^\r\n]*(--force\b|-f\b|--force-with-lease|\s\+\S+)") {
-        return "Blocked: force push requires explicit approval."
-    }
-    if ($cmd -match ("(?i)" + $gitPrefix + "checkout\b[^\r\n]*\s+--\s+\S+")) {
-        return "Blocked: 'git checkout -- <path>' can discard worktree changes. Ask for explicit approval and list target paths."
-    }
-    if ($cmd -match ("(?i)" + $gitPrefix + "restore\b([^\r\n]*)")) {
-        $restoreArgs = $Matches[1]
-        if (($restoreArgs -match "(?i)(^|\s)--worktree\b") -or ($restoreArgs -notmatch "(?i)(^|\s)--staged\b")) {
-            return "Blocked: 'git restore' can discard worktree changes. Ask for explicit approval and list target paths."
+    $statements = @(Get-CommandTokenStatements -Command $Command)
+    $statementTexts = @($statements | ForEach-Object { @($_.Tokens) -join " " })
+    $cmd = $statementTexts -join " ; "
+    foreach ($statement in $statements) {
+        $tokens = @($statement.Tokens)
+        $wrapperFlagIndex = -1
+        if ($tokens.Count -ge 3) {
+            for ($candidateIndex = 1; $candidateIndex -lt $tokens.Count - 1; $candidateIndex++) {
+                if (($tokens[0] -match "(?i)^cmd(?:[.]exe)?$" -and $tokens[$candidateIndex] -eq "/c") -or
+                    ($tokens[0] -match "(?i)^(?:powershell|pwsh)(?:[.]exe)?$" -and $tokens[$candidateIndex] -match "(?i)^-(?:Command|c)$") -or
+                    ($tokens[0] -match "(?i)^(?:ba|z|k)?sh(?:[.]exe)?$" -and $tokens[$candidateIndex] -eq "-c")) {
+                    $wrapperFlagIndex = $candidateIndex
+                    break
+                }
+            }
+        }
+        if ($wrapperFlagIndex -ge 0) {
+            $nestedReason = Test-DangerousCommand -Command (($tokens[($wrapperFlagIndex + 1)..($tokens.Count - 1)]) -join " ")
+            if ($nestedReason) { return $nestedReason }
+        }
+        $gitCommand = Get-GitCommandInfo -Tokens ([string[]]$tokens)
+        if ($null -ne $gitCommand) {
+            if ($gitCommand.Error) {
+                return ("Blocked: command guard could not safely locate the Git subcommand (" + $gitCommand.Error + ").")
+            }
+            $gitArguments = @($gitCommand.Arguments)
+            switch ($gitCommand.Subcommand) {
+                "reset" {
+                    if (@($gitArguments | Where-Object { $_ -eq "--hard" }).Count -gt 0) {
+                        return "Blocked: 'git reset --hard' can destroy uncommitted work. Ask the user explicitly and explain the rollback scope."
+                    }
+                }
+                "clean" {
+                    if (@($gitArguments | Where-Object { $_ -match "(?i)^(?:--force|-[A-Za-z]*f[A-Za-z]*)$" }).Count -gt 0) {
+                        return "Blocked: 'git clean -f' can delete untracked files. Ask the user explicitly and list the target paths."
+                    }
+                }
+                "push" {
+                    if (@($gitArguments | Where-Object {
+                        $_ -match "(?i)^(?:--force|--force-with-lease|-f)$" -or $_.StartsWith("+")
+                    }).Count -gt 0) {
+                        return "Blocked: force push is not allowed without explicit user approval."
+                    }
+                }
+                "add" {
+                    if (@($gitArguments | Where-Object {
+                        $_ -match "(?i)^(?:[.]|-A|--all|-u|--update|:/|:)$"
+                    }).Count -gt 0) {
+                        return "Blocked: avoid blanket staging. Use git-checkpoint.ps1 with an explicit -Files list."
+                    }
+                }
+                "restore" {
+                    $hasStaged = @($gitArguments | Where-Object { $_ -match "(?i)^--staged(?:=|$)" }).Count -gt 0
+                    $hasWorktree = @($gitArguments | Where-Object { $_ -match "(?i)^--worktree(?:=|$)" }).Count -gt 0
+                    if (-not $hasStaged -or $hasWorktree) {
+                        return "Blocked: git restore can discard uncommitted worktree changes. Use staged-only restore or ask the user explicitly."
+                    }
+                }
+                "checkout" {
+                    return "Blocked: git checkout is ambiguous and can discard uncommitted work. Use git switch for branches or ask the user explicitly."
+                }
+            }
+        }
+        for ($tokenIndex = 0; $tokenIndex -lt $tokens.Count; $tokenIndex++) {
+            $commandToken = $tokens[$tokenIndex]
+            $tailTokens = @($tokens[$tokenIndex..($tokens.Count - 1)])
+            if ($commandToken -match "(?i)^rm(?:[.]exe)?$") {
+                $hasRecursive = @($tailTokens | Where-Object { $_ -match "(?i)^(?:--recursive|-[A-Za-z]*r[A-Za-z]*)$" }).Count -gt 0
+                $hasForce = @($tailTokens | Where-Object { $_ -match "(?i)^(?:--force|-[A-Za-z]*f[A-Za-z]*)$" }).Count -gt 0
+                if ($hasRecursive -and $hasForce) {
+                    return "Blocked: recursive force delete requires explicit approval and verified target paths."
+                }
+            }
+            if ($commandToken -match "(?i)^(?:Remove-Item|ri|del|erase)$" -and
+                @($tailTokens | Where-Object { $_ -match "(?i)^-(?:Recurse|Rec|Re|R)$" }).Count -gt 0) {
+                return "Blocked: recursive Remove-Item requires explicit approval and verified target paths."
+            }
+            if ($commandToken -match "(?i)^(?:rmdir|rd)$" -and
+                @($tailTokens | Where-Object { $_ -match "(?i)^(?:/s|-Recurse|-r)$" }).Count -gt 0) {
+                return "Blocked: recursive directory delete requires explicit approval and verified target paths."
+            }
+            if ($commandToken -match "(?i)^(?:del|erase)$" -and
+                @($tailTokens | Where-Object { $_ -match "(?i)^/s$" }).Count -gt 0) {
+                return "Blocked: recursive delete requires explicit approval and verified target paths."
+            }
         }
     }
-    if ($cmd -match ("(?i)" + $gitPrefix + "add\b(?:\s+(?:--|-[A-Za-z]+|--[A-Za-z0-9-]+(?:=$argValue|\s+$argValue)?))*\s+(\.|:/|-A|--all|-u|--update)(\s|$)")) {
-        return "Blocked: avoid blanket staging. Stage explicit files."
-    }
-    if ($cmd -match "(?i)\brm\s+-[A-Za-z]*r[A-Za-z]*f|\brm\s+-[A-Za-z]*f[A-Za-z]*r") {
-        return "Blocked: recursive force delete requires explicit approval and verified target paths."
-    }
-    if ($cmd -match "(?i)\b(Remove-Item|rm|ri)\b[^\r\n]*(?:-(?:Recurse|Rec)\b|\s-r\b)") {
-        return "Blocked: recursive Remove-Item requires explicit approval and verified target paths."
-    }
-    if ($cmd -match "(?i)\b(cmd(?:[.]exe)?\s+/c\s+)?(rmdir|rd)\b[^\r\n]*(/s\b|-Recurse|\s-r\b)") {
-        return "Blocked: recursive directory delete requires explicit approval and verified target paths."
-    }
-    if ($cmd -match "(?i)\b(del|erase)\b[^\r\n]*/s\b") {
-        return "Blocked: recursive delete requires explicit approval and verified target paths."
-    }
     if ($cmd -match "(?i)\b(powershell(?:[.]exe)?|pwsh(?:[.]exe)?)\b[^\r\n]*\s-(EncodedCommand|enc|e|ec)\b") {
-        return "Blocked: encoded PowerShell commands hide intent. Use readable commands."
+        return "Blocked: encoded PowerShell commands hide intent. Ask the user explicitly and use readable commands."
     }
     if (($cmd -match "(?i)(>>?|Out-File|Set-Content|Add-Content|Tee-Object)") -and ($cmd -match "(?i)(\.env\b|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.pem\b|\.p12\b|\.pfx\b|\.key\b|\.keystore\b|\.pgpass\b)")) {
-        return "Blocked: writing to a secret/.env file via shell redirection is not allowed."
+        return "Blocked: writing to a secret/.env file via shell redirection is not allowed. Use .env.example, or ask the user."
     }
 
     return $null
-}
-
-function Protect-HookLogText {
-    param([string]$Text)
-    if ($null -eq $Text) { return "" }
-    $redacted = [string]$Text
-    $redacted = [regex]::Replace($redacted, '(?i)(Authorization\s*:\s*Bearer\s+)[^\s"'';]+', '$1[REDACTED]')
-    $redacted = [regex]::Replace($redacted, '(?i)(\b(?:password|passwd|pwd|token|api[_-]?key|secret|client_secret)\b\s*[:=]\s*)(["'']?)[^\s"'';]+(\2)', '$1$2[REDACTED]$3')
-    $redacted = [regex]::Replace($redacted, '(?i)\bsk-[A-Za-z0-9_-]{8,}\b', 'sk-[REDACTED]')
-    $redacted = [regex]::Replace($redacted, '\bgh[pousr]_[A-Za-z0-9_]{8,}\b', 'gh_[REDACTED]')
-    $redacted = [regex]::Replace($redacted, '\bAKIA[0-9A-Z]{16}\b', 'AKIA[REDACTED]')
-    $redacted = [regex]::Replace($redacted, '(?i)(://[^:/@\s]+:)[^@\s]+(@)', '$1[REDACTED]$2')
-    return $redacted
 }
 
 function Get-Sha256Hex {
@@ -226,31 +505,45 @@ function Get-Sha256Hex {
     }
 }
 
-function Get-SteadyAgentLogDir {
-    $configured = $env:STEADYAGENT_LOG_DIR
-    if ($configured) { return $configured }
-    $base = $env:LOCALAPPDATA
-    if (-not $base) { $base = [System.IO.Path]::GetTempPath() }
-    return (Join-Path $base "SteadyAgent/logs")
-}
-
-function Write-SteadyAgentAuditLog {
+function Write-GuardAuditRecord {
     param(
-        [string]$FileName,
-        [string]$Message,
-        [int64]$MaxBytes = 5242880
+        [ValidateSet("command-guard", "file-guard")]
+        [string]$GuardName,
+        [string]$Reason,
+        [string]$ToolName,
+        [string]$RawInput
     )
-    try {
-        $logDir = Get-SteadyAgentLogDir
-        if (-not (Test-Path -LiteralPath $logDir)) {
-            New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-        }
-        $logFile = Join-Path $logDir $FileName
-        if ((Test-Path -LiteralPath $logFile) -and ((Get-Item -LiteralPath $logFile).Length -gt $MaxBytes)) {
-            $archive = Join-Path $logDir (($FileName -replace "[.]log$", "") + "-" + (Get-Date -Format "yyyyMMddHHmmss") + ".log")
-            Move-Item -LiteralPath $logFile -Destination $archive -Force
-        }
-        $line = (Get-Date -Format "yyyy-MM-dd HH:mm:ss") + " " + $Message
-        [System.IO.File]::AppendAllText($logFile, $line + [Environment]::NewLine, [System.Text.Encoding]::UTF8)
-    } catch { }
+    $logFile = if ($env:STEADYAGENT_GUARD_AUDIT_LOG) {
+        [IO.Path]::GetFullPath([string]$env:STEADYAGENT_GUARD_AUDIT_LOG)
+    } else {
+        $logBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [IO.Path]::GetTempPath() }
+        Join-Path $logBase "SteadyAgent\logs\guard-audit.log"
+    }
+    $logDir = Split-Path -Parent $logFile
+    if (-not (Test-Path -LiteralPath $logDir -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+    }
+    if ((Test-Path -LiteralPath $logFile -PathType Leaf) -and
+        ((Get-Item -LiteralPath $logFile).Length -gt 5MB)) {
+        $archiveName = "guard-audit-" + (Get-Date -Format "yyyyMMddHHmmss") + ".log"
+        Move-Item -LiteralPath $logFile -Destination (Join-Path $logDir $archiveName) -Force
+    }
+
+    $safeReason = ([string]$Reason -replace "[`r`n]+", " ").Trim()
+    $safeToolName = ([string]$ToolName -replace "[^A-Za-z0-9_.-]", "")
+    if (-not $safeToolName) { $safeToolName = "unknown" }
+    $stamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $inputHash = Get-Sha256Hex -Text ([string]$RawInput)
+    $entry = "{0} [{1}] {2} -- tool={3} input_sha256={4}" -f @(
+        $stamp,
+        $GuardName,
+        $safeReason,
+        $safeToolName,
+        $inputHash
+    )
+    [IO.File]::AppendAllText(
+        $logFile,
+        $entry + [Environment]::NewLine,
+        (New-Object Text.UTF8Encoding($false))
+    )
 }

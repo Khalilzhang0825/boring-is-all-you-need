@@ -72,20 +72,20 @@ foreach ($pattern in $patterns) { rg -n $pattern . }
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-The rewrite is not complete until the default branch, `v1.0.0` tag, GitHub release, remote branch list, and fresh clone history all point only at the clean public artifact.
+The rewrite is not complete until the default branch, `v2.0.0` tag, GitHub release, remote branch list, and fresh clone history all point only at the clean public artifact.
 
 ## Repository Metadata
 
 Recommended GitHub description:
 
 ```text
-SteadyAgent: a bilingual local-first harness for Codex and Claude Code with workflow rules, safety hooks, validation gates, checkpoint commits, and release evidence.
+SteadyAgent 2: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
 ```
 
 Recommended topics:
 
 ```text
-ai-agents, coding-agents, codex, claude-code, agents-md, claude-md, developer-tools, powershell, workflow-automation, prompt-engineering
+ai-agents, coding-agents, codex, codex-desktop, agents-md, developer-tools, powershell, workflow-automation, prompt-engineering
 ```
 
 ## Release
@@ -95,8 +95,8 @@ Do not create or replace a tag or GitHub release until explicit maintainer appro
 Release template:
 
 ```text
-Tag: v1.0.0
-Title: SteadyAgent v1.0.0
+Tag: v2.0.0
+Title: SteadyAgent v2.0.0
 Target commit: <commit>
 ```
 
@@ -114,4 +114,4 @@ Release body should include:
 - Confirm release page links to the correct tag and target commit.
 - Confirm repository description and topics are updated.
 - Confirm no private paths, local-only claims, or maintainer-only state appear in public pages.
-- Save PR URL, GitHub Actions run URL, release URL, tag, commit hash, repository metadata update notes, and validation outputs for the resume evidence chain.
+- Save the PR URL, GitHub Actions run URL, release URL, tag, commit hash, repository metadata update notes, and validation outputs as the release audit trail.

@@ -1,178 +1,54 @@
-# Getting Started
+# Getting Started with SteadyAgent 2
 
-Use this guide if you have just installed Codex or Claude Code and do not know where SteadyAgent fits.
+SteadyAgent 2 supports Codex Desktop on Windows.
 
-SteadyAgent is not another chat app. It is a local workflow harness that installs instructions, rules, a reusable skill, validation scripts, and hook examples into the agent host you already use.
-
-## Requirements
-
-- Windows with PowerShell.
-- Git.
-- A local checkout of this repository.
-- Codex, Claude Code, or both.
-
-Cross-platform installers are not claimed in v1. The public scripts are Windows-first because this is the environment that has been tested end to end.
-
-## Pick Your Path
-
-| You are | Start with |
-| --- | --- |
-| New to Codex | [New to Codex path](#new-to-codex-path) |
-| Already using Claude Code | [Claude Code path](#claude-code-path) |
-| Using both hosts | [Both hosts path](#both-hosts-path) |
-| Evaluating before installing | [Learn first path](#learn-first-path) |
-
-## New to Codex Path
-
-1. Open PowerShell in the SteadyAgent repository.
-2. Validate the checkout:
+## 1. Validate the checkout
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-3. Preview what would be installed for Codex:
+## 2. Preview
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Codex
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```
 
-4. Review the `DRY-RUN` output. It should show `WOULD copy` and `WOULD render` lines. No files are written during this step.
-5. Apply only after the plan looks right:
+Dry-run is the default and writes nothing.
+
+## 3. Apply
+
+Fresh installation:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Codex -Apply
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
 
-6. Smoke-test the installed hook runtime:
+Replace an existing workflow:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\test-agent-hooks.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-7. Enable Codex managed hooks. Preview first:
+Use an elevated PowerShell window when writing the default `%ProgramData%\OpenAI\Codex\requirements.toml`.
+
+## 4. Restart and diagnose
+
+Restart Codex Desktop, then run:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\enable-codex-hooks.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive
 ```
 
-Then run the same command from an elevated PowerShell session with `-Apply` after reviewing the plan.
+Do not treat installed files or script smoke tests as proof that an old Codex task loaded new managed Hooks. A restarted task and `fail=0` diagnosis are required.
 
-8. Restart Codex.
+## 5. Roll back if needed
 
-9. Diagnose the complete setup:
+Use the receipt path printed by the installer. Preview first, then add `-Apply`:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\diagnose-install.ps1" -HostTarget Codex -RequireHooksActive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json" -Apply
 ```
 
-10. Start Codex in the repository where you want to work. If your host does not automatically load the installed instructions, paste this first prompt:
-
-```text
-Use the SteadyAgent workflow for this repository. First inspect the repo and the relevant docs, then give me a short plan before edits. After edits, run the smallest relevant validation and report changed files, verification, risks, and Git status.
-```
-
-## Claude Code Path
-
-1. Preview the Claude Code install:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Claude
-```
-
-2. Apply after reviewing the dry-run plan:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Claude -Apply
-```
-
-3. Smoke-test the installed hook runtime:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.claude\tools\test-agent-hooks.ps1"
-```
-
-4. Merge the rendered hook settings into your Claude Code settings only after you understand the generated file. The generated file is:
-
-```text
-$HOME\.claude\settings.hooks.example.json
-```
-
-Merge its `hooks` object into:
-
-```text
-$HOME\.claude\settings.json
-```
-
-5. Restart Claude Code.
-
-6. Diagnose the complete setup:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.claude\tools\diagnose-install.ps1" -HostTarget Claude -RequireHooksActive
-```
-
-See [activation-guide.md](activation-guide.md) for the hook lifecycle and safety boundaries.
-
-## Both Hosts Path
-
-Preview a separated install tree first:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Both -TargetRoot .\steadyagent-install-preview
-```
-
-When you are ready to install into the default host roots, run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Both -Apply
-```
-
-The default roots are `$HOME\.codex` for Codex and `$HOME\.claude` for Claude Code. If files already exist, the installer refuses to overwrite them unless you pass `-Overwrite`. Review existing files before doing that.
-
-## Learn First Path
-
-Read these in order:
-
-1. [how-it-works.md](how-it-works.md): what SteadyAgent installs and why each layer exists.
-2. [feature-map.md](feature-map.md): how each feature maps to files, install locations, triggers, and checks.
-3. [activation-guide.md](activation-guide.md): how to make Codex and Claude Code load the installed hooks.
-4. [workflow-examples.md](workflow-examples.md): prompts for bug fixes, features, reviews, long tasks, and release checks.
-5. [tools.md](tools.md): exact commands and tool behavior.
-6. [hook-runtime.md](hook-runtime.md): lifecycle hook examples and what they can or cannot enforce.
-
-## What Gets Installed
-
-| Installed item | Purpose |
-| --- | --- |
-| `AGENTS.md` or `CLAUDE.md` | Short always-on instructions for the selected host. |
-| `rules/` | Progressive workflow, verification, review, context, and safety rules. |
-| `skills/steadyagent-workflow/` | A reusable workflow skill with references and agent metadata. |
-| `tools/hooks/agent-hook-*.ps1` | Public hook scripts for reminders, context injection, command checks, file checks, permission checks, audit logging, and pre-compact reminders. |
-| `tools/test-agent-hooks.ps1` | A smoke test for the installed hook runtime. |
-| `tools/diagnose-install.ps1` | A diagnosis script that checks installed files, active host config, and hook smoke tests. |
-| `tools/enable-codex-hooks.ps1` | A Codex helper that writes the managed hook manifest only after dry-run review and elevated approval. |
-| Rendered hook config example | A host-specific config file with the selected install root substituted in place of `%STEADYAGENT_HOME%`. |
-
-## Daily Use
-
-For normal work, ask your agent for the outcome you want, then expect SteadyAgent to shape the process:
-
-```text
-Fix the failing login test. Use SteadyAgent: inspect first, keep the change scoped, run the smallest relevant validation, and checkpoint only after review.
-```
-
-The agent should report:
-
-- what it changed
-- what it ran to verify the change
-- any remaining risk
-- Git status
-
-## Troubleshooting
-
-- If PowerShell blocks a script, use `-ExecutionPolicy Bypass` as shown in the examples.
-- If install fails because a target already exists, run the dry-run again and compare the existing files before using `-Overwrite`.
-- If a host does not load global instructions automatically, paste the first prompt from this guide at the start of the task.
-- If hook behavior is unclear, run `tools/test-agent-hooks.ps1` in the installed target root and read [hook-runtime.md](hook-runtime.md).
-- If hook scripts pass but live hooks do not react, read [activation-guide.md](activation-guide.md) and run `tools/diagnose-install.ps1 -RequireHooksActive`.
+Rollback stops before writing if an installed file, removed V1 path, snapshot, or Git Hook path drifted.

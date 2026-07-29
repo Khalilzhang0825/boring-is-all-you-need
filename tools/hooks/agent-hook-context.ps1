@@ -35,10 +35,11 @@ function Find-StateFile {
 }
 
 $lines = New-Object System.Collections.Generic.List[string]
-$lines.Add("SteadyAgent global reminder:")
-$lines.Add("- Read the closest AGENTS.md or CLAUDE.md plus project state before editing.")
+$lines.Add("SteadyAgent Codex host contract:")
+$lines.Add("- Read the closest AGENTS.md plus project state before editing.")
 $lines.Add("- Keep context lean; load detailed rules only when needed.")
 $lines.Add("- Run preflight before edits and verify before claiming completion.")
+$lines.Add("- Multi-file changes alone do not require independent review; use review for real risk or an explicit request.")
 $lines.Add("- Use explicit-file checkpoint commits; do not push unless asked.")
 
 if ($source -eq "compact" -or $source -eq "resume") {

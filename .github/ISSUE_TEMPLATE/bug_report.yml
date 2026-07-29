@@ -24,9 +24,7 @@ body:
     attributes:
       label: Host
       options:
-        - Codex
-        - Claude Code
-        - Both
+        - Codex Desktop
         - Other
     validations:
       required: true

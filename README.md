@@ -1,286 +1,155 @@
-# SteadyAgent
+# SteadyAgent 2
 
 **Ship with evidence, not vibes.**
 
-SteadyAgent is a local-first workflow harness for AI coding agents such as Codex and Claude Code. It turns loose agent chats into a repeatable engineering loop: understand the task, inspect the repository, plan the change, make the smallest useful edit, verify behavior, review the result, and checkpoint the work.
+SteadyAgent `v2.0.0` is a Codex Desktop workflow replacement for Windows. One reviewed command migrates an existing Codex setup to the same lightweight, risk-driven harness used by the maintainer: scoped work, deterministic guardrails, state recovery, explicit verification, fresh review for real risk, and checkpoint commits.
 
 [中文说明](README.zh-CN.md)
 
-> Status: v1.0.0 is released. This checkout includes public templates, progressive rules, validation gates, Windows-first tools, hook runtime assets, host activation docs, and release-readiness evidence.
+## What changed in 2.0.0
 
-## Start Here
+- Codex Desktop is the only supported host.
+- The runtime is reduced to exactly four managed hook blocks: one `SessionStart`, two `PreToolUse` guards, and one `PreCompact`.
+- `UserPromptSubmit`, `PermissionRequest`, and `PostToolUse` are not installed.
+- File count alone no longer triggers independent review.
+- Command and file guards recursively inspect nested parallel calls and fail closed when a matched payload cannot be understood.
+- Guard logs contain only a fixed reason, normalized tool name, and input SHA-256.
+- Git checkpointing uses an isolated index, explicit files, scope revalidation, and a single-writer lock.
+- Installation and V1 migration are transactional: preview, conflict detection, backup, atomic apply, verification, receipt, and rollback.
+- A versioned V1-owned-file manifest removes the old Codex release surface during authorized replacement and restores it from the same receipt if rolled back.
 
-If you are new, start with [docs/getting-started.md](docs/getting-started.md). It gives separate paths for new Codex users, Claude Code users, dual-host users, and people who want to evaluate before installing.
+## Why Codex only
 
-Use this map to choose the right entry point:
+The maintainer stopped publishing Anthropic/Claude compatibility after Anthropic terminated the maintainer's account. This is a statement about the maintainer's own experience and product decision.
 
-| Need | Read this |
-| --- | --- |
-| Install SteadyAgent for the first time | [docs/getting-started.md](docs/getting-started.md) |
-| Understand what every feature maps to | [docs/feature-map.md](docs/feature-map.md) |
-| Make Codex or Claude Code hooks actually run | [docs/activation-guide.md](docs/activation-guide.md) |
-| Understand the architecture | [docs/how-it-works.md](docs/how-it-works.md) |
-| Try real prompts | [docs/workflow-examples.md](docs/workflow-examples.md) |
-| Look up exact commands | [docs/tools.md](docs/tools.md) |
-| Understand hook lifecycle behavior | [docs/hook-runtime.md](docs/hook-runtime.md) |
+> A company that can close the door faster than it can explain the door should not expect open-source maintainers to keep polishing its welcome mat.
 
-## What SteadyAgent Solves
+Historical V1 releases remain in Git history. V2 does not ship Claude templates, settings, hooks, tests, or installation paths.
 
-AI coding agents are useful, but they fail in predictable ways:
+## Safety first
 
-- they edit before understanding the repository
-- they drift from the requested scope
-- they claim completion without running checks
-- they lose task state during long sessions
-- they treat risky shell or Git commands too casually
-- they leave weak evidence for humans to review later
+The installer is dry-run by default:
 
-SteadyAgent wraps the agent you already use with a local workflow, deterministic scripts, optional hooks, and release checks. It is not a new model, a cloud service, or a replacement for human review.
-
-## The Core Loop
-
-```text
-understand -> plan -> red check -> smallest change -> green check -> review -> checkpoint
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```
 
-Every public file in this repository supports one part of that loop.
+It shows every destination, existing conflict, managed Hook replacement, and Git Hook change without writing files.
 
-| Loop step | SteadyAgent support |
+After reviewing the plan, perform a fresh installation:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
+```
+
+To replace an existing SteadyAgent V1 or custom Codex workflow:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
+```
+
+Run the replacement command from an elevated PowerShell window when the active Codex managed configuration is under `%ProgramData%`.
+
+The installer:
+
+1. renders the portable package for the current machine;
+2. validates every source and destination before writing;
+3. blocks unknown existing differences unless replacement was explicitly authorized;
+4. snapshots every existing target and the previous Git Hook path;
+5. backs up and removes known V1-owned files from the old Codex location;
+6. applies files atomically under a session-wide SteadyAgent migration mutex;
+7. verifies every write and the complete final plan;
+8. restores all changed targets if any step fails;
+9. writes a machine-readable `migration-receipt.json`.
+
+It does not change the user's model or reasoning settings.
+
+To reverse a completed migration, first preview and then apply the generated receipt:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json" -Apply
+```
+
+Rollback verifies the receipt, every installed file, every original snapshot, and the active Git Hook path before writing anything. If an installed file drifted, it stops with zero writes. Use only a receipt generated by your own SteadyAgent installation.
+
+## After installation
+
+Restart Codex Desktop, then run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive
+```
+
+Expected result:
+
+```text
+RESULT pass=<n> warn=0 fail=0
+```
+
+The diagnosis verifies installed assets, empty user hooks, the exact four-block managed matrix, every known V1-owned Codex file is absent, rendered paths, the active Git Hook path, and the installed Hook smoke suite.
+
+## Daily workflow
+
+```text
+understand -> plan -> red check -> smallest change -> green check -> review when risk requires it -> checkpoint
+```
+
+SteadyAgent instructs Codex to:
+
+- inspect the repository before editing;
+- diagnose before fixing;
+- preserve unrelated work;
+- run the narrowest relevant validation;
+- call a fresh reviewer only for explicit review requests or material risk;
+- checkpoint only explicit files;
+- avoid push, publish, deployment, migration, installation, and destructive actions without authorization;
+- preserve task state before compaction and restore it afterward.
+
+## Main commands
+
+| Command | Purpose |
 | --- | --- |
-| Understand | Short host instructions plus progressive rules. |
-| Plan | Workflow routing and scoped task planning. |
-| Red check | Reproduce or identify observable evidence before editing. |
-| Smallest change | Rules that keep edits focused. |
-| Green check | Validation scripts, tests, lint, docs checks, or hook smoke tests. |
-| Review | Independent review gates before checkpointing risky or multi-file work. |
-| Checkpoint | Explicit Git checkpoint workflow with scoped file staging. |
+| `tools/install.ps1` | Dry-run or transactionally migrate the Codex workflow. |
+| `tools/rollback.ps1` | Dry-run or transactionally restore a completed migration receipt. |
+| `tools/diagnose-install.ps1` | Verify installed assets and active Codex managed hooks. |
+| `tools/test-v2-migration.ps1` | Exercise fresh install, replacement, conflict, and rollback fixtures. |
+| `tools/test-agent-hooks.ps1` | Verify SessionStart, guards, logs, and PreCompact behavior. |
+| `tools/test-git-checkpoint.ps1` | Verify explicit-file checkpoint transactions. |
+| `tools/test-pre-commit.ps1` | Verify staged secret and oversized-blob protection. |
+| `tools/validate-release-readiness.ps1` | Run the complete public V2 release gate. |
 
-## Available Today
+## Runtime architecture
 
-The current release includes:
+| Layer | Responsibility |
+| --- | --- |
+| `templates/codex/AGENTS.md` | Short always-on Codex contract. |
+| `rules/` | Progressive workflow, verification, review, skill, context, and safety rules. |
+| `tools/hooks/` | Fail-closed command/file guards, SessionStart state injection, and PreCompact reminder. |
+| `tools/git-checkpoint.ps1` | Scoped and recoverable local commits. |
+| `tools/git-hooks/` | Global pre-commit defense. |
+| `skills/steadyagent-workflow/` | Explicit reusable SteadyAgent workflow skill. |
+| `tools/install.ps1` | Portable renderer and transactional migration engine. |
+| `tools/rollback.ps1` | Receipt-bound, drift-aware transaction reversal. |
 
-- Codex and Claude Code entry templates in `templates/`
-- progressive workflow, verification, review, context, and safety rules in `rules/`
-- the packaged `steadyagent-workflow` skill in `skills/steadyagent-workflow/`
-- Windows-first PowerShell tools in `tools/`
-- a dry-run installer in `tools/install.ps1`
-- hook smoke test coverage through `tools/test-agent-hooks.ps1`
-- public hook scripts in `tools/hooks/`
-- install diagnosis through `tools/diagnose-install.ps1`
-- Codex managed-hook activation through `tools/enable-codex-hooks.ps1`
-- release-readiness validation through `tools/validate-release-readiness.ps1`
-- beginner, architecture, activation, feature-map, tool, and workflow-example docs in `docs/`
-- release assets: MIT license, contributing guide, security policy, release notes, issue templates, PR template, and GitHub validation workflow
+Hooks reduce common mistakes but are not a complete security sandbox. Human authorization and repository-specific validation remain necessary.
 
-## Quick Start
-
-From a clean checkout, first verify the public package:
+## Release validation
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-For the focused public tool surface check:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
-```
-
-Preview the install plan for both hosts without touching your real host directories:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Both -TargetRoot .\steadyagent-install-preview
-```
-
-Preview the install plan for Codex:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Codex
-```
-
-Preview the install plan for Claude Code:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Claude
-```
-
-Apply only after reviewing the dry-run output:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Codex -Apply
-```
-
-or:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -HostTarget Claude -Apply
-```
-
-Smoke-test the installed hook runtime:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\test-agent-hooks.ps1"
-```
-
-or:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.claude\tools\test-agent-hooks.ps1"
-```
-
-That smoke test proves the hook scripts work. It does not prove the host has loaded them. To make live hooks react inside Codex or Claude Code, complete host activation and restart the host.
-
-For Codex, preview activation first:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\enable-codex-hooks.ps1"
-```
-
-Then run it from an elevated PowerShell session with `-Apply` after reviewing the plan.
-
-Claude Code users should merge `$HOME\.claude\settings.hooks.example.json` into `$HOME\.claude\settings.json`, then restart Claude Code.
-
-After activation, diagnose the complete setup:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.codex\tools\diagnose-install.ps1" -HostTarget Both -RequireHooksActive
-```
-
-## How To Use It Day To Day
-
-Open your project in Codex or Claude Code and ask for the outcome you want. Add `Use SteadyAgent` when you want the agent to follow this harness explicitly:
-
-```text
-Use SteadyAgent. Fix the failing login test. Inspect the repo first, keep the change scoped, run the smallest relevant validation, and report changed files, verification, risks, and Git status.
-```
-
-Expected behavior:
-
-- the agent inspects the repository before editing
-- complex or risky work gets a short plan first
-- the change stays scoped to the task
-- validation is run before completion is claimed
-- remaining risk and Git status are reported
-- risky shell, file, and permission actions can be blocked when hooks are active
-
-## Activation vs Installation
-
-Installation copies files. Activation makes the host load hook config.
-
-| State | What works |
-| --- | --- |
-| Installed only | Entry instructions, rules, skill files, scripts, docs, and hook smoke tests. |
-| Activated and restarted | Live hook reminders, command guard, file guard, permission guard, audit log, and pre-compact reminders. |
-
-Use [docs/activation-guide.md](docs/activation-guide.md) when a user says hooks do not react after installing.
-
-## Main Commands
-
-| Command | Purpose |
-| --- | --- |
-| `tools/install.ps1` | Preview or apply host installation. |
-| `tools/diagnose-install.ps1` | Check installed files, rendered configs, active host config, and hook smoke tests. |
-| `tools/enable-codex-hooks.ps1` | Safely install Codex managed hooks with dry-run, backup, and elevated-write checks. |
-| `tools/test-agent-hooks.ps1` | Send real hook event JSON through stdin and verify hook script behavior. |
-| `tools/git-preflight.ps1` | Check repository state before work. |
-| `tools/git-checkpoint.ps1` | Create explicit scoped checkpoint commits. |
-| `tools/validate-release-readiness.ps1` | Validate public release assets, links, fresh install, diagnostics, and hook runtime behavior. |
-
-See [docs/tools.md](docs/tools.md) for command details.
-
-## Project Map
-
-| Path | Role |
-| --- | --- |
-| `AGENTS.md` | Compact contributor guide for Codex inside this repository. |
-| `CLAUDE.md` | Compact contributor guide for Claude Code inside this repository. |
-| `templates/codex/` | Installable Codex entry instructions and managed-hook manifest example. |
-| `templates/claude/` | Installable Claude Code entry instructions and settings hook example. |
-| `rules/` | Progressive workflow rules for routing, verification, review, context, and safety. |
-| `skills/steadyagent-workflow/` | Portable workflow skill with references and agent metadata. |
-| `tools/` | Installer, diagnostics, Git helpers, validation gates, and hook smoke tests. |
-| `tools/hooks/` | Public lifecycle hook scripts. |
-| `docs/` | User guides, implementation explanation, activation guide, feature map, examples, release docs. |
-
-## Safety Model
-
-SteadyAgent separates guidance from enforcement:
-
-| Layer | Purpose | Example |
-| --- | --- | --- |
-| Instructions | Set default agent behavior | Keep changes scoped, verify behavior, report risks. |
-| Rules | Load deeper workflow only when needed | Review gates, context recovery, safety boundaries. |
-| Scripts | Make repeated checks deterministic | Git preflight, checkpoint commits, release validation. |
-| Hooks | Block or audit supported lifecycle events | Dangerous shell commands, secret-file edits, permission requests. |
-| Reviews | Catch gaps before checkpointing | Findings-first independent review. |
-
-Hooks are useful but not a complete security boundary. They reduce common mistakes. Human review and explicit approval still matter.
+The release gate checks PowerShell 5.1 syntax, public paths and secrets, Codex-only assets, documentation links, migration fixtures, Hook behavior, checkpoint/pre-commit behavior, fresh installation, installed diagnosis, and release metadata.
 
 ## Compatibility
 
-SteadyAgent is designed around local developer machines first.
+- Windows 10/11
+- Windows PowerShell 5.1
+- Codex Desktop managed hooks
+- Git for Windows
 
-| Host | v1 intent | Enforcement level |
-| --- | --- | --- |
-| Codex | Instructions, skills, validation scripts, managed hook templates, Git checkpoint workflow | Strong guidance plus managed lifecycle hooks where available. |
-| Claude Code | Instructions, skills, validation scripts, lifecycle hooks, Git checkpoint workflow | Stronger deterministic enforcement through settings hooks. |
-| Other coding agents | Manual reuse of public rules and scripts | Best-effort until host-specific adapters exist. |
-
-The first public release is Windows-first because the original workflow was proven on Windows and PowerShell. Linux and macOS support should be added through tested scripts, not README promises.
-
-## What SteadyAgent Is Not
-
-SteadyAgent is not:
-
-- a new coding agent
-- a model router
-- a cloud orchestration platform
-- a replacement for human review
-- a security product that can guarantee secret detection
-- a promise that every host can enforce the same rules
-
-It is a practical harness for making local AI coding work more observable, safer, and easier to recover.
-
-## Release Evidence
-
-The v1.0.0 release is built around reproducible checks:
-
-- `tools/validate-release-readiness.ps1` verifies release assets, Markdown links, fresh workspace installation, rendered host configs, install diagnostics, and installed hook smoke tests.
-- `tools/validate-phase3.ps1` verifies the public tool surface and installer behavior.
-- `tools/validate-runtime-slice.ps1` verifies the hook runtime slice.
-- `tools/test-agent-hooks.ps1` sends real hook event JSON through stdin for smoke coverage.
-- `tools/diagnose-install.ps1` checks whether installed assets and active host hook config are present.
-- `tools/enable-codex-hooks.ps1` safely installs the Codex managed hook manifest with dry-run, backup, and elevated-write checks.
-
-See [docs/release-checklist.md](docs/release-checklist.md) for maintainer release checks and [docs/github-publication-runbook.md](docs/github-publication-runbook.md) for GitHub push, PR, metadata, tag, and release steps.
-
-## Who This Is For
-
-SteadyAgent is for developers who already use AI coding agents and want a more reliable local workflow before trusting them with larger tasks.
-
-It is especially useful if you care about:
-
-- repository hygiene
-- scoped changes
-- reproducible verification
-- safer Git operations
-- long-task continuity
-- reviewable evidence
-
-## Design Principles
-
-- Keep always-on context short.
-- Turn repeated workflow rules into scripts or hooks.
-- Verify behavior, not confidence.
-- Make incomplete work visible.
-- Prefer local-first control before cloud automation.
-- Treat every public release as an audited artifact.
-
-## Resume Case Study
-
-SteadyAgent is also a case study in harness engineering: designing the environment around coding agents so they can operate with clearer scope, safer tools, stronger verification, and better human oversight.
-
-See [docs/resume-case-study.md](docs/resume-case-study.md) for the project narrative.
+Linux, macOS, other coding agents, and Anthropic products are not part of the V2 support contract.
 
 ## License
 

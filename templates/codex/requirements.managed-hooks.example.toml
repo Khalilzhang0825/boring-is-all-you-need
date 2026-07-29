@@ -6,22 +6,15 @@ unified_exec = false
 windows_managed_dir = '%STEADYAGENT_HOME%\tools\hooks'
 
 [[hooks.SessionStart]]
-matcher = "^(startup|resume|compact|clear)$"
+matcher = "startup|resume|compact|clear"
 [[hooks.SessionStart.hooks]]
 type = "command"
 command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-context.ps1"'
 timeout = 60
 statusMessage = "Loading SteadyAgent context"
 
-[[hooks.UserPromptSubmit]]
-[[hooks.UserPromptSubmit.hooks]]
-type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-prompt-reminder.ps1"'
-timeout = 60
-statusMessage = "Loading SteadyAgent prompt guardrails"
-
 [[hooks.PreToolUse]]
-matcher = "^(Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel)$"
+matcher = "Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel"
 [[hooks.PreToolUse.hooks]]
 type = "command"
 command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-command-guard.ps1"'
@@ -29,31 +22,15 @@ timeout = 60
 statusMessage = "Checking command guardrails"
 
 [[hooks.PreToolUse]]
-matcher = "^(apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch|multi_tool_use[.]parallel)$"
+matcher = "apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch|multi_tool_use[.]parallel"
 [[hooks.PreToolUse.hooks]]
 type = "command"
 command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-file-guard.ps1"'
 timeout = 60
 statusMessage = "Checking file guardrails"
 
-[[hooks.PermissionRequest]]
-matcher = "^(Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel)$"
-[[hooks.PermissionRequest.hooks]]
-type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-permission-guard.ps1"'
-timeout = 60
-statusMessage = "Checking permission guardrails"
-
-[[hooks.PostToolUse]]
-matcher = "^(Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel|apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch)$"
-[[hooks.PostToolUse.hooks]]
-type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-posttool-audit.ps1"'
-timeout = 60
-statusMessage = "Recording tool audit"
-
 [[hooks.PreCompact]]
-matcher = "^(manual|auto)$"
+matcher = "manual|auto"
 [[hooks.PreCompact.hooks]]
 type = "command"
 command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-precompact.ps1"'

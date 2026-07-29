@@ -1,5 +1,21 @@
 # Release Notes
 
+## v2.0.0
+
+SteadyAgent 2 is a breaking, Codex-only release.
+
+- replaces the dual-host V1 package with a Codex Desktop workflow migration;
+- installs exactly four managed Hook blocks;
+- removes UserPromptSubmit, PermissionRequest, PostToolUse and all Claude release assets;
+- changes independent review from file-count-based to material-risk-based;
+- hardens nested Guard parsing, audit privacy, sensitive path classification, checkpoint isolation and pre-commit checks;
+- adds dry-run-first transactional installation, V1 conflict detection, explicit replacement authorization, full backup, atomic apply, final verification, and receipt-driven successful-migration rollback;
+- adds a versioned V1-owned-file tombstone manifest so authorized replacement removes the old Codex release surface and the same receipt restores it;
+- activates the scoped global pre-commit path as part of the same authorized transaction;
+- adds dedicated migration, Hook, checkpoint and pre-commit regression suites.
+
+V1 users must preview the migration and then run `tools/install.ps1 -Apply -ReplaceExistingWorkflow`. Restart Codex Desktop and require a clean diagnosis before trusting Live Hooks.
+
 ## v1.0.0
 
 SteadyAgent v1 turns the original personal workflow into a public, bilingual, Windows-first agent harness for Codex and Claude Code.

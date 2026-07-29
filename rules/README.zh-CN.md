@@ -12,7 +12,7 @@
 
 ## 使用方式
 
-1. 先复制对应宿主模板：`templates/codex/AGENTS.md` 或 `templates/claude/CLAUDE.md`。
+1. 从 `templates/codex/AGENTS.md` 开始。
 2. 模板需要和 `rules/` 目录一起复制；如果只复制单文件，必须同步调整规则路径。
 3. 任务需要时只加载一个相关规则文件。
 4. 项目私有细节放在项目自己的仓库，不放进公开模板。

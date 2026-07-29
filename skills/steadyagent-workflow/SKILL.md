@@ -1,6 +1,6 @@
 ---
 name: steadyagent-workflow
-description: Local-first AI coding agent workflow for Codex and Claude Code. Use when planning, debugging, reviewing, refactoring, creating or improving AGENTS.md/CLAUDE.md, building skills, publishing agent harness repositories, or running complex multi-step coding tasks that need staged diagnosis, context control, verification loops, subagent strategy, release evidence, and anti-overengineering guardrails.
+description: Local-first Codex workflow for planning, debugging, reviewing, refactoring, improving AGENTS.md, building skills, publishing agent harness repositories, or running complex multi-step coding tasks that need staged diagnosis, context control, verification loops, review strategy, release evidence, and anti-overengineering guardrails.
 ---
 
 # SteadyAgent Workflow
@@ -18,7 +18,7 @@ Use this skill to structure non-trivial AI coding agent work. Keep the main cont
 ## Staged Workflow
 
 1. Diagnose
-   - Read the current AGENTS.md/CLAUDE.md, README, task docs, and directly relevant code.
+   - Read the current AGENTS.md, README, task docs, and directly relevant code.
    - Identify the time scale: short-term stopgap, transitional workflow, or long-term system.
    - Surface conflicts instead of blending incompatible requirements or conventions.
 
@@ -50,8 +50,7 @@ Use this skill to structure non-trivial AI coding agent work. Keep the main cont
 
 Load only what the task needs:
 
-- `references/operating-principles.md`: when designing workflows, AGENTS.md/CLAUDE.md, stage gates, or long-running collaboration rules.
-- `references/claude-code-practices.md`: when using Claude Code patterns, HTML artifacts, subagents, CLAUDE.md, code review, tools, or large-codebase workflows.
+- `references/operating-principles.md`: when designing workflows, AGENTS.md, stage gates, or long-running collaboration rules.
 - `references/karpathy-guardrails.md`: when writing, reviewing, refactoring, or debugging code and overengineering/scope creep is a risk.
 - `references/mnilax-extensions.md`: when tasks involve conflicting conventions, flaky tests, long loops, partial failures, or deterministic runtime decisions.
 - `references/prompt-recipes.md`: when the user asks for reusable prompts or when a task would benefit from a precise prompt template.
@@ -80,4 +79,4 @@ Before claiming completion:
 - The task goal is met.
 - Verification evidence is available.
 - Partial failures, skipped steps, and residual risks are explicit.
-- Any durable rule or workflow learning is recorded in the right layer: AGENTS.md/CLAUDE.md for always-on rules, this skill for workflow, references for detailed knowledge.
+- Any durable rule or workflow learning is recorded in the right layer: AGENTS.md for always-on rules, this skill for workflow, references for detailed knowledge.

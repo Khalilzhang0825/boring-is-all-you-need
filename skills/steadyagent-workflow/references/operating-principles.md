@@ -1,6 +1,6 @@
 # Operating Principles
 
-Use this reference when designing agent workflows, AGENTS.md/CLAUDE.md files, stage gates, or long-running collaboration rules.
+Use this reference when designing Codex workflows, AGENTS.md files, stage gates, or long-running collaboration rules.
 
 ## Core Rules
 
@@ -17,7 +17,7 @@ Use this reference when designing agent workflows, AGENTS.md/CLAUDE.md files, st
 
 ## Context Layers
 
-- Always-on rules: AGENTS.md and CLAUDE.md.
+- Always-on rules: AGENTS.md.
 - Reusable workflow: this skill.
 - Detailed knowledge: references.
 - Task state: project docs or task notes.

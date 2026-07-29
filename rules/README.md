@@ -12,7 +12,7 @@ These files are progressive rules for AI coding agents. Keep always-on templates
 
 ## Use Pattern
 
-1. Start with the template for the host: `templates/codex/AGENTS.md` or `templates/claude/CLAUDE.md`.
+1. Start with `templates/codex/AGENTS.md`.
 2. Copy the template together with the `rules/` directory, or adjust the rule paths after copying.
 3. Load one rule file when the task requires it.
 4. Keep project-specific details in the project repository, not in the public template.

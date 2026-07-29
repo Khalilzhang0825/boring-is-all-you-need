@@ -1,298 +1,159 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("Codex", "Claude", "Both")]
-    [string]$HostTarget = "Both",
-
-    [string]$CodexRoot,
-
-    [string]$ClaudeRoot,
-
-    [string]$CodexManagedConfigPath,
-
-    [string]$ClaudeSettingsPath,
-
+    [string]$TargetRoot = (Join-Path $HOME ".steadyagent"),
+    [string]$CodexHome = (Join-Path $HOME ".codex"),
+    [string]$ManagedConfigPath,
+    [string]$GitConfigPath,
     [switch]$RequireHooksActive,
-
     [switch]$SkipSmoke
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
-if (-not $CodexRoot) {
-    $CodexRoot = Join-Path $HOME ".codex"
-}
-if (-not $ClaudeRoot) {
-    $ClaudeRoot = Join-Path $HOME ".claude"
-}
-if (-not $CodexManagedConfigPath) {
-    $programData = $env:ProgramData
-    if (-not $programData) {
-        $systemDrive = $env:SystemDrive
-        if (-not $systemDrive) { $systemDrive = "C:" }
-        $programData = Join-Path $systemDrive "ProgramData"
-    }
-    $CodexManagedConfigPath = Join-Path $programData "OpenAI/Codex/requirements.toml"
-}
-if (-not $ClaudeSettingsPath) {
-    $ClaudeSettingsPath = Join-Path $ClaudeRoot "settings.json"
+if (-not $ManagedConfigPath) {
+    $programDataRoot = if ($env:ProgramData) { $env:ProgramData } else { "C:\ProgramData" }
+    $ManagedConfigPath = Join-Path $programDataRoot "OpenAI\Codex\requirements.toml"
 }
 
-$script:results = New-Object System.Collections.Generic.List[object]
+$script:Passed = 0
+$script:Warned = 0
+$script:Failed = 0
 
 function Add-Result {
     param(
-        [ValidateSet("PASS", "WARN", "FAIL")]
-        [string]$Status,
+        [ValidateSet("PASS", "WARN", "FAIL")][string]$Status,
         [string]$Name,
-        [string]$Detail
+        [string]$Detail = ""
     )
-
-    $script:results.Add([PSCustomObject]@{
-        Status = $Status
-        Name = $Name
-        Detail = $Detail
-    }) | Out-Null
+    if ($Status -eq "PASS") { $script:Passed++ }
+    elseif ($Status -eq "WARN") { $script:Warned++ }
+    else { $script:Failed++ }
+    Write-Host ("{0} {1}{2}" -f $Status, $Name, $(if ($Detail) { " - " + $Detail } else { "" }))
 }
 
-function Add-Check {
-    param(
-        [string]$Name,
-        [bool]$Passed,
-        [string]$Detail,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
+function Test-File {
+    param([string]$Name, [string]$Path)
+    Add-Result $(if (Test-Path -LiteralPath $Path -PathType Leaf) { "PASS" } else { "FAIL" }) $Name $Path
+}
 
-    if ($Passed) {
-        Add-Result "PASS" $Name "OK"
+function Test-ManagedConfig {
+    param(
+        [string]$Path,
+        [string]$ExpectedPath,
+        [ValidateSet("WARN", "FAIL")][string]$MissingSeverity
+    )
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        Add-Result $MissingSeverity "Codex managed config exists" $Path
+        return
+    }
+    $text = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+    Add-Result "PASS" "Codex managed config exists"
+    if (-not (Test-Path -LiteralPath $ExpectedPath -PathType Leaf)) {
+        Add-Result "FAIL" "rendered expected managed config exists" $ExpectedPath
     }
     else {
-        Add-Result $Severity $Name $Detail
+        $expectedText = [IO.File]::ReadAllText($ExpectedPath, [Text.Encoding]::UTF8)
+        Add-Result $(if ($text -eq $expectedText) { "PASS" } else { "FAIL" }) "active managed config exactly matches the rendered V2 matrix"
+    }
+    $blocks = ([regex]::Matches($text, '(?m)^\[\[hooks[.][A-Za-z]+[.]hooks\]\]$')).Count
+    Add-Result $(if ($blocks -eq 4) { "PASS" } else { "FAIL" }) "exact four managed hook blocks" ("blocks=" + $blocks)
+    foreach ($required in @(
+        "agent-hook-context[.]ps1",
+        "agent-hook-command-guard[.]ps1",
+        "agent-hook-file-guard[.]ps1",
+        "agent-hook-precompact[.]ps1"
+    )) {
+        Add-Result $(if ($text -match $required) { "PASS" } else { "FAIL" }) ("managed config includes " + $required)
+    }
+    Add-Result $(if ($text -notmatch "UserPromptSubmit|PermissionRequest|PostToolUse") { "PASS" } else { "FAIL" }) "high-frequency lifecycle hooks are absent"
+    Add-Result $(if ($text -notmatch "%STEADYAGENT_HOME%") { "PASS" } else { "FAIL" }) "managed paths are rendered"
+}
+
+$targetFull = [IO.Path]::GetFullPath($TargetRoot)
+$codexFull = [IO.Path]::GetFullPath($CodexHome)
+$managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
+
+Write-Host "SteadyAgent 2.0.0 Codex diagnosis"
+Write-Host ("TargetRoot: " + $targetFull)
+Write-Host ("CodexHome: " + $codexFull)
+Write-Host ("ManagedConfigPath: " + $managedFull)
+
+Test-File "Codex AGENTS installed" (Join-Path $codexFull "AGENTS.md")
+Test-File "Codex user hooks installed" (Join-Path $codexFull "hooks.json")
+Test-File "workflow rule installed" (Join-Path $targetFull "rules\workflow-routing.md")
+Test-File "review rule installed" (Join-Path $targetFull "rules\review-gates.md")
+Test-File "safety rule installed" (Join-Path $targetFull "rules\safety-boundaries.md")
+Test-File "workflow skill installed" (Join-Path $codexFull "skills\steadyagent-workflow\SKILL.md")
+foreach ($hook in @(
+    "agent-hook-utils.ps1",
+    "agent-hook-context.ps1",
+    "agent-hook-command-guard.ps1",
+    "agent-hook-file-guard.ps1",
+    "agent-hook-precompact.ps1"
+)) {
+    Test-File ("hook installed: " + $hook) (Join-Path $targetFull ("tools\hooks\" + $hook))
+}
+Test-File "protected path policy installed" (Join-Path $targetFull "tools\protected-path-policy.ps1")
+Test-File "rollback tool installed" (Join-Path $targetFull "tools\rollback.ps1")
+Test-File "pre-commit entrypoint installed" (Join-Path $targetFull "tools\git-hooks\pre-commit")
+Test-File "pre-commit guard installed" (Join-Path $targetFull "tools\git-hooks\pre-commit-check.ps1")
+$legacyManifest = Join-Path $targetFull "manifests\v1-codex-owned-files.txt"
+Test-File "V1-owned file manifest installed" $legacyManifest
+$expectedManagedConfig = Join-Path $targetFull "manifests\codex-requirements.expected.toml"
+Test-File "rendered expected managed config installed" $expectedManagedConfig
+if (Test-Path -LiteralPath $legacyManifest -PathType Leaf) {
+    foreach ($relative in @([IO.File]::ReadAllLines($legacyManifest, [Text.Encoding]::UTF8))) {
+        if (-not $relative.Trim()) { continue }
+        $removedPath = Join-Path $codexFull $relative.Trim()
+        Add-Result $(if (-not (Test-Path -LiteralPath $removedPath)) { "PASS" } else { "FAIL" }) ("V1-owned Codex file absent: " + $relative.Trim())
     }
 }
 
-function Read-TextFile {
-    param([string]$Path)
-
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        return $null
-    }
-    return [System.IO.File]::ReadAllText($Path, [System.Text.Encoding]::UTF8)
-}
-
-function Test-FilePresent {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    Add-Check $Name (Test-Path -LiteralPath $Path -PathType Leaf) ("Missing file: " + $Path) $Severity
-}
-
-function Test-DirectoryPresent {
-    param(
-        [string]$Path,
-        [string]$Name,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    Add-Check $Name (Test-Path -LiteralPath $Path -PathType Container) ("Missing directory: " + $Path) $Severity
-}
-
-function Test-TextPattern {
-    param(
-        [string]$Name,
-        [string]$Text,
-        [string]$Pattern,
-        [string]$Detail,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    Add-Check $Name (($null -ne $Text) -and ($Text -match $Pattern)) $Detail $Severity
-}
-
-function Test-NoPlaceholder {
-    param(
-        [string]$Name,
-        [string]$Text,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    Add-Check $Name (($null -ne $Text) -and (-not ($Text -match "%STEADYAGENT_HOME%"))) "Config still contains %STEADYAGENT_HOME%" $Severity
-}
-
-function Test-CodexManifestShape {
-    param(
-        [string]$Path,
-        [string]$Label,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    $text = Read-TextFile $Path
-    Test-FilePresent $Path ($Label + " exists") $Severity
-    Test-NoPlaceholder ($Label + " has rendered paths") $text $Severity
-    Test-TextPattern ($Label + " enables hooks feature") $text "\[features\]" "Missing [features] section" $Severity
-    Test-TextPattern ($Label + " declares hook root") $text "windows_managed_dir" "Missing windows_managed_dir" $Severity
-    Test-TextPattern ($Label + " registers SessionStart") $text "SessionStart" "Missing SessionStart hook event" $Severity
-    Test-TextPattern ($Label + " registers UserPromptSubmit") $text "UserPromptSubmit" "Missing UserPromptSubmit hook event" $Severity
-    Test-TextPattern ($Label + " registers PreToolUse") $text "PreToolUse" "Missing PreToolUse hook event" $Severity
-    Test-TextPattern ($Label + " registers PermissionRequest") $text "PermissionRequest" "Missing PermissionRequest hook event" $Severity
-    Test-TextPattern ($Label + " registers PostToolUse") $text "PostToolUse" "Missing PostToolUse hook event" $Severity
-    Test-TextPattern ($Label + " registers PreCompact") $text "PreCompact" "Missing PreCompact hook event" $Severity
-    Test-TextPattern ($Label + " registers context hook") $text "agent-hook-context[.]ps1" "Missing context hook" $Severity
-    Test-TextPattern ($Label + " registers prompt reminder") $text "agent-hook-prompt-reminder[.]ps1" "Missing prompt reminder hook" $Severity
-    Test-TextPattern ($Label + " registers command guard") $text "agent-hook-command-guard[.]ps1" "Missing command guard hook" $Severity
-    Test-TextPattern ($Label + " registers file guard") $text "agent-hook-file-guard[.]ps1" "Missing file guard hook" $Severity
-    Test-TextPattern ($Label + " registers permission guard") $text "agent-hook-permission-guard[.]ps1" "Missing permission guard hook" $Severity
-    Test-TextPattern ($Label + " registers posttool audit") $text "agent-hook-posttool-audit[.]ps1" "Missing posttool audit hook" $Severity
-    Test-TextPattern ($Label + " registers precompact hook") $text "agent-hook-precompact[.]ps1" "Missing precompact hook" $Severity
-}
-
-function Test-ClaudeSettingsShape {
-    param(
-        [string]$Path,
-        [string]$Label,
-        [ValidateSet("WARN", "FAIL")]
-        [string]$Severity = "FAIL"
-    )
-
-    $text = Read-TextFile $Path
-    Test-FilePresent $Path ($Label + " exists") $Severity
-    Test-NoPlaceholder ($Label + " has rendered paths") $text $Severity
-    Test-TextPattern ($Label + " contains hooks object") $text '"hooks"\s*:' "Missing hooks object" $Severity
-    Test-TextPattern ($Label + " registers SessionStart") $text "SessionStart" "Missing SessionStart hook event" $Severity
-    Test-TextPattern ($Label + " registers UserPromptSubmit") $text "UserPromptSubmit" "Missing UserPromptSubmit hook event" $Severity
-    Test-TextPattern ($Label + " registers PreToolUse") $text "PreToolUse" "Missing PreToolUse hook event" $Severity
-    Test-TextPattern ($Label + " registers PermissionRequest") $text "PermissionRequest" "Missing PermissionRequest hook event" $Severity
-    Test-TextPattern ($Label + " registers PostToolUse") $text "PostToolUse" "Missing PostToolUse hook event" $Severity
-    Test-TextPattern ($Label + " registers PreCompact") $text "PreCompact" "Missing PreCompact hook event" $Severity
-    Test-TextPattern ($Label + " registers context hook") $text "agent-hook-context[.]ps1" "Missing context hook" $Severity
-    Test-TextPattern ($Label + " registers prompt reminder") $text "agent-hook-prompt-reminder[.]ps1" "Missing prompt reminder hook" $Severity
-    Test-TextPattern ($Label + " registers command guard") $text "agent-hook-command-guard[.]ps1" "Missing command guard hook" $Severity
-    Test-TextPattern ($Label + " registers file guard") $text "agent-hook-file-guard[.]ps1" "Missing file guard hook" $Severity
-    Test-TextPattern ($Label + " registers permission guard") $text "agent-hook-permission-guard[.]ps1" "Missing permission guard hook" $Severity
-    Test-TextPattern ($Label + " registers posttool audit") $text "agent-hook-posttool-audit[.]ps1" "Missing posttool audit hook" $Severity
-    Test-TextPattern ($Label + " registers precompact hook") $text "agent-hook-precompact[.]ps1" "Missing precompact hook" $Severity
-
-    if ($null -ne $text) {
-        try {
-            $null = $text | ConvertFrom-Json
-            Add-Result "PASS" ($Label + " parses as JSON") "OK"
-        }
-        catch {
-            Add-Result $Severity ($Label + " parses as JSON") $_.Exception.Message
-        }
-    }
-}
-
-function Invoke-HookSmoke {
-    param(
-        [string]$RootPath,
-        [string]$HostName
-    )
-
-    if ($SkipSmoke) {
-        Add-Result "WARN" ($HostName + " hook smoke test") "Skipped by -SkipSmoke"
-        return
-    }
-
-    $smokeScript = Join-Path $RootPath "tools/test-agent-hooks.ps1"
-    if (-not (Test-Path -LiteralPath $smokeScript -PathType Leaf)) {
-        Add-Result "FAIL" ($HostName + " hook smoke test") ("Missing file: " + $smokeScript)
-        return
-    }
-
+$hooksJsonPath = Join-Path $codexFull "hooks.json"
+if (Test-Path -LiteralPath $hooksJsonPath -PathType Leaf) {
     try {
-        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $smokeScript
+        $hooksData = [IO.File]::ReadAllText($hooksJsonPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        $hookPropertyCount = if ($hooksData.PSObject.Properties.Name -contains "hooks") {
+            @($hooksData.hooks.PSObject.Properties).Count
+        }
+        else { -1 }
+        Add-Result $(if ($hookPropertyCount -eq 0) { "PASS" } else { "FAIL" }) "Codex user hooks are empty"
+    }
+    catch { Add-Result "FAIL" "Codex user hooks parse as JSON" $_.Exception.Message }
+}
+
+$activeSeverity = if ($RequireHooksActive) { "FAIL" } else { "WARN" }
+Test-ManagedConfig -Path $managedFull -ExpectedPath $expectedManagedConfig -MissingSeverity $activeSeverity
+
+$expectedHooksPath = Join-Path $targetFull "tools\git-hooks"
+if ($GitConfigPath) {
+    $activeHooksPath = & git config --file $GitConfigPath --get core.hooksPath
+}
+else {
+    $activeHooksPath = & git config --global --get core.hooksPath
+}
+$gitHooksActive = $LASTEXITCODE -eq 0 -and
+    [string]$activeHooksPath -and
+    ([string]$activeHooksPath).Equals($expectedHooksPath, [StringComparison]::OrdinalIgnoreCase)
+Add-Result $(if ($gitHooksActive) { "PASS" } else { $activeSeverity }) "Git pre-commit path is active" ([string]$activeHooksPath)
+
+if ($SkipSmoke) {
+    Add-Result "WARN" "installed hook smoke" "skipped"
+}
+else {
+    $smoke = Join-Path $targetFull "tools\test-agent-hooks.ps1"
+    if (-not (Test-Path -LiteralPath $smoke -PathType Leaf)) {
+        Add-Result "FAIL" "installed hook smoke" ("missing " + $smoke)
+    }
+    else {
+        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $smoke
         $code = $LASTEXITCODE
-        $text = ($output | Out-String)
-        Add-Check ($HostName + " hook smoke test passes") (($code -eq 0) -and ($text -match "0 failed")) ("Smoke test failed. Output: " + $text.Trim())
-    }
-    catch {
-        Add-Result "FAIL" ($HostName + " hook smoke test") $_.Exception.Message
+        Add-Result $(if ($code -eq 0 -and ($output | Out-String) -match "fail=0") { "PASS" } else { "FAIL" }) "installed hook smoke" ($output | Out-String).Trim()
     }
 }
 
-function Test-CommonInstall {
-    param(
-        [string]$RootPath,
-        [string]$HostName,
-        [string]$InstructionFile
-    )
-
-    Test-DirectoryPresent $RootPath ($HostName + " root exists")
-    Test-FilePresent (Join-Path $RootPath $InstructionFile) ($HostName + " entry instructions installed")
-    Test-FilePresent (Join-Path $RootPath "rules/workflow-routing.md") ($HostName + " workflow rules installed")
-    Test-FilePresent (Join-Path $RootPath "rules/verification.md") ($HostName + " verification rules installed")
-    Test-FilePresent (Join-Path $RootPath "rules/review-gates.md") ($HostName + " review rules installed")
-    Test-FilePresent (Join-Path $RootPath "rules/context-management.md") ($HostName + " context rules installed")
-    Test-FilePresent (Join-Path $RootPath "rules/safety-boundaries.md") ($HostName + " safety rules installed")
-    Test-FilePresent (Join-Path $RootPath "skills/steadyagent-workflow/SKILL.md") ($HostName + " workflow skill installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-utils.ps1") ($HostName + " hook utilities installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-context.ps1") ($HostName + " context hook installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-prompt-reminder.ps1") ($HostName + " prompt reminder hook installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-command-guard.ps1") ($HostName + " command guard installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-file-guard.ps1") ($HostName + " file guard installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-permission-guard.ps1") ($HostName + " permission guard installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-posttool-audit.ps1") ($HostName + " posttool audit hook installed")
-    Test-FilePresent (Join-Path $RootPath "tools/hooks/agent-hook-precompact.ps1") ($HostName + " precompact hook installed")
-    Test-FilePresent (Join-Path $RootPath "tools/test-agent-hooks.ps1") ($HostName + " hook smoke script installed")
-    Test-FilePresent (Join-Path $RootPath "tools/diagnose-install.ps1") ($HostName + " diagnose script installed")
-}
-
-function Test-CodexInstall {
-    Test-CommonInstall $CodexRoot "Codex" "AGENTS.md"
-    Test-FilePresent (Join-Path $CodexRoot "tools/enable-codex-hooks.ps1") "Codex hook activation helper installed"
-    Test-CodexManifestShape (Join-Path $CodexRoot "requirements.managed-hooks.example.toml") "Codex rendered hook example" "FAIL"
-    $activeSeverity = if ($RequireHooksActive) { "FAIL" } else { "WARN" }
-    Test-CodexManifestShape $CodexManagedConfigPath "Codex active managed hooks config" $activeSeverity
-    Invoke-HookSmoke $CodexRoot "Codex"
-}
-
-function Test-ClaudeInstall {
-    Test-CommonInstall $ClaudeRoot "Claude Code" "CLAUDE.md"
-    Test-ClaudeSettingsShape (Join-Path $ClaudeRoot "settings.hooks.example.json") "Claude rendered hook example" "FAIL"
-    $activeSeverity = if ($RequireHooksActive) { "FAIL" } else { "WARN" }
-    Test-ClaudeSettingsShape $ClaudeSettingsPath "Claude active settings" $activeSeverity
-    Invoke-HookSmoke $ClaudeRoot "Claude Code"
-}
-
-Write-Host "SteadyAgent install diagnosis"
-Write-Host ("HostTarget: " + $HostTarget)
-Write-Host ("CodexRoot: " + $CodexRoot)
-Write-Host ("ClaudeRoot: " + $ClaudeRoot)
-Write-Host ("CodexManagedConfigPath: " + $CodexManagedConfigPath)
-Write-Host ("ClaudeSettingsPath: " + $ClaudeSettingsPath)
-Write-Host ("RequireHooksActive: " + [string][bool]$RequireHooksActive)
-Write-Host ""
-
-if (($HostTarget -eq "Codex") -or ($HostTarget -eq "Both")) {
-    Test-CodexInstall
-}
-if (($HostTarget -eq "Claude") -or ($HostTarget -eq "Both")) {
-    Test-ClaudeInstall
-}
-
-foreach ($result in $script:results) {
-    Write-Host ("{0} {1} - {2}" -f $result.Status, $result.Name, $result.Detail)
-}
-
-$passCount = @($script:results | Where-Object { $_.Status -eq "PASS" }).Count
-$warnCount = @($script:results | Where-Object { $_.Status -eq "WARN" }).Count
-$failCount = @($script:results | Where-Object { $_.Status -eq "FAIL" }).Count
-
-Write-Host ""
-Write-Host ("RESULT pass={0} warn={1} fail={2}" -f $passCount, $warnCount, $failCount)
-
-if ($failCount -gt 0) {
-    exit 1
-}
+Write-Host ("RESULT pass={0} warn={1} fail={2}" -f $script:Passed, $script:Warned, $script:Failed)
+if ($script:Failed -gt 0) { exit 1 }
 exit 0

@@ -72,20 +72,20 @@ foreach ($pattern in $patterns) { rg -n $pattern . }
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-只有 default branch、`v1.0.0` tag、GitHub release、remote branch list 和 fresh clone history 都只指向干净公开产物时，rewrite 才算完成。
+只有 default branch、`v2.0.0` tag、GitHub release、remote branch list 和 fresh clone history 都只指向干净公开产物时，rewrite 才算完成。
 
 ## Repository Metadata
 
 推荐 GitHub description：
 
 ```text
-SteadyAgent: a bilingual local-first harness for Codex and Claude Code with workflow rules, safety hooks, validation gates, checkpoint commits, and release evidence.
+SteadyAgent 2: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
 ```
 
 推荐 topics：
 
 ```text
-ai-agents, coding-agents, codex, claude-code, agents-md, claude-md, developer-tools, powershell, workflow-automation, prompt-engineering
+ai-agents, coding-agents, codex, codex-desktop, agents-md, developer-tools, powershell, workflow-automation, prompt-engineering
 ```
 
 ## Release
@@ -95,8 +95,8 @@ ai-agents, coding-agents, codex, claude-code, agents-md, claude-md, developer-to
 Release template：
 
 ```text
-Tag: v1.0.0
-Title: SteadyAgent v1.0.0
+Tag: v2.0.0
+Title: SteadyAgent v2.0.0
 Target commit: <commit>
 ```
 
@@ -114,4 +114,4 @@ Release body 应包含：
 - 确认 release 页面指向正确 tag 和 target commit。
 - 确认 repository description 和 topics 已更新。
 - 确认公开页面没有 private paths、local-only claims 或 maintainer-only state。
-- 保存 PR URL、GitHub Actions run URL、release URL、tag、commit hash、repository metadata update notes 和验证输出，作为简历证据链。
+- 保存 PR URL、GitHub Actions run URL、release URL、tag、commit hash、repository metadata update notes 和验证输出，形成发布审计链。

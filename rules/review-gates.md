@@ -1,26 +1,9 @@
 # Review Gates
 
-## Purpose
+Use independent fresh-context review for material risk, not ceremony.
 
-Use review to catch gaps that implementation momentum hides. Self-review is useful, but it is not a substitute for independent review when risk is material.
+Review is required when the user explicitly requests it; when work affects authorization, credentials, payments, migrations, deletion, publishing, deployment, external writes, concurrency, data correctness, or safety hooks; or when the implementing agent identifies and explains a specific material risk.
 
-## Use When
+File count alone is not a trigger. Low-risk mechanical, documentation, comment, formatting, and routine configuration changes use self-review plus relevant validation.
 
-Use this rule before checkpointing multi-file changes, scripts, hooks, safety rules, release changes, public docs, or any work the user asks to have reviewed.
-
-## Rules
-
-- Request independent review before checkpointing risky or multi-file work.
-- Review must be read-only unless explicitly assigned a separate write scope.
-- Review output should be Findings first, ordered by severity.
-- Each finding should include severity, location, problem, impact, and suggested fix.
-- The default gate is no P0/P1 findings and score >= 9.5.
-- Treat 8-9 as useful but not ready for public release.
-- Handle actionable findings, rerun validation, then request incremental review if needed.
-- If review tooling is unavailable, state that limitation and do not pretend the gate passed.
-
-## Validation
-
-- The final report includes the review score or explains why review could not run.
-- All P0/P1 findings are fixed or the task is not marked complete.
-- Residual testing gaps and risks are explicit.
+Reviewers are read-only by default, must not have implemented the candidate, and report findings first in severity order with location, impact, and a concrete fix. A required review cannot be replaced by implementer self-review. Resolve actionable findings and rerun affected checks before checkpointing.
