@@ -11,6 +11,8 @@
 | 敏感路径策略 | `tools/protected-path-policy.ps1` | `$HOME\.steadyagent\tools\` | Guard、checkpoint、pre-commit 测试。 |
 | 显式 checkpoint | `tools/git-checkpoint.ps1` | `$HOME\.steadyagent\tools\` | `test-git-checkpoint.ps1`。 |
 | Pre-commit 防线 | `tools/git-hooks/` | `$HOME\.steadyagent\tools\git-hooks\` | `test-pre-commit.ps1`。 |
+| Runtime skill catalog | `tools/skill-index.ps1`、`tools/skill-search.ps1` | `$HOME\.steadyagent\tools\` 及本机生成快照 | `test-skill-catalog.ps1`。 |
+| 23 项本机等价合同 | `manifests/local-postimage-equivalence.json` | `$HOME\.steadyagent\manifests\` | `test-local-equivalence.ps1` 红→绿门禁。 |
 | 事务迁移 | `tools/install.ps1` | checkout 中运行 | `test-v2-migration.ps1`。 |
 | V1-owned tombstone | `manifests/v1-codex-owned-files.txt` | `$HOME\.steadyagent\manifests\` | 完整 V1 fixture 与安装后诊断。 |
 | 收据回滚 | `tools/rollback.ps1` | `$HOME\.steadyagent\tools\` | `test-v2-migration.ps1`。 |

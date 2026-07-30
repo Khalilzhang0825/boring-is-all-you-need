@@ -4,7 +4,7 @@ The Codex runtime contains exactly four managed Hook blocks:
 
 | Event | Behavior |
 | --- | --- |
-| `SessionStart` | Injects a short Codex contract and restores `PROJECT_STATE.md` or `.agent/state.md` after resume/compact. |
+| `SessionStart` | Injects the Codex contract, Caveman lite status, lessons headings, the 90-day Harness review reminder, and restores `PROJECT_STATE.md` or `.agent/state.md` after resume/compact. |
 | `PreToolUse` | Recursively inspects matched shell calls and denies dangerous commands. |
 | `PreToolUse` | Recursively inspects matched file edits and denies protected paths. |
 | `PreCompact` | Reminds the agent to persist current state. |

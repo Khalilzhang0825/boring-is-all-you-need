@@ -9,6 +9,8 @@
 - `review-gates.md`：判断什么时候必须独立审查和评分。
 - `context-management.md`：处理中断、压缩和长任务状态恢复。
 - `safety-boundaries.md`：处理危险操作、secrets、安装、push、发布和宿主差异。
+- `lessons.md`：SessionStart 只注入标题的可移植重复陷阱。
+- `harness-review.md`：每 3–6 个月的 Harness 维护及发布终审合同。
 
 ## 使用方式
 

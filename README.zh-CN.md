@@ -17,6 +17,9 @@ SteadyAgent `v2.0.0` 是面向 Windows 的 Codex Desktop 工作流替换包。�
 - Git checkpoint 使用隔离 index、显式文件、范围复核和单写者锁。
 - 全新安装及 V1→V2 迁移均采用事务：预览、冲突检查、备份、原子应用、验证、收据和失败回滚。
 - 版本化 V1 资产清单会在明确授权替换时移除旧 Codex 发行面，并可通过同一收据完整恢复。
+- 冻结的 23 项等价清单把维护者已审查的本机 postimage 能力逐一映射到可移植公开源与安装目标。
+- 包内包含线程绑定的 skill 索引与检索，但不会发布维护者的 runtime catalog、线程 ID 或私人路径。
+- SessionStart 保留维护者工作流中的 Caveman lite 状态、可移植 lessons 标题和 90 天 Harness 维护提醒。
 
 ## 为什么只发布 Codex
 
@@ -75,10 +78,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tool
 
 ## 安装后
 
-重启 Codex Desktop，然后运行：
+重启 Codex Desktop。若要执行与维护者相同的严格审计，先生成当前任务绑定的 skill index，再强制核验 Hooks、runtime catalog 和 Git identity：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\skill-index.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
 ```
 
 预期结果：
@@ -117,6 +121,9 @@ SteadyAgent 要求 Codex：
 | `tools/test-agent-hooks.ps1` | 验证 SessionStart、Guard、日志和 PreCompact。 |
 | `tools/test-git-checkpoint.ps1` | 验证显式文件 checkpoint 事务。 |
 | `tools/test-pre-commit.ps1` | 验证 staged 密钥和大文件防线。 |
+| `tools/skill-index.ps1` | 生成绑定宿主、线程、prompt 和 digest 的 runtime skill catalog。 |
+| `tools/skill-search.ps1` | 只检索当前 Codex runtime 明示的 skill catalog。 |
+| `tools/test-local-equivalence.ps1` | 验证本机到公开包 23/23 映射，并证明故意篡改会变红。 |
 | `tools/validate-release-readiness.ps1` | 运行完整 V2 发布门。 |
 
 ## Runtime 架构
@@ -128,6 +135,8 @@ SteadyAgent 要求 Codex：
 | `tools/hooks/` | Fail-closed Guard、状态注入和 PreCompact 提醒。 |
 | `tools/git-checkpoint.ps1` | 限定范围、可恢复的本地提交。 |
 | `tools/git-hooks/` | 全局 pre-commit 防线。 |
+| `tools/skill-*.ps1` | 可移植的 runtime skill catalog 发布和检索。 |
+| `manifests/local-postimage-equivalence.json` | 冻结的 23 项本机到公开包能力合同。 |
 | `skills/steadyagent-workflow/` | 用户显式调用的通用工作流 skill。 |
 | `tools/install.ps1` | 可移植渲染与事务迁移引擎。 |
 | `tools/rollback.ps1` | 收据绑定、漂移感知的事务恢复工具。 |
@@ -140,7 +149,7 @@ Hooks 用于减少常见误操作，不是完整安全沙箱；人工授权和�
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-发布门覆盖 PowerShell 5.1 语法、公开路径和密钥、Codex-only 资产、文档链接、迁移 fixture、Hook、checkpoint/pre-commit、全新安装、安装后诊断以及发布元数据。
+发布门覆盖 PowerShell 5.1 语法、公开路径和密钥、Codex-only 资产、文档链接、迁移 fixture、Hook、checkpoint/pre-commit、runtime skill catalog、带红→绿证明的 23/23 等价合同、全新安装、安装后诊断以及发布元数据。
 
 ## 兼容性
 

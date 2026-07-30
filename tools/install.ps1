@@ -9,6 +9,7 @@ param(
     [switch]$ReplaceExistingWorkflow,
     [int]$InjectFailureAfter = 0,
     [int]$InjectPostWriteFailureAt = 0,
+    [int]$InjectSnapshotMutationAt = 0,
     [string]$InjectTargetMutationPath,
     [string]$InjectGitHooksMutationValue
 )
@@ -35,6 +36,17 @@ function Get-RelativePathV2 {
         throw ("Source escaped package root: " + $Path)
     }
     return $pathFull.Substring($baseFull.Length)
+}
+
+function Test-PathTreeOverlap {
+    param([string]$First, [string]$Second)
+    if ($First.Equals($Second, [StringComparison]::OrdinalIgnoreCase)) { return $true }
+    $firstPrefix = $First.TrimEnd('\') + '\'
+    $secondPrefix = $Second.TrimEnd('\') + '\'
+    return (
+        $First.StartsWith($secondPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+        $Second.StartsWith($firstPrefix, [StringComparison]::OrdinalIgnoreCase)
+    )
 }
 
 function Assert-NoReparsePath {
@@ -77,7 +89,7 @@ function Write-Utf8NoBomAtomic {
 }
 
 function Copy-Atomically {
-    param([string]$Source, [string]$Destination)
+    param([string]$Source, [string]$Destination, [string]$ExpectedSHA256)
     $parent = Split-Path -Parent $Destination
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
         throw ("Destination parent missing: " + $parent)
@@ -85,6 +97,10 @@ function Copy-Atomically {
     $temp = Join-Path $parent (".steadyagent-v2-" + [guid]::NewGuid().ToString("N") + ".tmp")
     try {
         [IO.File]::Copy($Source, $temp, $false)
+        if ($ExpectedSHA256 -and
+            (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash -ne $ExpectedSHA256) {
+            throw ("Atomic copy source hash changed: " + $Source)
+        }
         Move-Item -LiteralPath $temp -Destination $Destination -Force
     }
     finally {
@@ -189,21 +205,34 @@ $targetFull = [IO.Path]::GetFullPath($TargetRoot)
 $codexFull = [IO.Path]::GetFullPath($CodexHome)
 $managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
 $backupFull = [IO.Path]::GetFullPath($BackupRoot)
-foreach ($path in @($repoRoot, $targetFull, $codexFull, $managedFull, $backupFull)) {
+$gitConfigFull = if ($GitConfigPath) { [IO.Path]::GetFullPath($GitConfigPath) } else { $null }
+foreach ($path in @($repoRoot, $targetFull, $codexFull, $managedFull, $backupFull, $gitConfigFull)) {
+    if (-not $path) { continue }
     Assert-NoReparsePath -Path $path -AllowMissingLeaf
 }
 
-if (($InjectFailureAfter -gt 0 -or $InjectPostWriteFailureAt -gt 0 -or
+if (($InjectFailureAfter -gt 0 -or $InjectPostWriteFailureAt -gt 0 -or $InjectSnapshotMutationAt -gt 0 -or
      $InjectTargetMutationPath -or $InjectGitHooksMutationValue) -and
     $env:STEADYAGENT_TEST_MODE -ne "1") {
     throw "Failure and mutation injection are available only in the isolated migration test."
 }
-if ($targetFull.Equals($codexFull, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "TargetRoot and CodexHome must be different directories."
+$pathRoles = [ordered]@{
+    PackageRoot = $repoRoot
+    TargetRoot = $targetFull
+    CodexHome = $codexFull
+    ManagedConfigPath = $managedFull
+    BackupRoot = $backupFull
 }
-if ($backupFull.StartsWith($targetFull.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase) -or
-    $backupFull.StartsWith($codexFull.TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)) {
-    throw "BackupRoot must be outside the installation and Codex roots."
+if ($gitConfigFull) { $pathRoles.GitConfigPath = $gitConfigFull }
+$roleNames = @($pathRoles.Keys)
+for ($leftIndex = 0; $leftIndex -lt $roleNames.Count; $leftIndex++) {
+    for ($rightIndex = $leftIndex + 1; $rightIndex -lt $roleNames.Count; $rightIndex++) {
+        $leftRole = [string]$roleNames[$leftIndex]
+        $rightRole = [string]$roleNames[$rightIndex]
+        if (Test-PathTreeOverlap -First ([string]$pathRoles[$leftRole]) -Second ([string]$pathRoles[$rightRole])) {
+            throw ("Install path roles must be disjoint: {0} overlaps {1}." -f $leftRole, $rightRole)
+        }
+    }
 }
 
 $plan = New-Object Collections.Generic.List[object]
@@ -225,7 +254,14 @@ foreach ($toolName in @(
     "git-preflight.ps1",
     "protected-path-policy.ps1",
     "rollback.ps1",
-    "test-agent-hooks.ps1"
+    "skill-catalog-resolver.ps1",
+    "skill-index.ps1",
+    "skill-search.ps1",
+    "test-agent-hooks.ps1",
+    "test-git-checkpoint.ps1",
+    "test-pre-commit.ps1",
+    "test-protected-path-policy.ps1",
+    "test-skill-catalog.ps1"
 )) {
     Add-PlanFile -Plan $plan -Source (Join-Path $repoRoot ("tools\" + $toolName)) -Destination (Join-Path $targetFull ("tools\" + $toolName))
 }
@@ -436,6 +472,16 @@ try {
         })
     }
     Write-Utf8NoBomAtomic -Path (Join-Path $backupFull "migration-receipt.json") -Text (($receipt | ConvertTo-Json -Depth 6) + "`n")
+    if ($InjectSnapshotMutationAt -gt 0) {
+        if ($InjectSnapshotMutationAt -gt $snapshots.Count) {
+            throw "Injected snapshot mutation index is outside the operation set."
+        }
+        $snapshotToMutate = $snapshots[$InjectSnapshotMutationAt - 1]
+        if (-not $snapshotToMutate.Existed -or -not $snapshotToMutate.SnapshotPath) {
+            throw "Injected snapshot mutation requires an existing target."
+        }
+        [IO.File]::WriteAllText($snapshotToMutate.SnapshotPath, "injected-snapshot-drift", (New-Object Text.UTF8Encoding($false)))
+    }
 
     foreach ($item in $operations) {
         $snapshot = $snapshots[$written]
@@ -461,7 +507,7 @@ try {
                 foreach ($directory in $missing) { $createdDirectories.Add($directory) | Out-Null }
             }
             Assert-NoReparsePath -Path $item.Destination -AllowMissingLeaf
-            Copy-Atomically -Source $item.StagePath -Destination $item.Destination
+            Copy-Atomically -Source $item.StagePath -Destination $item.Destination -ExpectedSHA256 $item.DesiredHash
             $written++
             if ($InjectPostWriteFailureAt -gt 0 -and $written -eq $InjectPostWriteFailureAt) {
                 throw "Injected post-write verification failure."
@@ -515,6 +561,14 @@ try {
             throw ("Final V1 removal verification failed: " + $item.Destination)
         }
     }
+    foreach ($snapshot in $snapshots) {
+        if (-not $snapshot.Existed) { continue }
+        Assert-NoReparsePath -Path $snapshot.SnapshotPath
+        if (-not (Test-Path -LiteralPath $snapshot.SnapshotPath -PathType Leaf) -or
+            (Get-FileHash -LiteralPath $snapshot.SnapshotPath -Algorithm SHA256).Hash -ne $snapshot.OriginalSHA256) {
+            throw ("Final snapshot verification failed: " + $snapshot.SnapshotPath)
+        }
+    }
     $receipt.status = "applied"
     $receipt.completed_utc = (Get-Date).ToUniversalTime().ToString("o")
     $receipt.created_directories = @($createdDirectories | Sort-Object -Unique | Sort-Object { $_.Length } -Descending)
@@ -552,11 +606,21 @@ catch {
                 }
                 if ($snapshot.Existed) {
                     Assert-NoReparsePath -Path $snapshot.Destination -AllowMissingLeaf
-                    Copy-Atomically -Source $snapshot.SnapshotPath -Destination $snapshot.Destination
+                    Assert-NoReparsePath -Path $snapshot.SnapshotPath
+                    Copy-Atomically `
+                        -Source $snapshot.SnapshotPath `
+                        -Destination $snapshot.Destination `
+                        -ExpectedSHA256 $snapshot.OriginalSHA256
+                    if ((Get-FileHash -LiteralPath $snapshot.Destination -Algorithm SHA256).Hash -ne $snapshot.OriginalSHA256) {
+                        throw "Automatic rollback restored an unexpected file."
+                    }
                 }
                 elseif (Test-Path -LiteralPath $snapshot.Destination) {
                     Assert-NoReparsePath -Path $snapshot.Destination
                     Remove-Item -LiteralPath $snapshot.Destination -Force
+                    if (Test-Path -LiteralPath $snapshot.Destination) {
+                        throw "Automatic rollback did not remove a created file."
+                    }
                 }
             }
             catch { $rollbackErrors += $snapshot.Destination }

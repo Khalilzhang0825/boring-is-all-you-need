@@ -17,6 +17,9 @@ SteadyAgent `v2.0.0` is a Codex Desktop workflow replacement for Windows. One re
 - Git checkpointing uses an isolated index, explicit files, scope revalidation, and a single-writer lock.
 - Installation and V1 migration are transactional: preview, conflict detection, backup, atomic apply, verification, receipt, and rollback.
 - A versioned V1-owned-file manifest removes the old Codex release surface during authorized replacement and restores it from the same receipt if rolled back.
+- A frozen 23-item equivalence manifest maps every capability in the maintainer's reviewed local postimage to a portable public source and installed destination.
+- Thread-bound skill indexing and search are included without publishing the maintainer's runtime catalog, session IDs, or private paths.
+- SessionStart retains the maintainer workflow's Caveman lite status, portable lessons headings, and 90-day Harness maintenance reminder.
 
 ## Why Codex only
 
@@ -75,10 +78,11 @@ Rollback verifies the receipt, every installed file, every original snapshot, an
 
 ## After installation
 
-Restart Codex Desktop, then run:
+Restart Codex Desktop. For the same strict audit used by the maintainer, first build the task-bound skill index, then require Hooks, runtime catalog, and Git identity:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\skill-index.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
 ```
 
 Expected result:
@@ -117,6 +121,9 @@ SteadyAgent instructs Codex to:
 | `tools/test-agent-hooks.ps1` | Verify SessionStart, guards, logs, and PreCompact behavior. |
 | `tools/test-git-checkpoint.ps1` | Verify explicit-file checkpoint transactions. |
 | `tools/test-pre-commit.ps1` | Verify staged secret and oversized-blob protection. |
+| `tools/skill-index.ps1` | Build a host-, thread-, prompt-, and digest-bound runtime skill catalog. |
+| `tools/skill-search.ps1` | Search only the catalog advertised by the active Codex runtime. |
+| `tools/test-local-equivalence.ps1` | Prove the 23/23 local-to-public mapping, including a deliberate red mutation. |
 | `tools/validate-release-readiness.ps1` | Run the complete public V2 release gate. |
 
 ## Runtime architecture
@@ -128,6 +135,8 @@ SteadyAgent instructs Codex to:
 | `tools/hooks/` | Fail-closed command/file guards, SessionStart state injection, and PreCompact reminder. |
 | `tools/git-checkpoint.ps1` | Scoped and recoverable local commits. |
 | `tools/git-hooks/` | Global pre-commit defense. |
+| `tools/skill-*.ps1` | Portable runtime skill catalog publication and search. |
+| `manifests/local-postimage-equivalence.json` | Frozen 23-item local-to-public capability contract. |
 | `skills/steadyagent-workflow/` | Explicit reusable SteadyAgent workflow skill. |
 | `tools/install.ps1` | Portable renderer and transactional migration engine. |
 | `tools/rollback.ps1` | Receipt-bound, drift-aware transaction reversal. |
@@ -140,7 +149,7 @@ Hooks reduce common mistakes but are not a complete security sandbox. Human auth
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-The release gate checks PowerShell 5.1 syntax, public paths and secrets, Codex-only assets, documentation links, migration fixtures, Hook behavior, checkpoint/pre-commit behavior, fresh installation, installed diagnosis, and release metadata.
+The release gate checks PowerShell 5.1 syntax, public paths and secrets, Codex-only assets, documentation links, migration fixtures, Hook behavior, checkpoint/pre-commit behavior, runtime skill catalogs, the 23/23 equivalence contract with red-to-green proof, fresh installation, installed diagnosis, and release metadata.
 
 ## Compatibility
 

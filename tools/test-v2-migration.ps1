@@ -29,15 +29,21 @@ function Invoke-Installer {
         [switch]$ReplaceExistingWorkflow,
         [int]$InjectFailureAfter = 0,
         [int]$InjectPostWriteFailureAt = 0,
+        [int]$InjectSnapshotMutationAt = 0,
         [string]$InjectTargetMutationPath,
-        [string]$InjectGitHooksMutationValue
+        [string]$InjectGitHooksMutationValue,
+        [string]$CustomTargetRoot,
+        [string]$CustomCodexHome,
+        [string]$CustomBackupRoot,
+        [string]$CustomManagedConfigPath,
+        [string]$CustomGitConfigPath
     )
 
-    $targetRoot = Join-Path $CaseRoot "steadyagent"
-    $codexHome = Join-Path $CaseRoot "codex"
-    $managedPath = Join-Path $CaseRoot "managed/requirements.toml"
-    $backupRoot = Join-Path $CaseRoot "backup"
-    $gitConfigPath = Join-Path $CaseRoot "gitconfig"
+    $targetRoot = if ($CustomTargetRoot) { $CustomTargetRoot } else { Join-Path $CaseRoot "steadyagent" }
+    $codexHome = if ($CustomCodexHome) { $CustomCodexHome } else { Join-Path $CaseRoot "codex" }
+    $managedPath = if ($CustomManagedConfigPath) { $CustomManagedConfigPath } else { Join-Path $CaseRoot "managed/requirements.toml" }
+    $backupRoot = if ($CustomBackupRoot) { $CustomBackupRoot } else { Join-Path $CaseRoot "backup" }
+    $gitConfigPath = if ($CustomGitConfigPath) { $CustomGitConfigPath } else { Join-Path $CaseRoot "gitconfig" }
     $arguments = @(
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $installer,
         "-TargetRoot", $targetRoot,
@@ -50,6 +56,7 @@ function Invoke-Installer {
     if ($ReplaceExistingWorkflow) { $arguments += "-ReplaceExistingWorkflow" }
     if ($InjectFailureAfter -gt 0) { $arguments += @("-InjectFailureAfter", [string]$InjectFailureAfter) }
     if ($InjectPostWriteFailureAt -gt 0) { $arguments += @("-InjectPostWriteFailureAt", [string]$InjectPostWriteFailureAt) }
+    if ($InjectSnapshotMutationAt -gt 0) { $arguments += @("-InjectSnapshotMutationAt", [string]$InjectSnapshotMutationAt) }
     if ($InjectTargetMutationPath) { $arguments += @("-InjectTargetMutationPath", $InjectTargetMutationPath) }
     if ($InjectGitHooksMutationValue) { $arguments += @("-InjectGitHooksMutationValue", $InjectGitHooksMutationValue) }
 
@@ -77,11 +84,24 @@ function Test-BackupContainsText {
     return $false
 }
 
+function Test-ManagedTomlBasicStrings {
+    param([string]$Text)
+    $assignmentPattern = '^(windows_managed_dir|command)\s*=\s*"(?:[^"\\\x00-\x1F\x7F]|\\(?:["\\bfnrt]|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}))*"\s*$'
+    $matched = 0
+    foreach ($line in @($Text -split "`r?`n")) {
+        if ($line -notmatch '^(windows_managed_dir|command)\s*=') { continue }
+        if ($line -notmatch $assignmentPattern) { return $false }
+        $matched++
+    }
+    return $matched -eq 5
+}
+
 function Invoke-ReceiptRollback {
     param(
         [pscustomobject]$InstallResult,
         [string]$ReceiptPath,
-        [string]$InjectTargetMutationPath
+        [string]$InjectTargetMutationPath,
+        [string]$InjectSnapshotMutationPath
     )
     $receiptPath = if ($ReceiptPath) { $ReceiptPath } else { Join-Path $InstallResult.BackupRoot "migration-receipt.json" }
     $installedRollbackTool = Join-Path $InstallResult.TargetRoot "tools\rollback.ps1"
@@ -92,6 +112,7 @@ function Invoke-ReceiptRollback {
         "-Apply"
     )
     if ($InjectTargetMutationPath) { $arguments += @("-InjectTargetMutationPath", $InjectTargetMutationPath) }
+    if ($InjectSnapshotMutationPath) { $arguments += @("-InjectSnapshotMutationPath", $InjectSnapshotMutationPath) }
     $output = & powershell.exe @arguments
     return [pscustomobject]@{
         ExitCode = $LASTEXITCODE
@@ -107,6 +128,108 @@ try {
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
     Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN SteadyAgent 2[.]0[.]0 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
+
+    $apostropheCase = Join-Path $fixtureRoot "O'Connor"
+    $apostropheInstall = Invoke-Installer -CaseRoot $apostropheCase -Apply
+    $apostropheManagedText = if (Test-Path -LiteralPath $apostropheInstall.ManagedPath -PathType Leaf) {
+        [IO.File]::ReadAllText($apostropheInstall.ManagedPath, [Text.Encoding]::UTF8)
+    } else { "" }
+    Assert-True "apostrophe path install succeeds" ($apostropheInstall.ExitCode -eq 0) $apostropheInstall.Output
+    Assert-True "apostrophe path renders valid TOML basic strings" (
+        (Test-ManagedTomlBasicStrings -Text $apostropheManagedText) -and
+        $apostropheManagedText.Contains("O'Connor") -and
+        -not $apostropheManagedText.Contains("%STEADYAGENT_HOME")
+    ) $apostropheManagedText
+
+    $packageReadmePath = Join-Path $repoRoot "README.md"
+    $packageReadmeHash = (Get-FileHash -LiteralPath $packageReadmePath -Algorithm SHA256).Hash
+    $packageManagedCase = Join-Path $fixtureRoot "package-managed-overlap"
+    $packageManaged = Invoke-Installer -CaseRoot $packageManagedCase -CustomManagedConfigPath $packageReadmePath
+    Assert-True "ManagedConfigPath cannot overlap PackageRoot" ($packageManaged.ExitCode -ne 0) $packageManaged.Output
+    Assert-True "rejected package managed overlap performs zero writes" (
+        (Get-FileHash -LiteralPath $packageReadmePath -Algorithm SHA256).Hash -eq $packageReadmeHash -and
+        -not (Test-Path -LiteralPath $packageManagedCase)
+    )
+
+    $packageTargetCase = Join-Path $fixtureRoot "package-target-overlap"
+    $packageTarget = Invoke-Installer -CaseRoot $packageTargetCase -CustomTargetRoot $repoRoot
+    Assert-True "TargetRoot cannot equal PackageRoot" ($packageTarget.ExitCode -ne 0) $packageTarget.Output
+    Assert-True "rejected package target overlap performs zero writes" (
+        (Get-FileHash -LiteralPath $packageReadmePath -Algorithm SHA256).Hash -eq $packageReadmeHash -and
+        -not (Test-Path -LiteralPath $packageTargetCase)
+    )
+
+    $packageBackupCase = Join-Path $fixtureRoot "package-backup-overlap"
+    $packageBackupPath = Join-Path $repoRoot (".steadyagent-test-backup-" + [guid]::NewGuid().ToString("N"))
+    $packageBackup = Invoke-Installer -CaseRoot $packageBackupCase -CustomBackupRoot $packageBackupPath
+    Assert-True "BackupRoot cannot be inside PackageRoot" ($packageBackup.ExitCode -ne 0) $packageBackup.Output
+    Assert-True "rejected package backup overlap performs zero writes" (
+        -not (Test-Path -LiteralPath $packageBackupPath) -and
+        -not (Test-Path -LiteralPath $packageBackupCase)
+    )
+
+    $backupEqualsTargetCase = Join-Path $fixtureRoot "backup-equals-target"
+    $backupEqualsTargetPath = Join-Path $backupEqualsTargetCase "shared"
+    $backupEqualsTarget = Invoke-Installer -CaseRoot $backupEqualsTargetCase `
+        -CustomTargetRoot $backupEqualsTargetPath `
+        -CustomBackupRoot $backupEqualsTargetPath
+    Assert-True "BackupRoot cannot equal TargetRoot" ($backupEqualsTarget.ExitCode -ne 0) $backupEqualsTarget.Output
+    Assert-True "rejected TargetRoot overlap performs zero writes" (-not (Test-Path -LiteralPath $backupEqualsTargetCase))
+
+    $backupEqualsCodexCase = Join-Path $fixtureRoot "backup-equals-codex"
+    $backupEqualsCodexPath = Join-Path $backupEqualsCodexCase "shared"
+    $backupEqualsCodex = Invoke-Installer -CaseRoot $backupEqualsCodexCase `
+        -CustomCodexHome $backupEqualsCodexPath `
+        -CustomBackupRoot $backupEqualsCodexPath
+    Assert-True "BackupRoot cannot equal CodexHome" ($backupEqualsCodex.ExitCode -ne 0) $backupEqualsCodex.Output
+    Assert-True "rejected CodexHome overlap performs zero writes" (-not (Test-Path -LiteralPath $backupEqualsCodexCase))
+
+    $backupAncestorCase = Join-Path $fixtureRoot "backup-ancestor"
+    $backupAncestor = Invoke-Installer -CaseRoot $backupAncestorCase `
+        -CustomTargetRoot (Join-Path $backupAncestorCase "nested/steadyagent") `
+        -CustomCodexHome (Join-Path $fixtureRoot "backup-ancestor-codex") `
+        -CustomBackupRoot $backupAncestorCase
+    Assert-True "BackupRoot cannot contain TargetRoot" ($backupAncestor.ExitCode -ne 0) $backupAncestor.Output
+    Assert-True "rejected backup ancestor performs zero writes" (-not (Test-Path -LiteralPath $backupAncestorCase))
+
+    $backupCodexAncestorCase = Join-Path $fixtureRoot "backup-codex-ancestor"
+    $backupCodexAncestor = Invoke-Installer -CaseRoot $backupCodexAncestorCase `
+        -CustomTargetRoot (Join-Path $fixtureRoot "backup-codex-ancestor-target") `
+        -CustomCodexHome (Join-Path $backupCodexAncestorCase "nested/codex") `
+        -CustomBackupRoot $backupCodexAncestorCase
+    Assert-True "BackupRoot cannot contain CodexHome" ($backupCodexAncestor.ExitCode -ne 0) $backupCodexAncestor.Output
+    Assert-True "rejected Codex ancestor performs zero writes" (-not (Test-Path -LiteralPath $backupCodexAncestorCase))
+
+    $backupEqualsManagedCase = Join-Path $fixtureRoot "backup-equals-managed"
+    $backupEqualsManagedPath = Join-Path $backupEqualsManagedCase "shared"
+    $backupEqualsManaged = Invoke-Installer -CaseRoot $backupEqualsManagedCase `
+        -CustomBackupRoot $backupEqualsManagedPath `
+        -CustomManagedConfigPath $backupEqualsManagedPath
+    Assert-True "BackupRoot cannot equal ManagedConfigPath" ($backupEqualsManaged.ExitCode -ne 0) $backupEqualsManaged.Output
+    Assert-True "rejected managed equality performs zero writes" (-not (Test-Path -LiteralPath $backupEqualsManagedCase))
+
+    $backupContainsManagedCase = Join-Path $fixtureRoot "backup-contains-managed"
+    $backupContainsManaged = Invoke-Installer -CaseRoot $backupContainsManagedCase `
+        -CustomBackupRoot (Join-Path $backupContainsManagedCase "backup") `
+        -CustomManagedConfigPath (Join-Path $backupContainsManagedCase "backup/requirements.toml")
+    Assert-True "BackupRoot cannot contain ManagedConfigPath" ($backupContainsManaged.ExitCode -ne 0) $backupContainsManaged.Output
+    Assert-True "rejected managed descendant performs zero writes" (-not (Test-Path -LiteralPath $backupContainsManagedCase))
+
+    $backupEqualsGitCase = Join-Path $fixtureRoot "backup-equals-git"
+    $backupEqualsGitPath = Join-Path $backupEqualsGitCase "shared"
+    $backupEqualsGit = Invoke-Installer -CaseRoot $backupEqualsGitCase `
+        -CustomBackupRoot $backupEqualsGitPath `
+        -CustomGitConfigPath $backupEqualsGitPath
+    Assert-True "BackupRoot cannot equal GitConfigPath" ($backupEqualsGit.ExitCode -ne 0) $backupEqualsGit.Output
+    Assert-True "rejected Git config equality performs zero writes" (-not (Test-Path -LiteralPath $backupEqualsGitCase))
+
+    $targetContainsManagedCase = Join-Path $fixtureRoot "target-contains-managed"
+    $targetContainsManagedRoot = Join-Path $targetContainsManagedCase "steadyagent"
+    $targetContainsManaged = Invoke-Installer -CaseRoot $targetContainsManagedCase `
+        -CustomTargetRoot $targetContainsManagedRoot `
+        -CustomManagedConfigPath (Join-Path $targetContainsManagedRoot "requirements.toml")
+    Assert-True "TargetRoot cannot contain ManagedConfigPath" ($targetContainsManaged.ExitCode -ne 0) $targetContainsManaged.Output
+    Assert-True "rejected active file overlap performs zero writes" (-not (Test-Path -LiteralPath $targetContainsManagedCase))
 
     $freshCase = Join-Path $fixtureRoot "fresh"
     $fresh = Invoke-Installer -CaseRoot $freshCase -Apply
@@ -304,6 +427,88 @@ try {
     Assert-True "post-write verification failure returns nonzero" ($postWrite.ExitCode -ne 0) $postWrite.Output
     Assert-True "post-write failure restores the current mutated target" (
         (Get-Content -Raw -LiteralPath (Join-Path $postWriteCodex "AGENTS.md")) -eq "post-write-original"
+    )
+
+    $installSnapshotRaceCase = Join-Path $fixtureRoot "install-snapshot-race"
+    $installSnapshotRaceCodex = Join-Path $installSnapshotRaceCase "codex"
+    New-Item -ItemType Directory -Path $installSnapshotRaceCodex -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $installSnapshotRaceCodex "AGENTS.md"), "snapshot-original", [Text.Encoding]::UTF8)
+    $env:STEADYAGENT_TEST_MODE = "1"
+    try {
+        $installSnapshotRace = Invoke-Installer -CaseRoot $installSnapshotRaceCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -InjectPostWriteFailureAt 1 `
+            -InjectSnapshotMutationAt 1
+    }
+    finally {
+        Remove-Item Env:STEADYAGENT_TEST_MODE -ErrorAction SilentlyContinue
+    }
+    $installSnapshotRaceReceipt = [IO.File]::ReadAllText(
+        (Join-Path $installSnapshotRace.BackupRoot "migration-receipt.json"),
+        [Text.Encoding]::UTF8
+    ) | ConvertFrom-Json
+    $installSnapshotRaceEntry = @($installSnapshotRaceReceipt.entries)[0]
+    Assert-True "automatic rollback rejects a changed original snapshot" ($installSnapshotRace.ExitCode -ne 0) $installSnapshotRace.Output
+    Assert-True "changed snapshot cannot overwrite the installed target" (
+        (Get-FileHash -LiteralPath $installSnapshotRaceEntry.destination -Algorithm SHA256).Hash -eq
+        $installSnapshotRaceEntry.installed_sha256
+    )
+    Assert-True "changed automatic-rollback snapshot is recorded as incomplete" (
+        [string]$installSnapshotRaceReceipt.status -eq "rollback_incomplete"
+    )
+
+    $snapshotCommitRaceCase = Join-Path $fixtureRoot "snapshot-commit-race"
+    $snapshotCommitRaceCodex = Join-Path $snapshotCommitRaceCase "codex"
+    New-Item -ItemType Directory -Path $snapshotCommitRaceCodex -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $snapshotCommitRaceCodex "AGENTS.md"), "commit-snapshot-original", [Text.Encoding]::UTF8)
+    $env:STEADYAGENT_TEST_MODE = "1"
+    try {
+        $snapshotCommitRace = Invoke-Installer -CaseRoot $snapshotCommitRaceCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -InjectSnapshotMutationAt 1
+    }
+    finally {
+        Remove-Item Env:STEADYAGENT_TEST_MODE -ErrorAction SilentlyContinue
+    }
+    $snapshotCommitRaceReceipt = [IO.File]::ReadAllText(
+        (Join-Path $snapshotCommitRace.BackupRoot "migration-receipt.json"),
+        [Text.Encoding]::UTF8
+    ) | ConvertFrom-Json
+    $snapshotCommitRaceEntry = @($snapshotCommitRaceReceipt.entries)[0]
+    Assert-True "final snapshot verification rejects mutation-only drift" ($snapshotCommitRace.ExitCode -ne 0) $snapshotCommitRace.Output
+    Assert-True "mutation-only drift never produces an applied receipt" (
+        [string]$snapshotCommitRaceReceipt.status -eq "rollback_incomplete"
+    )
+    Assert-True "mutation-only drift cannot restore corrupted snapshot content" (
+        (Get-FileHash -LiteralPath $snapshotCommitRaceEntry.destination -Algorithm SHA256).Hash -eq
+        $snapshotCommitRaceEntry.installed_sha256
+    )
+
+    $receiptSnapshotRaceCase = Join-Path $fixtureRoot "receipt-snapshot-race"
+    $receiptSnapshotRaceCodex = Join-Path $receiptSnapshotRaceCase "codex"
+    New-Item -ItemType Directory -Path $receiptSnapshotRaceCodex -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $receiptSnapshotRaceCodex "AGENTS.md"), "receipt-snapshot-original", [Text.Encoding]::UTF8)
+    $receiptSnapshotRace = Invoke-Installer -CaseRoot $receiptSnapshotRaceCase -Apply -ReplaceExistingWorkflow
+    Assert-True "receipt snapshot race fixture installs successfully" ($receiptSnapshotRace.ExitCode -eq 0) $receiptSnapshotRace.Output
+    $receiptSnapshotRaceReceiptPath = Join-Path $receiptSnapshotRace.BackupRoot "migration-receipt.json"
+    $receiptSnapshotRaceReceipt = [IO.File]::ReadAllText($receiptSnapshotRaceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $receiptSnapshotRaceEntry = @($receiptSnapshotRaceReceipt.entries | Where-Object { $_.existed })[0]
+    $receiptSnapshotRacePath = Join-Path $receiptSnapshotRace.BackupRoot ([string]$receiptSnapshotRaceEntry.snapshot_name)
+    $env:STEADYAGENT_TEST_MODE = "1"
+    try {
+        $receiptSnapshotRaceResult = Invoke-ReceiptRollback `
+            -InstallResult $receiptSnapshotRace `
+            -InjectSnapshotMutationPath $receiptSnapshotRacePath
+    }
+    finally {
+        Remove-Item Env:STEADYAGENT_TEST_MODE -ErrorAction SilentlyContinue
+    }
+    Assert-True "receipt rollback rejects a snapshot changed after validation" ($receiptSnapshotRaceResult.ExitCode -ne 0) $receiptSnapshotRaceResult.Output
+    Assert-True "rejected snapshot race performs zero target writes" (
+        (Get-FileHash -LiteralPath $receiptSnapshotRaceEntry.destination -Algorithm SHA256).Hash -eq
+        $receiptSnapshotRaceEntry.installed_sha256
     )
 
     $rollbackRaceCase = Join-Path $fixtureRoot "rollback-race"

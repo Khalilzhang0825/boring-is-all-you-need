@@ -36,10 +36,13 @@ try {
     $required = @(
         "README.md", "README.zh-CN.md", "RELEASE_NOTES.md", "LICENSE", "SECURITY.md", "CONTRIBUTING.md",
         "templates/codex/AGENTS.md", "templates/codex/hooks.empty.json", "templates/codex/requirements.managed-hooks.example.toml",
-        "manifests/v1-codex-owned-files.txt",
+        "manifests/v1-codex-owned-files.txt", "manifests/local-postimage-equivalence.json",
         "rules/workflow-routing.md", "rules/verification.md", "rules/review-gates.md", "rules/context-management.md", "rules/safety-boundaries.md", "rules/skill-routing.md",
+        "rules/HARNESS-GUIDE.md", "rules/harness-review.md", "rules/lessons.md",
         "tools/install.ps1", "tools/rollback.ps1", "tools/diagnose-install.ps1", "tools/test-v2-migration.ps1", "tools/test-agent-hooks.ps1",
         "tools/git-checkpoint.ps1", "tools/test-git-checkpoint.ps1", "tools/test-pre-commit.ps1",
+        "tools/skill-catalog-resolver.ps1", "tools/skill-index.ps1", "tools/skill-search.ps1", "tools/test-skill-catalog.ps1",
+        "tools/protected-path-policy.ps1", "tools/test-protected-path-policy.ps1", "tools/test-local-equivalence.ps1", "tools/test-equivalence-contract.ps1",
         "tools/git-hooks/pre-commit", "tools/git-hooks/pre-commit-check.ps1",
         "tools/validate-runtime-slice.ps1", "tools/validate-phase3.ps1", "tools/validate-release-readiness.ps1",
         ".github/workflows/validate.yml", "docs/release-checklist.md", "docs/github-publication-runbook.md"
@@ -177,7 +180,7 @@ try {
     Check "local Markdown links resolve" ($linkFailures.Count -eq 0) ($linkFailures -join "; ")
 
     Run-Gate "Codex runtime slice passes" (Join-Path $root "tools\validate-runtime-slice.ps1")
-    Run-Gate "V2 migration and Git slice passes" (Join-Path $root "tools\validate-phase3.ps1")
+    Run-Gate "23-item local equivalence gate passes" (Join-Path $root "tools\test-local-equivalence.ps1")
 
     $workflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\validate.yml"), [Text.Encoding]::UTF8)
     Check "GitHub Actions runs on Windows" ($workflow -match "windows-latest")

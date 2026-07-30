@@ -11,6 +11,8 @@
 | Sensitive path policy | `tools/protected-path-policy.ps1` | `$HOME\.steadyagent\tools\` | Guard, checkpoint, and pre-commit tests. |
 | Explicit checkpoint | `tools/git-checkpoint.ps1` | `$HOME\.steadyagent\tools\` | `test-git-checkpoint.ps1`. |
 | Pre-commit defense | `tools/git-hooks/` | `$HOME\.steadyagent\tools\git-hooks\` | `test-pre-commit.ps1`. |
+| Runtime skill catalog | `tools/skill-index.ps1`, `tools/skill-search.ps1` | `$HOME\.steadyagent\tools\` plus generated local snapshots | `test-skill-catalog.ps1`. |
+| 23-item local equivalence | `manifests/local-postimage-equivalence.json` | `$HOME\.steadyagent\manifests\` | `test-local-equivalence.ps1` red-to-green gate. |
 | Transactional migration | `tools/install.ps1` | Runs from checkout | `test-v2-migration.ps1`. |
 | V1-owned tombstones | `manifests/v1-codex-owned-files.txt` | `$HOME\.steadyagent\manifests\` | Full V1 fixture and installed diagnosis. |
 | Receipt rollback | `tools/rollback.ps1` | `$HOME\.steadyagent\tools\` | `test-v2-migration.ps1`. |

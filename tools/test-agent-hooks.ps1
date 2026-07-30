@@ -17,10 +17,13 @@ function New-Event {
 }
 
 function Invoke-Hook {
-    param([string]$Name, [string]$InputText)
+    param([string]$Name, [string]$InputText, [string[]]$Arguments = @())
     $psi = New-Object Diagnostics.ProcessStartInfo
     $psi.FileName = "powershell.exe"
     $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"" + (Join-Path $hooks $Name) + "`""
+    foreach ($argument in $Arguments) {
+        $psi.Arguments += " `"" + ([string]$argument).Replace('"', '\"') + "`""
+    }
     $psi.RedirectStandardInput = $true
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
@@ -82,7 +85,22 @@ try {
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "startup"; cwd = $fixtureRoot })
     Assert-True "SessionStart emits compact Codex context" ($result.ExitCode -eq 0 -and -not $result.Error -and $result.Output -match "SteadyAgent Codex")
+    Assert-True "startup reports Caveman lite once" ($result.Output -match "Caveman startup status report: ON, mode lite")
+    Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 5.1 encoding")
+    Assert-True "startup reports overdue Harness review" ($result.Output -match "HARNESS-REVIEW DUE")
     Assert-True "startup does not inject stale state" ($result.Output -notmatch "TASK STATE")
+
+    $reviewedHome = Join-Path $fixtureRoot "reviewed-home"
+    New-Item -ItemType Directory -Path (Join-Path $reviewedHome "rules"), (Join-Path $reviewedHome "config") -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $reviewedHome "rules\lessons.md"), "### Fixture lesson", [Text.Encoding]::UTF8)
+    [IO.File]::WriteAllText((Join-Path $reviewedHome ".harness-last-review"), (Get-Date).ToString("yyyy-MM-dd"), [Text.Encoding]::UTF8)
+    [IO.File]::WriteAllText((Join-Path $reviewedHome "config\caveman.json"), '{"defaultMode":"off"}', [Text.Encoding]::UTF8)
+    $result = Invoke-Hook "agent-hook-context.ps1" `
+        (New-Event @{ source = "startup"; cwd = $fixtureRoot }) `
+        @("-SteadyAgentHome", $reviewedHome)
+    Assert-True "current review marker suppresses due notice" ($result.Output -notmatch "HARNESS-REVIEW DUE")
+    Assert-True "local Caveman config can disable mode" ($result.Output -match "Caveman startup status report: OFF, mode off")
+    Assert-True "fixture lesson title is injected" ($result.Output -match "Fixture lesson")
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "compact"; cwd = $stateRoot })
     Assert-True "compact restores PROJECT_STATE" ($result.Output -match "SMOKE_PROJECT_STATE")
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "resume"; cwd = $agentStateRoot })

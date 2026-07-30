@@ -3,13 +3,13 @@ hooks = true
 unified_exec = false
 
 [hooks]
-windows_managed_dir = '%STEADYAGENT_HOME%\tools\hooks'
+windows_managed_dir = "%STEADYAGENT_HOME_JSON%\\tools\\hooks"
 
 [[hooks.SessionStart]]
 matcher = "startup|resume|compact|clear"
 [[hooks.SessionStart.hooks]]
 type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-context.ps1"'
+command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-context.ps1\""
 timeout = 60
 statusMessage = "Loading SteadyAgent context"
 
@@ -17,7 +17,7 @@ statusMessage = "Loading SteadyAgent context"
 matcher = "Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel"
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-command-guard.ps1"'
+command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-command-guard.ps1\""
 timeout = 60
 statusMessage = "Checking command guardrails"
 
@@ -25,7 +25,7 @@ statusMessage = "Checking command guardrails"
 matcher = "apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch|multi_tool_use[.]parallel"
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-file-guard.ps1"'
+command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-file-guard.ps1\""
 timeout = 60
 statusMessage = "Checking file guardrails"
 
@@ -33,6 +33,6 @@ statusMessage = "Checking file guardrails"
 matcher = "manual|auto"
 [[hooks.PreCompact.hooks]]
 type = "command"
-command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%STEADYAGENT_HOME%\tools\hooks\agent-hook-precompact.ps1"'
+command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-precompact.ps1\""
 timeout = 60
 statusMessage = "Checking compaction state"

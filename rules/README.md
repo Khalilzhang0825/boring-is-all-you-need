@@ -9,6 +9,8 @@ These files are progressive rules for AI coding agents. Keep always-on templates
 - `review-gates.md`: decide when independent review and scoring are required.
 - `context-management.md`: recover long tasks after interruption or compaction.
 - `safety-boundaries.md`: handle destructive actions, secrets, install, push, publish, and host differences.
+- `lessons.md`: repeated portable pitfalls whose headings are injected at SessionStart.
+- `harness-review.md`: periodic three-to-six-month Harness maintenance and release review contract.
 
 ## Use Pattern
 

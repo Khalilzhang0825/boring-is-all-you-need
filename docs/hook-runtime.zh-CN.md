@@ -4,7 +4,7 @@ Codex runtime 精确包含 4 个 managed Hook block：
 
 | 事件 | 行为 |
 | --- | --- |
-| `SessionStart` | 注入短 Codex 合同，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`。 |
+| `SessionStart` | 注入 Codex 合同、Caveman lite 状态、lessons 标题和 90 天 Harness review 提醒，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`。 |
 | `PreToolUse` | 递归检查匹配的 shell 调用并拒绝危险命令。 |
 | `PreToolUse` | 递归检查匹配的文件编辑并拒绝受保护路径。 |
 | `PreCompact` | 提醒 Agent 固化当前状态。 |

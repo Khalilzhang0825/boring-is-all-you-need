@@ -9,10 +9,11 @@
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-local-equivalence.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-`validate-release-readiness.ps1` 会覆盖 fresh-checkout 风格快照、V2 事务迁移、Codex 渲染配置、安装后诊断、Hook/checkpoint/pre-commit 测试、本地 Markdown 链接和公开发布资产。
+`validate-release-readiness.ps1` 会覆盖 fresh-checkout 风格快照、V2 事务迁移、Codex 渲染配置、安装后诊断、Hook/checkpoint/pre-commit/skill-catalog 测试、带故意红灯证明的 23 项本机等价合同、本地 Markdown 链接和公开发布资产。
 
 本地 WIP、checkpoint commit 之前，可以加 `-AllowDirty` 验证当前未提交 release surface。最终发布证据必须在干净 checkout 中运行，不加 `-AllowDirty`。
 
@@ -22,6 +23,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 - 确认 `LICENSE`、`CONTRIBUTING.md`、`SECURITY.md` 和 `RELEASE_NOTES.md` 都存在。
 - 确认 `.github/` issue/PR 模板和 validation workflow 已存在。
 - 确认公开 skill 路径是 `skills/steadyagent-workflow/`。
+- 确认 `manifests/local-postimage-equivalence.json` 保持 23/23，且等价门无 missing、drift 或未解释目标。
 - 远端 push、PR、tag 或 GitHub release 前，先按 [docs/github-publication-runbook.zh-CN.md](github-publication-runbook.zh-CN.md) 执行。
 - 发布前启用 GitHub Private Vulnerability Reporting，并确认仓库的 **Report a vulnerability** 入口可打开。
 - 确认 `git diff --check` 没有 whitespace errors。

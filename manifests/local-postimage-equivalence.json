@@ -1,0 +1,415 @@
+{
+  "schemaVersion": 1,
+  "release": "v2.0.0",
+  "scope": "Codex Desktop on Windows",
+  "localPostimageManifestSha256": "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF",
+  "mappedInstallCount": 23,
+  "supportInstallCount": 29,
+  "totalInstallCount": 52,
+  "legacyRemovalCount": 27,
+  "contract": "Each local postimage capability has one portable public source and one installed destination. Exact entries retain the local SHA-256. Rendered and behavior-equivalent entries deliberately replace machine identity, private paths, runtime state, or older logic while retaining the named behavior and stronger public tests.",
+  "entries": [
+    {
+      "order": 1,
+      "payload": "01-requirements.toml",
+      "localSha256": "C87CE8AC9C67AC2245B1EBDD532D2CB75B611DA6458437C010C5D66A5DCC0717",
+      "publicSource": "templates/codex/requirements.managed-hooks.example.toml",
+      "publicSha256": "A3C608DE8CD3F73B35EE6B81BD218A941B128BC549D48EDA6DFC5DDCC6136434",
+      "installedDestination": "@managedConfig",
+      "mode": "rendered-equivalent",
+      "evidence": "exact four-block managed Hook matrix after TargetRoot rendering",
+      "semanticGate": "migration"
+    },
+    {
+      "order": 2,
+      "payload": "02-agent-hook-utils.ps1",
+      "localSha256": "F2DCD0C3F8E7770E72027A75953E92F5494EC0FE18300708AC535D3D978B8509",
+      "publicSource": "tools/hooks/agent-hook-utils.ps1",
+      "publicSha256": "FF9F34074EA268BD9FD2B68CA95DE23592917497EFAF295DD330C570363E1648",
+      "installedDestination": "tools/hooks/agent-hook-utils.ps1",
+      "mode": "behavior-superset",
+      "evidence": "Hook parser, wrappers, audit privacy, and Git global option matrix",
+      "semanticGate": "hooks"
+    },
+    {
+      "order": 3,
+      "payload": "03-agent-hook-command-guard.ps1",
+      "localSha256": "39D40D8E449DE35861BF5196DD013F73FEDF3C400072147FA6ABF69FC7AC7DF1",
+      "publicSource": "tools/hooks/agent-hook-command-guard.ps1",
+      "publicSha256": "39D40D8E449DE35861BF5196DD013F73FEDF3C400072147FA6ABF69FC7AC7DF1",
+      "installedDestination": "tools/hooks/agent-hook-command-guard.ps1",
+      "mode": "byte-exact",
+      "evidence": "source and local SHA-256 are identical",
+      "semanticGate": "hooks"
+    },
+    {
+      "order": 4,
+      "payload": "04-agent-hook-file-guard.ps1",
+      "localSha256": "3B4A219379E93447F3F855883709047B0D569A0406B75E5F99194DE159D28122",
+      "publicSource": "tools/hooks/agent-hook-file-guard.ps1",
+      "publicSha256": "0731B69793D3576317E539D47AFCEBF0C300A91F51E2C756F6423343BB2C4C44",
+      "installedDestination": "tools/hooks/agent-hook-file-guard.ps1",
+      "mode": "behavior-superset",
+      "evidence": "nested matched payload and protected-file fail-closed matrix",
+      "semanticGate": "hooks"
+    },
+    {
+      "order": 5,
+      "payload": "05-agent-hook-context.ps1",
+      "localSha256": "6961AEF2D907F204C91E57910E208FD3FB83A79159E88412B4ED91BE0395308C",
+      "publicSource": "tools/hooks/agent-hook-context.ps1",
+      "publicSha256": "80F7DC1631D5FAD8143DFCBA30C321F4AF611BB51BFFF765B4E9B7705F1A226D",
+      "installedDestination": "tools/hooks/agent-hook-context.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "Codex SessionStart preserves Caveman lite, lesson titles, 90-day review reminders, and state restoration with portable paths",
+      "semanticGate": "hooks"
+    },
+    {
+      "order": 6,
+      "payload": "06-agent-hook-smoke-test.ps1",
+      "localSha256": "08BFE689E8FC36C1515C57A632FA867510B4E8023EC928B8C6CFAB4737921BA2",
+      "publicSource": "tools/test-agent-hooks.ps1",
+      "publicSha256": "3E30C65EA309CE8B8E78B8FCE41D9DAB1BE5E454BCDF09B88A9E95BAE2C84C77",
+      "installedDestination": "tools/test-agent-hooks.ps1",
+      "mode": "behavior-superset",
+      "evidence": "public Hook suite covers the local smoke contract and added adversarial cases",
+      "semanticGate": "hooks"
+    },
+    {
+      "order": 7,
+      "payload": "07-agent-config-audit.ps1",
+      "localSha256": "FB23C4BAD3CCA2BEF53FABF02B6F52C4E5B19204E3F8CB4F98D677DD30D90E54",
+      "publicSource": "tools/diagnose-install.ps1",
+      "publicSha256": "CEFF1A010AE6577644CF2C52CD7E4161E51D6B90985F5A784583AF2B3029A274",
+      "installedDestination": "tools/diagnose-install.ps1",
+      "mode": "behavior-superset",
+      "evidence": "portable installed-state audit plus Caveman, review/skill, strict runtime catalog, Git identity, managed matrix, and Hook smoke checks",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 8,
+      "payload": "08-git-checkpoint.ps1",
+      "localSha256": "0253EEB42A93E2F0147D7ECE9983BA6D74FE155E20520DBE639699696168D9F7",
+      "publicSource": "tools/git-checkpoint.ps1",
+      "publicSha256": "C6220D4A07B90F603FEBC41828C89C2E2CDE133E8A88635E26311351F42BB25F",
+      "installedDestination": "tools/git-checkpoint.ps1",
+      "mode": "behavior-superset",
+      "evidence": "isolated index, explicit scope, index lock, HEAD CAS, and compensation",
+      "semanticGate": "checkpoint"
+    },
+    {
+      "order": 9,
+      "payload": "09-git-checkpoint-test.ps1",
+      "localSha256": "32AD24E4FD61486E55F2AF5AA0918866641A1E36E6CF1436458CA1B90B861E45",
+      "publicSource": "tools/test-git-checkpoint.ps1",
+      "publicSha256": "95385957E1720FD378E56ED70C0CA471F4526E494265A719C4832EE39B689DC5",
+      "installedDestination": "tools/test-git-checkpoint.ps1",
+      "mode": "behavior-superset",
+      "evidence": "checkpoint transaction and concurrent-index adversarial suite",
+      "semanticGate": "checkpoint"
+    },
+    {
+      "order": 10,
+      "payload": "10-skill-catalog-resolver.ps1",
+      "localSha256": "6C32543DB4BD744460FFF14A932F668B56C24F94EBB6D08FD325F3F40AF84196",
+      "publicSource": "tools/skill-catalog-resolver.ps1",
+      "publicSha256": "7FF3CAF0AB69597D7DE751366941FD4E98174A3FCE31364A5A569203A4E3438F",
+      "installedDestination": "tools/skill-catalog-resolver.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "CODEX_HOME rollout discovery and host-thread-prompt-digest snapshot binding",
+      "semanticGate": "skills"
+    },
+    {
+      "order": 11,
+      "payload": "11-skill-index.ps1",
+      "localSha256": "2363C2C0D23D9D17D3DFB487C349225F04A42DE402D66F21FF15632FFBF3E498",
+      "publicSource": "tools/skill-index.ps1",
+      "publicSha256": "96449FC0A11A8133CB670ECD783013ECBC690FB2B060FFA7C361439674D730B3",
+      "installedDestination": "tools/skill-index.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "portable catalog root and optional CODEX_BINARY with atomic snapshot publication",
+      "semanticGate": "skills"
+    },
+    {
+      "order": 12,
+      "payload": "12-skill-search.ps1",
+      "localSha256": "29726E625E722C3E2D47ADDD1188D08F2D8EC92D141C9C6257A50343378CF9F3",
+      "publicSource": "tools/skill-search.ps1",
+      "publicSha256": "6D3D20CE3D8F9A0CB5B397E3903758C1473BDE45824D4BB460199A1256053450",
+      "installedDestination": "tools/skill-search.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "portable bound-catalog search and explicit fixture isolation",
+      "semanticGate": "skills"
+    },
+    {
+      "order": 13,
+      "payload": "13-skill-catalog-test.ps1",
+      "localSha256": "712939D6EF540512F1FE7BEC25AB440BA19B3605AEB4E39142021565EF7EEBEE",
+      "publicSource": "tools/test-skill-catalog.ps1",
+      "publicSha256": "5D00ABBD60DAA4C42035F0FA80951A5FAF941233F5249508D3922F00E2C94BC5",
+      "installedDestination": "tools/test-skill-catalog.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "45-case deterministic catalog suite plus an explicit 52-case Live rollout canary",
+      "semanticGate": "skills"
+    },
+    {
+      "order": 14,
+      "payload": "14-pre-commit-check.ps1",
+      "localSha256": "A2A5886A40B9714713176932200CD8D4F3060F681FE9BFA4DA9AE086891EAB31",
+      "publicSource": "tools/git-hooks/pre-commit-check.ps1",
+      "publicSha256": "B79CAE6EA5189396317FDCD75D54E39171E943A6727F4AEB6F1319D0ABD4B269",
+      "installedDestination": "tools/git-hooks/pre-commit-check.ps1",
+      "mode": "behavior-superset",
+      "evidence": "staged protected-path, secret, and oversized-blob checks",
+      "semanticGate": "precommit"
+    },
+    {
+      "order": 15,
+      "payload": "15-pre-commit-check-test.ps1",
+      "localSha256": "FA3F1C7C75F31DED25180305CA2EDC75BADF65DEC8C30EADAB273A019F0C82F8",
+      "publicSource": "tools/test-pre-commit.ps1",
+      "publicSha256": "DF41A8FB746AA882086E834D7815D61BC2FB03C61C701CE81AC63EE8628F7931",
+      "installedDestination": "tools/test-pre-commit.ps1",
+      "mode": "behavior-superset",
+      "evidence": "public pre-commit fixture includes local policy and additional secret checks",
+      "semanticGate": "precommit"
+    },
+    {
+      "order": 16,
+      "payload": "16-review-gates.md",
+      "localSha256": "C9A19BACDA7274AB6363CF1E928004D3C6D7830DBFDE8C2B41061629C780CBD5",
+      "publicSource": "rules/review-gates.md",
+      "publicSha256": "14E9C2B0CE817C9373612E5870A54A7E02191BD11594D4FF0EF6FAF9B1AB1CB7",
+      "installedDestination": "rules/review-gates.md",
+      "mode": "policy-equivalent",
+      "evidence": "risk-triggered review contract without maintainer identity",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 17,
+      "payload": "17-skill-routing.md",
+      "localSha256": "C81FA80C9961CC83154BC346368404D787102887D9EC792FE35BB13E2EE3A5C7",
+      "publicSource": "rules/skill-routing.md",
+      "publicSha256": "EC9556D7A1E95891137A410D5B2EA68A028DF5FFC09A37F608D8FBBF6A9A9917",
+      "installedDestination": "rules/skill-routing.md",
+      "mode": "policy-equivalent",
+      "evidence": "explicit skill invocation and progressive loading contract",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 18,
+      "payload": "18-workflow-routing.md",
+      "localSha256": "BA94254AB8FA5F32A721031D068D06617843AD79EC8F1366FED7499D98C2BAA2",
+      "publicSource": "rules/workflow-routing.md",
+      "publicSha256": "286499986EB7F17B993D138E12C9B8CAA6D120E60DF83AA150A13E9A3ECEE29B",
+      "installedDestination": "rules/workflow-routing.md",
+      "mode": "policy-equivalent",
+      "evidence": "diagnose-plan-red-green-review-checkpoint workflow contract",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 19,
+      "payload": "19-safety-boundaries.md",
+      "localSha256": "C1D83ED64CF1D22AF2E782DD91E4C1CD1EF7991C0F0C66FA452B64C7C5EA2697",
+      "publicSource": "rules/safety-boundaries.md",
+      "publicSha256": "F5FEA7A35CCCB29DF36AE46CE135ED3DDE02ACD51F5CE5466C8F9A4AD31030A1",
+      "installedDestination": "rules/safety-boundaries.md",
+      "mode": "policy-equivalent",
+      "evidence": "authorization, destructive action, credential, and Live-evidence boundaries",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 20,
+      "payload": "20-HARNESS-GUIDE.md",
+      "localSha256": "9B952C5AFB2F38CB59E49450EFFC0A65557DD16FE9FA89D01BCA0AEC5900E2E4",
+      "publicSource": "rules/HARNESS-GUIDE.md",
+      "publicSha256": "2B32B88D11F778BC890C35D3B8BCC0300D70CBDD3CCFD855D0953337CC2B7CE9",
+      "installedDestination": "rules/HARNESS-GUIDE.md",
+      "mode": "policy-equivalent",
+      "evidence": "portable Codex-only runtime, catalog, validation, recovery, and evidence guide",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 21,
+      "payload": "21-harness-review.md",
+      "localSha256": "95D12E18DC6EDB0DC1E486B1435C3CE2C9863F0E4D05AA3124BA76DDD38D1ED6",
+      "publicSource": "rules/harness-review.md",
+      "publicSha256": "E94CCBC499DCE4A7272D387630EF9D1F5F7F1525CD7F5098519C679DD544710B",
+      "installedDestination": "rules/harness-review.md",
+      "mode": "policy-equivalent",
+      "evidence": "portable three-to-six-month lessons, rules, skills, 180-day catalog, MCP, logs, model/effort, marker, and release-review checklist",
+      "semanticGate": "policy"
+    },
+    {
+      "order": 22,
+      "payload": "22-protected-path-policy.ps1",
+      "localSha256": "EC22C8249201131C8FDEB1E87C9810378559031B9B98922D53E8940714884256",
+      "publicSource": "tools/protected-path-policy.ps1",
+      "publicSha256": "EC22C8249201131C8FDEB1E87C9810378559031B9B98922D53E8940714884256",
+      "installedDestination": "tools/protected-path-policy.ps1",
+      "mode": "byte-exact",
+      "evidence": "source and local SHA-256 are identical",
+      "semanticGate": "protected_paths"
+    },
+    {
+      "order": 23,
+      "payload": "23-protected-path-policy-test.ps1",
+      "localSha256": "90735A098240ED4BEF284E74BCBF3B5AD36C61AFF25B70D2598243EBEEA79D06",
+      "publicSource": "tools/test-protected-path-policy.ps1",
+      "publicSha256": "9D6854F0DFDF64F2B57495FCF9D4C683679EE4A8AE38EA140D08D3B09FDFB39A",
+      "installedDestination": "tools/test-protected-path-policy.ps1",
+      "mode": "rendered-equivalent",
+      "evidence": "14-case protected-path policy suite with package-relative loading",
+      "semanticGate": "protected_paths"
+    }
+  ],
+  "localProjectionSha256": "4531B51D514E5286434B46D14C9C7D13CA46E8792334906F3C0059B90B1DA41B",
+  "semanticGateCatalog": {
+    "migration": {
+      "script": "tools/test-v2-migration.ps1",
+      "expected": "fail=0"
+    },
+    "hooks": {
+      "script": "tools/test-agent-hooks.ps1",
+      "expected": "fail=0"
+    },
+    "checkpoint": {
+      "script": "tools/test-git-checkpoint.ps1",
+      "expected": "0 failed"
+    },
+    "skills": {
+      "script": "tools/test-skill-catalog.ps1",
+      "expected": "0 failed"
+    },
+    "precommit": {
+      "script": "tools/test-pre-commit.ps1",
+      "expected": "0 failed"
+    },
+    "policy": {
+      "script": "tools/test-equivalence-contract.ps1",
+      "expected": "fail=0"
+    },
+    "protected_paths": {
+      "script": "tools/test-protected-path-policy.ps1",
+      "expected": "0 failed"
+    }
+  },
+  "supportInstalls": [
+    {
+      "publicSource": "templates/codex/AGENTS.md",
+      "installedDestination": "@codex/AGENTS.md"
+    },
+    {
+      "publicSource": "templates/codex/hooks.empty.json",
+      "installedDestination": "@codex/hooks.json"
+    },
+    {
+      "publicSource": "rules/context-management.md",
+      "installedDestination": "rules/context-management.md"
+    },
+    {
+      "publicSource": "rules/README.md",
+      "installedDestination": "rules/README.md"
+    },
+    {
+      "publicSource": "rules/README.zh-CN.md",
+      "installedDestination": "rules/README.zh-CN.md"
+    },
+    {
+      "publicSource": "rules/verification.md",
+      "installedDestination": "rules/verification.md"
+    },
+    {
+      "publicSource": "rules/lessons.md",
+      "installedDestination": "rules/lessons.md"
+    },
+    {
+      "publicSource": "manifests/local-postimage-equivalence.json",
+      "installedDestination": "manifests/local-postimage-equivalence.json"
+    },
+    {
+      "publicSource": "manifests/v1-codex-owned-files.txt",
+      "installedDestination": "manifests/v1-codex-owned-files.txt"
+    },
+    {
+      "publicSource": "templates/codex/requirements.managed-hooks.example.toml",
+      "installedDestination": "manifests/codex-requirements.expected.toml"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/agents/openai.yaml",
+      "installedDestination": "@codex/skills/steadyagent-workflow/agents/openai.yaml"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/references/karpathy-guardrails.md",
+      "installedDestination": "@codex/skills/steadyagent-workflow/references/karpathy-guardrails.md"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/references/mnilax-extensions.md",
+      "installedDestination": "@codex/skills/steadyagent-workflow/references/mnilax-extensions.md"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/references/operating-principles.md",
+      "installedDestination": "@codex/skills/steadyagent-workflow/references/operating-principles.md"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/references/prompt-recipes.md",
+      "installedDestination": "@codex/skills/steadyagent-workflow/references/prompt-recipes.md"
+    },
+    {
+      "publicSource": "skills/steadyagent-workflow/SKILL.md",
+      "installedDestination": "@codex/skills/steadyagent-workflow/SKILL.md"
+    },
+    {
+      "publicSource": "tools/hooks/agent-hook-precompact.ps1",
+      "installedDestination": "tools/hooks/agent-hook-precompact.ps1"
+    },
+    {
+      "publicSource": "tools/hooks/pre-commit.ps1",
+      "installedDestination": "tools/hooks/pre-commit.ps1"
+    },
+    {
+      "publicSource": "tools/git-preflight.ps1",
+      "installedDestination": "tools/git-preflight.ps1"
+    },
+    {
+      "publicSource": "tools/rollback.ps1",
+      "installedDestination": "tools/rollback.ps1"
+    },
+    {
+      "publicSource": "tools/git-hooks/pre-commit",
+      "installedDestination": "tools/git-hooks/pre-commit"
+    },
+    {
+      "publicSource": "docs/activation-guide.md",
+      "installedDestination": "docs/activation-guide.md"
+    },
+    {
+      "publicSource": "docs/activation-guide.zh-CN.md",
+      "installedDestination": "docs/activation-guide.zh-CN.md"
+    },
+    {
+      "publicSource": "docs/feature-map.md",
+      "installedDestination": "docs/feature-map.md"
+    },
+    {
+      "publicSource": "docs/feature-map.zh-CN.md",
+      "installedDestination": "docs/feature-map.zh-CN.md"
+    },
+    {
+      "publicSource": "docs/hook-runtime.md",
+      "installedDestination": "docs/hook-runtime.md"
+    },
+    {
+      "publicSource": "docs/hook-runtime.zh-CN.md",
+      "installedDestination": "docs/hook-runtime.zh-CN.md"
+    },
+    {
+      "publicSource": "docs/tools.md",
+      "installedDestination": "docs/tools.md"
+    },
+    {
+      "publicSource": "docs/tools.zh-CN.md",
+      "installedDestination": "docs/tools.zh-CN.md"
+    }
+  ]
+}

@@ -9,10 +9,11 @@ Run these from a clean repository checkout:
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-local-equivalence.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
-The release-readiness gate includes a fresh-checkout style snapshot, transactional V2 migration, rendered Codex config checks, installed diagnosis, Hook/checkpoint/pre-commit tests, local Markdown links, and public asset checks.
+The release-readiness gate includes a fresh-checkout style snapshot, transactional V2 migration, rendered Codex config checks, installed diagnosis, Hook/checkpoint/pre-commit/skill-catalog tests, the 23-item local equivalence contract with a deliberate red mutation, local Markdown links, and public asset checks.
 
 During local WIP before the checkpoint commit, use `-AllowDirty` to validate the current uncommitted release surface. For final release evidence, run the command without `-AllowDirty` from a clean checkout.
 
@@ -22,6 +23,7 @@ During local WIP before the checkpoint commit, use `-AllowDirty` to validate the
 - Confirm `LICENSE`, `CONTRIBUTING.md`, `SECURITY.md`, and `RELEASE_NOTES.md` are present.
 - Confirm `.github/` templates and the validation workflow are present.
 - Confirm the public skill path is `skills/steadyagent-workflow/`.
+- Confirm `manifests/local-postimage-equivalence.json` remains 23/23 and the equivalence gate reports no missing, drifted, or unexplained destinations.
 - Confirm [docs/github-publication-runbook.md](github-publication-runbook.md) is followed before any remote push, PR, tag, or GitHub release.
 - Enable GitHub Private Vulnerability Reporting and verify the repository's **Report a vulnerability** link opens before publication.
 - Confirm `git diff --check` has no whitespace errors.

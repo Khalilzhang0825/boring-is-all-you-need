@@ -12,7 +12,10 @@ SteadyAgent 2 is a breaking, Codex-only release.
 - adds dry-run-first transactional installation, V1 conflict detection, explicit replacement authorization, full backup, atomic apply, final verification, and receipt-driven successful-migration rollback;
 - adds a versioned V1-owned-file tombstone manifest so authorized replacement removes the old Codex release surface and the same receipt restores it;
 - activates the scoped global pre-commit path as part of the same authorized transaction;
-- adds dedicated migration, Hook, checkpoint and pre-commit regression suites.
+- adds portable, thread-bound runtime skill indexing and search without shipping local runtime state;
+- retains portable Caveman lite reporting, lessons-title injection, 90-day Harness maintenance reminders, strict runtime-catalog/Git-identity diagnosis, and the three-to-six-month maintenance checklist;
+- freezes a 23-item local-postimage equivalence map with byte-exact, rendered-equivalent, behavior-superset, and policy-equivalent evidence;
+- adds dedicated migration, Hook, checkpoint, pre-commit, skill-catalog, protected-path and local-equivalence regression suites.
 
 V1 users must preview the migration and then run `tools/install.ps1 -Apply -ReplaceExistingWorkflow`. Restart Codex Desktop and require a clean diagnosis before trusting Live Hooks.
 

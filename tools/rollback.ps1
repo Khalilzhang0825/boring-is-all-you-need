@@ -4,7 +4,8 @@ param(
     [string]$ReceiptPath,
     [string]$GitConfigPath,
     [switch]$Apply,
-    [string]$InjectTargetMutationPath
+    [string]$InjectTargetMutationPath,
+    [string]$InjectSnapshotMutationPath
 )
 
 Set-StrictMode -Version Latest
@@ -14,7 +15,7 @@ trap {
     exit 2
 }
 
-if ($InjectTargetMutationPath -and $env:STEADYAGENT_TEST_MODE -ne "1") {
+if (($InjectTargetMutationPath -or $InjectSnapshotMutationPath) -and $env:STEADYAGENT_TEST_MODE -ne "1") {
     throw "Test-only rollback injection parameters require STEADYAGENT_TEST_MODE=1."
 }
 
@@ -53,7 +54,7 @@ function Write-Utf8NoBomAtomic {
 }
 
 function Copy-Atomically {
-    param([string]$Source, [string]$Destination)
+    param([string]$Source, [string]$Destination, [string]$ExpectedSHA256)
     $parent = Split-Path -Parent $Destination
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) {
         New-Item -ItemType Directory -Path $parent -Force | Out-Null
@@ -61,6 +62,10 @@ function Copy-Atomically {
     $temp = Join-Path $parent (".steadyagent-v2-rollback-" + [guid]::NewGuid().ToString("N") + ".tmp")
     try {
         [IO.File]::Copy($Source, $temp, $false)
+        if ($ExpectedSHA256 -and
+            (Get-FileHash -LiteralPath $temp -Algorithm SHA256).Hash -ne $ExpectedSHA256) {
+            throw ("Atomic copy source hash changed: " + $Source)
+        }
         Move-Item -LiteralPath $temp -Destination $Destination -Force
     }
     finally {
@@ -249,6 +254,19 @@ $stageRoot = Join-Path ([IO.Path]::GetTempPath()) ("steadyagent-v2-rollback-stag
 $restoredCount = 0
 $gitChanged = $false
 $injectionApplied = $false
+$snapshotInjectionApplied = $false
+$targetInjectionFull = if ($InjectTargetMutationPath) { [IO.Path]::GetFullPath($InjectTargetMutationPath) } else { $null }
+$snapshotInjectionFull = if ($InjectSnapshotMutationPath) { [IO.Path]::GetFullPath($InjectSnapshotMutationPath) } else { $null }
+if ($targetInjectionFull -and
+    -not @($validated | Where-Object { $_.Destination.Equals($targetInjectionFull, [StringComparison]::OrdinalIgnoreCase) }).Count) {
+    throw "Injected target mutation path is outside the receipt."
+}
+if ($snapshotInjectionFull -and
+    -not @($validated | Where-Object {
+        $_.SnapshotPath -and $_.SnapshotPath.Equals($snapshotInjectionFull, [StringComparison]::OrdinalIgnoreCase)
+    }).Count) {
+    throw "Injected snapshot mutation path is outside the receipt."
+}
 try {
     try { $lockTaken = $mutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $lockTaken = $true }
@@ -270,6 +288,9 @@ try {
             }
             $stagePath = Join-Path $stageRoot (("{0:D4}.installed" -f $index))
             [IO.File]::Copy($item.Destination, $stagePath, $false)
+            if ((Get-FileHash -LiteralPath $stagePath -Algorithm SHA256).Hash -ne $item.InstalledSHA256) {
+                throw ("Installed file changed while staging rollback: " + $item.Destination)
+            }
         }
         else {
             if (Test-Path -LiteralPath $item.Destination) {
@@ -277,12 +298,27 @@ try {
             }
             $stagePath = $null
         }
+        $originalStagePath = $null
+        if ($item.Existed) {
+            Assert-NoReparsePath -Path $item.SnapshotPath
+            if (-not $snapshotInjectionApplied -and $snapshotInjectionFull -and
+                $snapshotInjectionFull.Equals($item.SnapshotPath, [StringComparison]::OrdinalIgnoreCase)) {
+                [IO.File]::WriteAllText($item.SnapshotPath, "injected-snapshot-drift", (New-Object Text.UTF8Encoding($false)))
+                $snapshotInjectionApplied = $true
+            }
+            $originalStagePath = Join-Path $stageRoot (("{0:D4}.original" -f $index))
+            [IO.File]::Copy($item.SnapshotPath, $originalStagePath, $false)
+            if ((Get-FileHash -LiteralPath $originalStagePath -Algorithm SHA256).Hash -ne $item.OriginalSHA256) {
+                throw ("Snapshot changed while staging rollback: " + $item.SnapshotPath)
+            }
+        }
         Add-Member -InputObject $validated[$index] -NotePropertyName InstalledStagePath -NotePropertyValue $stagePath
+        Add-Member -InputObject $validated[$index] -NotePropertyName OriginalStagePath -NotePropertyValue $originalStagePath
     }
 
     foreach ($item in $validated) {
-        if (-not $injectionApplied -and $InjectTargetMutationPath -and
-            [IO.Path]::GetFullPath($InjectTargetMutationPath).Equals($item.Destination, [StringComparison]::OrdinalIgnoreCase)) {
+        if (-not $injectionApplied -and $targetInjectionFull -and
+            $targetInjectionFull.Equals($item.Destination, [StringComparison]::OrdinalIgnoreCase)) {
             [IO.File]::WriteAllText($item.Destination, "injected-rollback-drift", (New-Object Text.UTF8Encoding($false)))
             $injectionApplied = $true
         }
@@ -297,7 +333,10 @@ try {
             throw ("Removed V1 file reappeared immediately before restoration: " + $item.Destination)
         }
         if ($item.Existed) {
-            Copy-Atomically -Source $item.SnapshotPath -Destination $item.Destination
+            Copy-Atomically `
+                -Source $item.OriginalStagePath `
+                -Destination $item.Destination `
+                -ExpectedSHA256 $item.OriginalSHA256
         }
         elseif (Test-Path -LiteralPath $item.Destination) {
             Remove-Item -LiteralPath $item.Destination -Force
@@ -375,7 +414,10 @@ catch {
             }
             if ($item.Action -eq "install") {
                 Assert-NoReparsePath -Path $item.Destination -AllowMissingLeaf
-                Copy-Atomically -Source $item.InstalledStagePath -Destination $item.Destination
+                Copy-Atomically `
+                    -Source $item.InstalledStagePath `
+                    -Destination $item.Destination `
+                    -ExpectedSHA256 $item.InstalledSHA256
             }
             elseif (Test-Path -LiteralPath $item.Destination) {
                 Assert-NoReparsePath -Path $item.Destination

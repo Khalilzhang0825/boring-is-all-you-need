@@ -5,6 +5,8 @@ param(
     [string]$ManagedConfigPath,
     [string]$GitConfigPath,
     [switch]$RequireHooksActive,
+    [switch]$RequireRuntimeCatalog,
+    [switch]$RequireGitIdentity,
     [switch]$SkipSmoke
 )
 
@@ -85,6 +87,9 @@ Test-File "Codex user hooks installed" (Join-Path $codexFull "hooks.json")
 Test-File "workflow rule installed" (Join-Path $targetFull "rules\workflow-routing.md")
 Test-File "review rule installed" (Join-Path $targetFull "rules\review-gates.md")
 Test-File "safety rule installed" (Join-Path $targetFull "rules\safety-boundaries.md")
+Test-File "lessons index source installed" (Join-Path $targetFull "rules\lessons.md")
+Test-File "Harness guide installed" (Join-Path $targetFull "rules\HARNESS-GUIDE.md")
+Test-File "Harness review contract installed" (Join-Path $targetFull "rules\harness-review.md")
 Test-File "workflow skill installed" (Join-Path $codexFull "skills\steadyagent-workflow\SKILL.md")
 foreach ($hook in @(
     "agent-hook-utils.ps1",
@@ -95,12 +100,74 @@ foreach ($hook in @(
 )) {
     Test-File ("hook installed: " + $hook) (Join-Path $targetFull ("tools\hooks\" + $hook))
 }
+
+$contextHookPath = Join-Path $targetFull "tools\hooks\agent-hook-context.ps1"
+$agentsPath = Join-Path $codexFull "AGENTS.md"
+if ((Test-Path -LiteralPath $contextHookPath -PathType Leaf) -and
+    (Test-Path -LiteralPath $agentsPath -PathType Leaf)) {
+    $contextText = [IO.File]::ReadAllText($contextHookPath, [Text.Encoding]::UTF8)
+    $agentsText = [IO.File]::ReadAllText($agentsPath, [Text.Encoding]::UTF8)
+    Add-Result $(if (
+        $contextText -match "Caveman startup status report" -and
+        $contextText -match "first assistant response" -and
+        $contextText -match "mode = `"lite`"" -and
+        $agentsText -match "Caveman.*lite"
+    ) { "PASS" } else { "FAIL" }) "Caveman lite startup contract is installed"
+    Add-Result $(if (
+        $contextText -match "Known pitfalls to avoid" -and
+        $contextText -match "HARNESS-REVIEW DUE" -and
+        $contextText -match "[.]harness-last-review"
+    ) { "PASS" } else { "FAIL" }) "lessons and periodic Harness review injection are installed"
+}
+
+$reviewRulePath = Join-Path $targetFull "rules\review-gates.md"
+$skillRulePath = Join-Path $targetFull "rules\skill-routing.md"
+$maintenancePath = Join-Path $targetFull "rules\harness-review.md"
+if ((Test-Path -LiteralPath $reviewRulePath -PathType Leaf) -and
+    (Test-Path -LiteralPath $skillRulePath -PathType Leaf) -and
+    (Test-Path -LiteralPath $maintenancePath -PathType Leaf)) {
+    $reviewText = [IO.File]::ReadAllText($reviewRulePath, [Text.Encoding]::UTF8)
+    $skillText = [IO.File]::ReadAllText($skillRulePath, [Text.Encoding]::UTF8)
+    $maintenanceText = [IO.File]::ReadAllText($maintenancePath, [Text.Encoding]::UTF8)
+    Add-Result $(if (
+        $reviewText -match "File count alone is not a trigger" -and
+        $reviewText -match "material risk" -and
+        $skillText -match "Ordinary tasks do not search" -and
+        $skillText -match "require explicit user invocation" -and
+        $maintenanceText -match "three to six months" -and
+        $maintenanceText -match "180 days" -and
+        $maintenanceText -match "[.]harness-last-review"
+    ) { "PASS" } else { "FAIL" }) "review, skill, and periodic maintenance contracts are consistent"
+}
 Test-File "protected path policy installed" (Join-Path $targetFull "tools\protected-path-policy.ps1")
 Test-File "rollback tool installed" (Join-Path $targetFull "tools\rollback.ps1")
+foreach ($catalogTool in @(
+    "skill-catalog-resolver.ps1",
+    "skill-index.ps1",
+    "skill-search.ps1",
+    "test-skill-catalog.ps1",
+    "test-protected-path-policy.ps1"
+)) {
+    Test-File ("catalog/equivalence tool installed: " + $catalogTool) (Join-Path $targetFull ("tools\" + $catalogTool))
+}
 Test-File "pre-commit entrypoint installed" (Join-Path $targetFull "tools\git-hooks\pre-commit")
 Test-File "pre-commit guard installed" (Join-Path $targetFull "tools\git-hooks\pre-commit-check.ps1")
 $legacyManifest = Join-Path $targetFull "manifests\v1-codex-owned-files.txt"
 Test-File "V1-owned file manifest installed" $legacyManifest
+$equivalenceManifest = Join-Path $targetFull "manifests\local-postimage-equivalence.json"
+Test-File "23-item local equivalence manifest installed" $equivalenceManifest
+if (Test-Path -LiteralPath $equivalenceManifest -PathType Leaf) {
+    try {
+        $equivalence = Get-Content -LiteralPath $equivalenceManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+        Add-Result $(if (@($equivalence.entries).Count -eq 23) { "PASS" } else { "FAIL" }) `
+            "local equivalence manifest maps all 23 entries" ("count=" + @($equivalence.entries).Count)
+        Add-Result $(if ([string]$equivalence.localPostimageManifestSha256 -eq "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF") { "PASS" } else { "FAIL" }) `
+            "local equivalence manifest identity is frozen"
+    }
+    catch {
+        Add-Result "FAIL" "local equivalence manifest parses" $_.Exception.Message
+    }
+}
 $expectedManagedConfig = Join-Path $targetFull "manifests\codex-requirements.expected.toml"
 Test-File "rendered expected managed config installed" $expectedManagedConfig
 if (Test-Path -LiteralPath $legacyManifest -PathType Leaf) {
@@ -138,6 +205,35 @@ $gitHooksActive = $LASTEXITCODE -eq 0 -and
     [string]$activeHooksPath -and
     ([string]$activeHooksPath).Equals($expectedHooksPath, [StringComparison]::OrdinalIgnoreCase)
 Add-Result $(if ($gitHooksActive) { "PASS" } else { $activeSeverity }) "Git pre-commit path is active" ([string]$activeHooksPath)
+
+if ($RequireRuntimeCatalog) {
+    try {
+        . (Join-Path $targetFull "tools\skill-catalog-resolver.ps1")
+        $catalogThread = [string]$env:CODEX_THREAD_ID
+        $catalogRoot = Join-Path $targetFull "runtime-skill-catalogs"
+        $expectedCatalog = Resolve-RuntimeCatalogSnapshot `
+            -HostSurface "Auto" `
+            -ThreadId $catalogThread `
+            -CatalogRoot $catalogRoot
+        Add-Result $(if (Test-RuntimeCatalogSnapshot -Expected $expectedCatalog) { "PASS" } else { "FAIL" }) `
+            "current rollout-bound runtime catalog is valid" $expectedCatalog.SnapshotId
+    }
+    catch {
+        Add-Result "FAIL" "current rollout-bound runtime catalog is valid" $_.Exception.Message
+    }
+}
+
+$identitySeverity = if ($RequireGitIdentity) { "FAIL" } else { "WARN" }
+if ($GitConfigPath) {
+    $gitName = & git config --file $GitConfigPath --get user.name
+    $gitEmail = & git config --file $GitConfigPath --get user.email
+}
+else {
+    $gitName = & git config --global --get user.name
+    $gitEmail = & git config --global --get user.email
+}
+Add-Result $(if ([string]$gitName) { "PASS" } else { $identitySeverity }) "Git user.name is configured"
+Add-Result $(if ([string]$gitEmail) { "PASS" } else { $identitySeverity }) "Git user.email is configured"
 
 if ($SkipSmoke) {
     Add-Result "WARN" "installed hook smoke" "skipped"
