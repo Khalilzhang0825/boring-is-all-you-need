@@ -7,6 +7,7 @@
 *.json text eol=lf
 *.toml text eol=lf
 *.sh text eol=lf
+tools/git-hooks/pre-commit text eol=lf
 .gitattributes text eol=lf
 .gitignore text eol=lf
 LICENSE text eol=lf

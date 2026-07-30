@@ -130,6 +130,8 @@ try {
     )
     $preCommitBytes = [IO.File]::ReadAllBytes((Join-Path $root "tools\git-hooks\pre-commit"))
     $hasBom = $preCommitBytes.Length -ge 3 -and $preCommitBytes[0] -eq 0xEF -and $preCommitBytes[1] -eq 0xBB -and $preCommitBytes[2] -eq 0xBF
+    $preCommitEolAttribute = [string](& git check-attr eol -- "tools/git-hooks/pre-commit")
+    Check "extensionless Git hook is pinned to LF in attributes" ($preCommitEolAttribute -match ':\s+eol:\s+lf$') $preCommitEolAttribute
     Check "Git hook entrypoint is LF and BOM-free" (-not $hasBom -and -not ($preCommitBytes -contains 13))
 
     $files = @(rg --files -g "!*.png" -g "!*.jpg" -g "!*.gif" -g "!*.ico" -g "!.agent/**")
