@@ -1,6 +1,6 @@
 # Contributing
 
-SteadyAgent is a local-first harness for AI coding workflows. Contributions should improve reliability, portability, documentation clarity, or verification evidence.
+Boring Is All You Need is a local-first harness for AI coding workflows. Contributions should improve reliability, portability, documentation clarity, or verification evidence.
 
 ## Before Opening A Pull Request
 

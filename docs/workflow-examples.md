@@ -1,13 +1,13 @@
 # Workflow Examples
 
-These examples show how to ask for work after SteadyAgent is installed. You do not need to mention every internal file. Ask for the outcome, then ask the agent to use SteadyAgent's process.
+These examples show how to ask for work after Boring Is All You Need is installed. You do not need to mention every internal file. Ask for the outcome, then ask the agent to use the project's workflow.
 
 ## Universal Starter Prompt
 
 Use this when you are unsure whether the host loaded the instructions automatically:
 
 ```text
-Use the SteadyAgent workflow for this repository. Inspect first, keep the change scoped, run the smallest relevant validation, and end with changed files, verification, remaining risks, and Git status.
+Use the Boring Is All You Need workflow for this repository. Inspect first, keep the change scoped, run the smallest relevant validation, and end with changed files, verification, remaining risks, and Git status.
 ```
 
 Expected behavior:
@@ -23,7 +23,7 @@ Expected behavior:
 Prompt:
 
 ```text
-The login test is failing. Use SteadyAgent to investigate, find the smallest fix, run the relevant test, and checkpoint only after the diff is reviewed.
+The login test is failing. Use the Boring Is All You Need workflow to investigate, find the smallest fix, run the relevant test, and checkpoint only after the diff is reviewed.
 ```
 
 Expected agent flow:
@@ -49,7 +49,7 @@ Git: clean after checkpoint.
 Prompt:
 
 ```text
-Add a dark-mode toggle to the settings page. Use SteadyAgent: inspect existing UI patterns, give me a short plan, implement the smallest complete version, run the relevant checks, and report residual risk.
+Add a dark-mode toggle to the settings page. Use the Boring Is All You Need workflow: inspect existing UI patterns, give me a short plan, implement the smallest complete version, run the relevant checks, and report residual risk.
 ```
 
 Expected agent flow:
@@ -66,7 +66,7 @@ Expected agent flow:
 Prompt:
 
 ```text
-Review this branch before we change anything. Use SteadyAgent review style: findings first, order by severity, cite file and line, then list test gaps and residual risk.
+Review this branch before we change anything. Use the Boring Is All You Need review style: findings first, order by severity, cite file and line, then list test gaps and residual risk.
 ```
 
 Expected agent flow:
@@ -83,7 +83,7 @@ Expected agent flow:
 Prompt:
 
 ```text
-Continue the migration from the last checkpoint. Use SteadyAgent: first read the project state file, verify Git status, summarize current progress, then continue with the next smallest step.
+Continue the migration from the last checkpoint. Use the Boring Is All You Need workflow: first read the project state file, verify Git status, summarize current progress, then continue with the next smallest step.
 ```
 
 Expected agent flow:
@@ -101,7 +101,7 @@ Use this for multi-hour work, release preparation, migrations, and tasks that ma
 Prompt:
 
 ```text
-Check whether this repository is ready for a public release. Use SteadyAgent: run the release-readiness gate, inspect any failure, and do not push or tag unless I explicitly approve.
+Check whether this repository is ready for a public release. Use the Boring Is All You Need workflow: run the release-readiness gate, inspect any failure, and do not push or tag unless I explicitly approve.
 ```
 
 Expected agent flow:
@@ -121,7 +121,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 3. Explain failures as concrete missing files, broken links, stale release wording, hook smoke test failures, or naming residue.
 4. Do not publish, retag, or rewrite remote history without explicit approval.
 
-## What A Good SteadyAgent Response Contains
+## What A Good Boring Is All You Need Response Contains
 
 At the end of a task, the response should include:
 

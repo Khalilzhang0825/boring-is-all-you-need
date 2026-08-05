@@ -1,4 +1,4 @@
-# SteadyAgent Harness Guide
+# Boring Is All You Need Harness Guide
 
 This guide describes the installed Codex-only workflow surface. It is a runtime
 reference, not proof that a particular Codex Desktop process has reloaded the

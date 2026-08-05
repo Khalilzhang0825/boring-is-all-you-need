@@ -1,6 +1,6 @@
 # Release Checklist
 
-Use this checklist before publishing the SteadyAgent V2 tag or GitHub release.
+Use this checklist before publishing the Boring Is All You Need v2 tag or GitHub release.
 
 ## Required Gates
 

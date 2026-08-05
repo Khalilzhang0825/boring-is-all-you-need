@@ -3,7 +3,7 @@ name: steadyagent-workflow
 description: Local-first Codex workflow for planning, debugging, reviewing, refactoring, improving AGENTS.md, building skills, publishing agent harness repositories, or running complex multi-step coding tasks that need staged diagnosis, context control, verification loops, review strategy, release evidence, and anti-overengineering guardrails.
 ---
 
-# SteadyAgent Workflow
+# Boring Is All You Need Workflow
 
 Use this skill to structure non-trivial AI coding agent work. Keep the main context lean: use this file for the workflow, and load references only when the task needs them.
 

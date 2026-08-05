@@ -2,7 +2,7 @@
 
 ## v2.0.0
 
-SteadyAgent 2 is a breaking, Codex-only release.
+Boring Is All You Need v2.0.0 is the in-place successor to legacy SteadyAgent v1. The existing GitHub repository is renamed rather than replaced, so Stars, Issues, tags, and V1 history remain attached to the same project while the default branch moves to the new Codex-only workflow.
 
 - replaces the dual-host V1 package with a Codex Desktop workflow migration;
 - installs exactly three managed Hook blocks: one `SessionStart`, one unified `PreToolUse`, and one `PreCompact`;
@@ -13,7 +13,7 @@ SteadyAgent 2 is a breaking, Codex-only release.
 - adds dry-run-first transactional installation, V1 conflict detection, explicit replacement, a 52-source installer-anchored package manifest, durable pre-write snapshots and `applying` receipt, atomic apply, final verification, and journal-driven recovery from hard interruptions during both installation and rollback;
 - binds diagnosis to all 53 installed hashes and makes production Apply/rollback non-elevated-only: no UAC, ACL changes, owner takeover, or administrator process touching user-writable migration paths; test-only roots and injections require both `STEADYAGENT_TEST_MODE=1` and an existing isolated `STEADYAGENT_TEST_ROOT` named `steadyagent-v2-migration-<32 lowercase hex>` under the system temp directory;
 - adds a versioned V1-owned-file tombstone manifest so authorized replacement removes the old Codex release surface and the same receipt restores it;
-- activates the scoped global pre-commit path as part of the same authorized transaction, runs the SteadyAgent guard first, and chains executable repository-local pre-commit hooks;
+- activates the scoped global pre-commit path as part of the same authorized transaction, runs the Boring Is All You Need guard first, and chains executable repository-local pre-commit hooks;
 - adds portable, thread-bound runtime skill indexing and search without shipping local runtime state; production tools discover the fixed `$HOME\.steadyagent` installation root from their installed location;
 - retains dynamic Caveman lite reporting, lessons-title injection, due-only 90-day Harness maintenance reminders with a fresh-install mtime baseline, strict runtime-catalog/Git-identity diagnosis, and the three-to-six-month maintenance checklist;
 - freezes a 23-item local-postimage equivalence map with rendered-equivalent, behavior-superset, scoped-equivalent, and policy-equivalent evidence, plus an exact 65-assertion retained Hook-to-public-evidence binding;
@@ -24,7 +24,7 @@ V1 users must preview the migration and then run `tools/install.ps1 -Apply -Repl
 
 ## v1.0.0
 
-SteadyAgent v1 turns the original personal workflow into a public, bilingual, Windows-first agent harness for Codex and Claude Code.
+legacy SteadyAgent v1 turns the original personal workflow into a public, bilingual, Windows-first agent harness for Codex and Claude Code.
 
 ### Included
 

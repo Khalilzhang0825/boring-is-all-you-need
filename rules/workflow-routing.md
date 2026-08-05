@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Choose the right working mode before editing. SteadyAgent work should stay scoped, observable, and recoverable.
+Choose the right working mode before editing. Work under the Boring Is All You Need workflow should stay scoped, observable, and recoverable.
 
 ## Use When
 

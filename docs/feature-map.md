@@ -1,4 +1,4 @@
-# SteadyAgent 2 Feature Map
+# Boring Is All You Need Feature Map
 
 | Feature | Implementation | Installed location | Verification |
 | --- | --- | --- | --- |

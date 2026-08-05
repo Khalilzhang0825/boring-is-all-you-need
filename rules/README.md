@@ -1,4 +1,4 @@
-# SteadyAgent Rules
+# Boring Is All You Need Rules
 
 These files are progressive rules for AI coding agents. Keep always-on templates short, then load only the rule that matches the current task.
 

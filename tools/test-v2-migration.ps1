@@ -1177,7 +1177,7 @@ try {
     $dryCase = Join-Path $fixtureRoot "dry"
     $dry = Invoke-Installer -CaseRoot $dryCase
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
-    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN SteadyAgent 2[.]0[.]0 migration") $dry.Output
+    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]0 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
     Assert-True "dry-run reports zero target config state writes rather than zero filesystem writes" (
         $dry.Output -match "0 target/config/backup/receipt/state writes" -and
@@ -1767,7 +1767,7 @@ try {
     $midCrashDryRun = Invoke-ReceiptRollback -InstallResult $midCrash -DryRun
     Assert-True "applying receipt rollback dry-run succeeds" (
         $midCrashDryRun.ExitCode -eq 0 -and
-        $midCrashDryRun.Output -match "DRY-RUN SteadyAgent 2[.]0[.]0 rollback"
+        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]0 rollback"
     ) $midCrashDryRun.Output
     Assert-True "applying receipt rollback dry-run performs zero writes" (
         (Get-ManagedSurfaceFingerprint `
@@ -2518,7 +2518,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 ### Skill roots
 - ``r0`` = ``$skillRootForPrompt``
 ### Available skills
-- steadyagent-workflow: Installed SteadyAgent workflow fixture. (file: r0/steadyagent-workflow/SKILL.md)
+- steadyagent-workflow: Installed Boring Is All You Need workflow fixture. (file: r0/steadyagent-workflow/SKILL.md)
 </skills_instructions>
 "@
     $strictReceipt = [IO.File]::ReadAllText(
@@ -2862,7 +2862,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     )) -join "`n"
     Assert-True "public diagnosis cannot bypass the installed Hook smoke" (
         $publicSkipCode -ne 0 -and
-        $publicSkipText -match "available only to isolated SteadyAgent tests"
+        $publicSkipText -match "available only to isolated Boring Is All You Need tests"
     ) $publicSkipText
 
     $installedCheckpointPath = Join-Path $fresh.TargetRoot "tools\git-checkpoint.ps1"
@@ -2941,7 +2941,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 param([string]`$ReceiptPath, [string]`$GitConfigPath)
 [IO.File]::WriteAllText('$escapedRollbackSentinel', 'executed', [Text.Encoding]::UTF8)
 Write-Host 'STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0'
-Write-Host 'DRY-RUN SteadyAgent 2.0.0 rollback: 80 files; 0 writes.'
+Write-Host 'DRY-RUN Boring Is All You Need v2.0.0 rollback: 80 files; 0 writes.'
 exit 0
 "@
     [IO.File]::WriteAllText(
@@ -3516,7 +3516,8 @@ exit 0
             -TestRootOverride $mixedCaseRoot
         Assert-True "fixture mutex uses Windows case-insensitive path identity" (
             $mixedCase.ExitCode -ne 0 -and
-            $mixedCase.Output -match "Another SteadyAgent install or rollback transaction is active"
+            (($mixedCase.Output -replace '\s+', '') -match
+                [regex]::Escape(('Another Boring Is All You Need install or rollback transaction is active' -replace '\s+', '')))
         ) $mixedCase.Output
         Assert-True "mixed-case mutex collision performs zero target writes" (
             -not (Test-Path -LiteralPath $mixedCaseCase)

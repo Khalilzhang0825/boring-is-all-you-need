@@ -1,4 +1,4 @@
-# SteadyAgent 2 工具
+# Boring Is All You Need 工具
 
 所有命令面向 Windows PowerShell 5.1。
 

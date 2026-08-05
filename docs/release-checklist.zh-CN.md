@@ -1,6 +1,6 @@
 # Release Checklist
 
-发布 SteadyAgent V2 tag 或 GitHub release 前，用这份清单做最后验收。
+发布 Boring Is All You Need v2 tag 或 GitHub release 前，用这份清单做最后验收。
 
 ## 必跑门禁
 

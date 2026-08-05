@@ -1,10 +1,47 @@
-# SteadyAgent 2
+# Boring Is All You Need
 
-**用证据交付，而不是凭感觉相信 AI agent。**
+<p align="center">
+  <img src="assets/boring-is-all-you-need-logo.png" width="180" alt="Boring Is All You Need Logo">
+</p>
 
-SteadyAgent `v2.0.0` 是面向 Windows 的 Codex Desktop 工作流替换包。用户在审阅 dry-run 后，只需一次明确授权，就能把现有 Codex 环境迁移成维护者正在使用的同款轻量工作流：范围控制、确定性安全门、状态恢复、真实验证、只因实质风险触发的独立审查，以及显式文件 checkpoint。
+**让 Agent 的工作变得无聊：用证据交付，而不是凭感觉相信 AI。**
+
+Boring Is All You Need `v2.0.0` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
+
+这里的“无聊”就是功能：Agent 不应临场发明权限、静默扩大范围、凭一句“测试通过”宣布完成，或把工作流留在半迁移状态。本项目把这些决定固化成确定性脚本、收据、哈希、回滚路径与发行门禁。
 
 [English README](README.md)
+
+## 为什么它比 V1 更好
+
+| 维度 | legacy SteadyAgent v1 | Boring Is All You Need v2 |
+| --- | --- | --- |
+| 支持宿主 | 同时包含 Codex 与 Claude 能力面 | 只支持 Codex Desktop，合同单一且可审计 |
+| 常驻 runtime | 更多按事件拆分的 Hook | 精确 3 个 block：`SessionStart`、统一 `PreToolUse`、`PreCompact` |
+| 安装方式 | 生成工作流文件 | 默认 dry-run；冲突检查、快照、收据、原子 Apply 与 rollback 组成同一事务 |
+| Git checkpoint | 范围化提交工具 | 隔离 index/对象区、暂存对象复核、锁、ref/index CAS 与崩溃恢复 |
+| 审查策略 | 可能因改动规模触发 | 只因明确审查请求或实质风险触发，不按文件数量判断 |
+| 验证闭环 | 宿主配置形态与 smoke | 52 项源信任清单、23 项等价图、负向变异、clean clone 与无 Git archive 门 |
+| 发行证据 | 本地发布检查 | 精确 tag Windows workflow、SHA-256 sidecar、机器可读 provenance、attestation 与 draft-only 发布 |
+
+## 本地验证快照
+
+工作流逻辑候选 `b4f56905b1bdf5841a723b96982b56df090383d6` 于 2026-08-05 在 Windows PowerShell 5.1 上取得以下本地发行证据。聚合入口是在 clean full-history clone 中运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；随后使用 `tools\validate-release-archive.ps1` 检查精确解压的 `git archive`。品牌化发行候选在 push 前必须重新运行同一组门禁，tag workflow 还会在创建 draft release 前再运行一次。
+
+| 门禁 | 结果 |
+| --- | ---: |
+| 干净克隆完整 release readiness | `147/0` |
+| 安装后本机 postimage 等价性 | `430/0` |
+| 事务式迁移与回滚 | `304/0` |
+| 可崩溃恢复的 Git checkpoint | `333/0` |
+| Managed Hook 行为 | `244/0` |
+| Runtime skill catalog | `69/0` |
+| Release workflow 状态机 | `40/0` |
+| 精确无 Git release archive | `33/0` |
+
+日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。品牌化候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 555.6 ms、最大值 631.6 ms，包含 Windows PowerShell 5.1 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
+
+这些是本地 committed-state 结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
 ## 2.0.0 的核心变化
 
@@ -26,44 +63,50 @@ SteadyAgent `v2.0.0` 是面向 Windows 的 Codex Desktop 工作流替换包。�
 
 ## 为什么只发布 Codex
 
-V2 只支持 Codex Desktop。其他 agent 宿主及其 runtime、模板、settings 与 Hook 能力不属于 V2 的支持和安装合同。
+V2 只支持 Codex Desktop。单一宿主意味着只有一份可以完整测试的 runtime 合同；其他 agent 宿主及其 runtime、模板、settings 与 Hook 能力不属于 V2 的支持和安装合同。
+
+另外，据维护者说明，其 Anthropic 账号被封。这个供应商锁定案例进一步强化了收缩范围的决定；一份支持矩阵的学费已经够了。
 
 V1 历史版本仍保留在 Git 历史中。V2 归档只保留证明替换与范围等价所必需的 V1 迁移 tombstone 和明确排除的断言证据；不会安装或支持 Claude runtime、模板、settings 或 Hooks。
 
+## 为什么部分技术标识仍是 `steadyagent`
+
+公开产品与仓库名称已经统一为 Boring Is All You Need。安装根目录 `$HOME\.steadyagent`、`STEADYAGENT_*` 测试变量、receipt schema、mutex 名称以及 `steadyagent-workflow` skill ID 继续作为稳定兼容协议保留。这样才能识别、替换、审计并回滚现有 V1 安装，不会在旁边再创建第二套工作流。它们不代表第二个产品或第二套 runtime。
+
 ## 运行前验证发行包
 
-正式发行输入是 GitHub Release 附带的 `steadyagent-v2.0.0.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.0` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
+正式发行输入是 GitHub Release 附带的 `boring-is-all-you-need-v2.0.0.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.0` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
 
 同时下载 archive、checksum 与机器可读 provenance 三个资产，解压或运行 `install.ps1` 前直接运行以下可复制验证：
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
 if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
     [string]$Provenance.releaseTag -cne "v2.0.0" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
-    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
     [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
-    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\steadyagent-v2.0.0.zip `
-  -R Khalilzhang0825/steadyagent `
-  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+  -R Khalilzhang0825/boring-is-all-you-need `
+  --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
   --source-ref refs/tags/v2.0.0 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\steadyagent-v2.0.0.zip .\steadyagent-v2.0.0-release
-Set-Location .\steadyagent-v2.0.0-release\steadyagent-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
+Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -87,13 +130,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
 
-替换 SteadyAgent V1 或已有自定义 Codex 工作流：
+替换 legacy SteadyAgent v1 或已有自定义 Codex 工作流：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-请始终在普通、非管理员 PowerShell 中运行。SteadyAgent 会在任何迁移写入前拒绝提权 Apply 与 rollback。默认 managed 配置只有在当前用户 token 可更新时才受支持；若 `%ProgramData%\OpenAI\Codex\requirements.toml` 被管理员锁定，安装器会明确报告 unsupported，不会触发 UAC、修改 ACL 或接管 owner。`managed` 表示 Codex 的配置机制，不表示能抵抗同用户恶意软件。
+请始终在普通、非管理员 PowerShell 中运行。Boring Is All You Need 会在任何迁移写入前拒绝提权 Apply 与 rollback。默认 managed 配置只有在当前用户 token 可更新时才受支持；若 `%ProgramData%\OpenAI\Codex\requirements.toml` 被管理员锁定，安装器会明确报告 unsupported，不会触发 UAC、修改 ACL 或接管 owner。`managed` 表示 Codex 的配置机制，不表示能抵抗同用户恶意软件。
 
 安装器会：
 
@@ -102,14 +145,14 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -App
 3. 未明确授权替换时阻断未知差异；
 4. durable 保存每个现有目标及原 Git Hook 路径，并在首次目标或 Git 写入前写入、输出 `applying` 恢复收据；
 5. 备份并移除旧 Codex 位置中已知的 V1-owned 文件；
-6. 在全机器唯一的 SteadyAgent 迁移互斥锁下原子应用；
+6. 在全机器唯一的 Boring Is All You Need 迁移互斥锁下原子应用；
 7. 逐项并全量验证最终结果；
 8. 任一步失败时恢复全部已变更目标；
 9. durable 将机器可读的 `migration-receipt.json` 推进到 `applied`。
 
 安装器不会修改模型或推理强度。
 
-安装后的全局 `core.hooksPath` 会先运行 SteadyAgent staged-file guard，再链接执行仓库自身的可执行 `.git/hooks/pre-commit`。若原先存在不同的全局 `core.hooksPath`，它仍是必须审阅的替换冲突：只有检查 dry-run 后才使用 `-ReplaceExistingWorkflow`，并通过收据恢复原值。
+安装后的全局 `core.hooksPath` 会先运行 Boring Is All You Need staged-file guard，再链接执行仓库自身的可执行 `.git/hooks/pre-commit`。若原先存在不同的全局 `core.hooksPath`，它仍是必须审阅的替换冲突：只有检查 dry-run 后才使用 `-ReplaceExistingWorkflow`，并通过收据恢复原值。
 
 使用安装后的 rollback 工具与安装时输出的收据：
 
@@ -164,7 +207,7 @@ RESULT pass=<n> warn=1 fail=0
 understand -> plan -> red check -> smallest change -> green check -> review when risk requires it -> checkpoint
 ```
 
-SteadyAgent 要求 Codex：
+Boring Is All You Need 要求 Codex：
 
 - 修改前检查仓库；
 - 修复前先诊断；

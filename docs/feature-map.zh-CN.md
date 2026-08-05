@@ -1,4 +1,4 @@
-# SteadyAgent 2 功能地图
+# Boring Is All You Need 功能地图
 
 | 功能 | 实现 | 安装位置 | 验证 |
 | --- | --- | --- | --- |

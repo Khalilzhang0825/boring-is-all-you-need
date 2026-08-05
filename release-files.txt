@@ -12,6 +12,7 @@ README.md
 README.zh-CN.md
 RELEASE_NOTES.md
 SECURITY.md
+assets/boring-is-all-you-need-logo.png
 docs/activation-guide.md
 docs/activation-guide.zh-CN.md
 docs/feature-map.md

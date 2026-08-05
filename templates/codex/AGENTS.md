@@ -1,6 +1,6 @@
-# AGENTS.md — SteadyAgent 2 Codex Contract
+# AGENTS.md — Boring Is All You Need Codex Contract
 
-SteadyAgent home: `%STEADYAGENT_HOME%`.
+Boring Is All You Need home: `%STEADYAGENT_HOME%`.
 
 ## Working contract
 
@@ -31,4 +31,4 @@ Maintain `PROJECT_STATE.md` or `.agent/state.md` for multi-stage work. Before co
 
 ## Host boundary
 
-SteadyAgent 2 targets Codex Desktop. Managed hooks provide one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact` reminder. The unified guard checks shell and file-edit leaves in the same parallel wrapper with one PowerShell process. Hooks reduce mistakes but are not a complete security sandbox. Do not change the user's model or reasoning settings.
+Boring Is All You Need targets Codex Desktop. Managed hooks provide one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact` reminder. The unified guard checks shell and file-edit leaves in the same parallel wrapper with one PowerShell process. Hooks reduce mistakes but are not a complete security sandbox. Do not change the user's model or reasoning settings.

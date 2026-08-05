@@ -15,7 +15,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 if ($SkipSmoke -and $env:STEADYAGENT_TEST_MODE -ne "1") {
-    throw "SkipSmoke is available only to isolated SteadyAgent tests."
+    throw "SkipSmoke is available only to isolated Boring Is All You Need tests."
 }
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 
@@ -532,7 +532,7 @@ function Invoke-ReceiptBoundByteVerification {
         $passed = (
             $process.ExitCode -eq 0 -and
             $stdout -match '(?m)^STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0\r?$' -and
-            $stdout -match 'DRY-RUN SteadyAgent 2[.]0[.]0 rollback: 80 files; 0 writes[.]' -and
+            $stdout -match 'DRY-RUN Boring Is All You Need v2[.]0[.]0 rollback: 80 files; 0 writes[.]' -and
             $stdout -notmatch '(?m)^PENDING BOUND RECOVERY '
         )
         return [pscustomobject]@{
@@ -611,7 +611,7 @@ $targetFull = [IO.Path]::GetFullPath($TargetRoot)
 $codexFull = [IO.Path]::GetFullPath($CodexHome)
 $managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
 
-Write-Host "SteadyAgent 2.0.0 Codex diagnosis"
+Write-Host "Boring Is All You Need v2.0.0 Codex diagnosis"
 Write-Host ("TargetRoot: " + $targetFull)
 Write-Host ("CodexHome: " + $codexFull)
 Write-Host ("ManagedConfigPath: " + $managedFull)

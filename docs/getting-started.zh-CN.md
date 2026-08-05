@@ -1,6 +1,6 @@
-# SteadyAgent 2 快速开始
+# Boring Is All You Need 快速开始
 
-SteadyAgent 2 只支持 Windows 上的 Codex Desktop。
+Boring Is All You Need 只支持 Windows 上的 Codex Desktop。
 
 ## 1. 下载、验证并解压发行包
 
@@ -11,31 +11,31 @@ Release workflow 将 build/validation、attestation 与 draft 创建拆为三个
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
 if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
     [string]$Provenance.releaseTag -cne "v2.0.0" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
-    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
     [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
-    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\steadyagent-v2.0.0.zip `
-  -R Khalilzhang0825/steadyagent `
-  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+  -R Khalilzhang0825/boring-is-all-you-need `
+  --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
   --source-ref refs/tags/v2.0.0 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\steadyagent-v2.0.0.zip .\steadyagent-v2.0.0-release
-Set-Location .\steadyagent-v2.0.0-release\steadyagent-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
+Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
 ```
 
 若 GitHub CLI 不提供 `attestation verify`、provenance 字段未绑定 reviewed commit 与 archive digest、来源验证失败或 checksum 不同，立即停止。

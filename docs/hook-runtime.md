@@ -1,4 +1,4 @@
-# SteadyAgent 2 Hook Runtime
+# Boring Is All You Need Hook Runtime
 
 The Codex runtime contains exactly three managed Hook blocks:
 

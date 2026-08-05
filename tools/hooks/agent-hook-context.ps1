@@ -45,7 +45,7 @@ function Find-StateFile {
 function Get-CavemanStatusLine {
     param([string]$Root)
     $mode = "lite"
-    $sourceLabel = "SteadyAgent default"
+    $sourceLabel = "Boring Is All You Need default"
     $configPath = Join-Path $Root "config\caveman.json"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         try {

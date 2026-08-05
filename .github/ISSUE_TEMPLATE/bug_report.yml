@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible SteadyAgent workflow, script, or documentation problem.
+description: Report a reproducible Boring Is All You Need workflow, script, or documentation problem.
 title: "[Bug]: "
 labels: ["bug"]
 body:

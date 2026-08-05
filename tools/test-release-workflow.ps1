@@ -87,11 +87,11 @@ function New-ReleaseFixture {
         [bool]$TagObservationFailure = $false,
         [bool]$IdObservationFailureAfterDelete = $false,
         [bool]$ReplaceAfterDelete = $false,
-        [string]$ReleaseName = "SteadyAgent v2.0.0",
+        [string]$ReleaseName = "Boring Is All You Need v2.0.0",
         [string[]]$AssetNames = @(
-            "steadyagent-v2.0.0.provenance.json",
-            "steadyagent-v2.0.0.zip",
-            "steadyagent-v2.0.0.zip.sha256"
+            "boring-is-all-you-need-v2.0.0.provenance.json",
+            "boring-is-all-you-need-v2.0.0.zip",
+            "boring-is-all-you-need-v2.0.0.zip.sha256"
         )
     )
 
@@ -103,7 +103,7 @@ function New-ReleaseFixture {
     $remote = New-Item -ItemType Directory -Path (Join-Path $fixture "remote")
     $mockBin = New-Item -ItemType Directory -Path (Join-Path $fixture "mock-bin")
 
-    $archiveName = "steadyagent-v2.0.0.zip"
+    $archiveName = "boring-is-all-you-need-v2.0.0.zip"
     $archivePath = Join-Path $dist.FullName $archiveName
     [IO.File]::WriteAllBytes($archivePath, [Text.Encoding]::UTF8.GetBytes("reviewed archive bytes"))
     $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -113,7 +113,7 @@ function New-ReleaseFixture {
     $releaseBodyPath = Join-Path $dist.FullName "RELEASE_BODY.md"
     Write-Utf8NoBom -Path $releaseBodyPath -Text $releaseBodyText
     $releaseBodyHash = (Get-FileHash -LiteralPath $releaseBodyPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $provenancePath = Join-Path $dist.FullName "steadyagent-v2.0.0.provenance.json"
+    $provenancePath = Join-Path $dist.FullName "boring-is-all-you-need-v2.0.0.provenance.json"
     $provenance = [ordered]@{
         schemaVersion = 1
         releaseTag = "v2.0.0"
@@ -121,15 +121,15 @@ function New-ReleaseFixture {
         archiveName = $archiveName
         archiveSha256 = $archiveHash
         releaseBodySha256 = $releaseBodyHash
-        sourceRepository = "fixture/steadyagent"
+        sourceRepository = "fixture/boring-is-all-you-need"
         sourceRef = "refs/tags/v2.0.0"
-        signerWorkflow = "fixture/steadyagent/.github/workflows/release.yml"
+        signerWorkflow = "fixture/boring-is-all-you-need/.github/workflows/release.yml"
     } | ConvertTo-Json -Depth 4
     Write-Utf8NoBom -Path $provenancePath -Text ($provenance + "`n")
 
     $remoteArchive = Join-Path $remote.FullName $archiveName
     $remoteSidecar = $remoteArchive + ".sha256"
-    $remoteProvenance = Join-Path $remote.FullName "steadyagent-v2.0.0.provenance.json"
+    $remoteProvenance = Join-Path $remote.FullName "boring-is-all-you-need-v2.0.0.provenance.json"
     [IO.File]::Copy($archivePath, $remoteArchive)
     [IO.File]::Copy($sidecarPath, $remoteSidecar)
     [IO.File]::Copy($provenancePath, $remoteProvenance)
@@ -193,7 +193,7 @@ function Save-State {
 function Set-CreatedRelease {
     $state.release = [pscustomobject]@{
         tagName = "v2.0.0"
-        name = "SteadyAgent v2.0.0"
+        name = "Boring Is All You Need v2.0.0"
         body = [string]$state.expectedBody
         isDraft = $true
         isPrerelease = $false
@@ -216,7 +216,7 @@ if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "view") {
         $null -eq $state.release -and -not [bool]$state.replacementApplied) {
         $state.release = [pscustomobject]@{
             tagName = "v2.0.0"
-            name = "SteadyAgent v2.0.0"
+            name = "Boring Is All You Need v2.0.0"
             body = [string]$state.expectedBody
             isDraft = $true
             isPrerelease = $false
@@ -252,9 +252,9 @@ if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "create") {
 }
 if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "upload") {
     $state.release.assets = @(
-        [pscustomobject]@{ name = "steadyagent-v2.0.0.provenance.json" },
-        [pscustomobject]@{ name = "steadyagent-v2.0.0.zip" },
-        [pscustomobject]@{ name = "steadyagent-v2.0.0.zip.sha256" }
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.0.provenance.json" },
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.0.zip" },
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.0.zip.sha256" }
     )
     if ([bool]$state.publishAfterUpload) {
         $state.release.isDraft = $false
@@ -365,7 +365,7 @@ function Invoke-DraftStepFixture {
         $env:EXPECTED_RELEASE_SHA = "1111111111111111111111111111111111111111"
         $env:EXPECTED_RELEASE_SHA256 = $Fixture.ArchiveHash
         $env:GH_TOKEN = "fixture"
-        $env:GH_REPO = "fixture/steadyagent"
+        $env:GH_REPO = "fixture/boring-is-all-you-need"
         $env:RUNNER_TEMP = $Fixture.Root
         $oldErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = "Continue"
@@ -419,6 +419,13 @@ Assert-True "GitHub workflows force the reviewed Node24 runtime contract" (
     $validateWorkflowText -match 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' -and
     $validateWorkflowText -match '(?m)^\s*FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:\s*["'']?true["'']?\s*$'
 )
+Assert-True "release workflow binds the new repository, title, archive, and prefix" (
+    $releaseWorkflowText -match 'Khalilzhang0825/boring-is-all-you-need' -and
+    $releaseWorkflowText -match 'Boring Is All You Need v2[.]0[.]0' -and
+    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]0[.]zip' -and
+    $releaseWorkflowText -match '--prefix=boring-is-all-you-need-\$env:RELEASE_TAG/' -and
+    $releaseWorkflowText -notmatch 'Khalilzhang0825/steadyagent|steadyagent-v2[.]0[.]0|SteadyAgent v2[.]0[.]0'
+)
 $publicVerificationText = @(
     "README.md",
     "README.zh-CN.md",
@@ -430,7 +437,7 @@ $publicVerificationText = @(
     [IO.File]::ReadAllText((Join-Path $root $_), [Text.Encoding]::UTF8)
 }
 Assert-True "release workflow publishes reviewed-commit provenance and a bound release body" (
-    $releaseWorkflowText -match 'steadyagent-v2[.]0[.]0[.]provenance[.]json' -and
+    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]0[.]provenance[.]json' -and
     $releaseWorkflowText -match 'reviewedCommit' -and
     $releaseWorkflowText -match 'RELEASE_BODY[.]md' -and
     $releaseWorkflowText -match 'releaseBodySha256' -and
@@ -446,7 +453,7 @@ Assert-True "copyable release verification fails closed after every gh native co
     @($publicVerificationText | Where-Object {
         $_ -match '(?m)^gh attestation verify --help \| Out-Null\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
         $_ -match '(?m)^gh release download v2[.]0[.]0[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-        $_ -match '(?ms)^gh attestation verify [.]\\steadyagent-v2[.]0[.]0[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw '
+        $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]0[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw '
     }).Count -eq $publicVerificationText.Count
 )
 Assert-True "copyable release verification cannot extract before attestation success" (
@@ -499,7 +506,7 @@ Assert-True "final publication revalidates and publishes the captured exact draf
         $_ -match '\$PostPublishTagSha' -and
         $_ -match '\$PostPublishMainSha' -and
         $_ -match '-not \[bool\]\$state[.]immutable' -and
-        $_ -match 'steadyagent-v2[.]0[.]0[.]provenance[.]json\|steadyagent-v2[.]0[.]0[.]zip\|steadyagent-v2[.]0[.]0[.]zip[.]sha256' -and
+        $_ -match 'boring-is-all-you-need-v2[.]0[.]0[.]provenance[.]json\|boring-is-all-you-need-v2[.]0[.]0[.]zip\|boring-is-all-you-need-v2[.]0[.]0[.]zip[.]sha256' -and
         $_ -notmatch 'gh release edit'
     }).Count -eq $publicationRunbooks.Count
 )
@@ -638,7 +645,7 @@ exit 0
     Assert-True "release observation failure is not treated as absence" (
         $observationFailureResult.ExitCode -ne 0 -and
         $observationFailureLog -notmatch
-            'api[|].*POST[|].*repos/fixture/steadyagent/releases(?:[|]|$)'
+            'api[|].*POST[|].*repos/fixture/boring-is-all-you-need/releases(?:[|]|$)'
     ) ($observationFailureResult.Output + "; " + $observationFailureLog)
 
     $bodyDrift = New-ReleaseFixture -Name "body-drift" -ExistingBody "tampered release body`n"
@@ -663,7 +670,7 @@ exit 0
     $titleCaseDrift = New-ReleaseFixture `
         -Name "title-case-drift" `
         -ExistingBody $script:ExactReleaseBody `
-        -ReleaseName "steadyagent v2.0.0"
+        -ReleaseName "boring is all you need v2.0.0"
     $fixtures.Add($titleCaseDrift.Root) | Out-Null
     $titleCaseDriftResult = Invoke-DraftStepFixture -Fixture $titleCaseDrift
     Assert-True "existing draft with title case drift is rejected" (
@@ -715,7 +722,7 @@ exit 0
     $partial = New-ReleaseFixture `
         -Name "partial" `
         -ExistingBody $script:ExactReleaseBody `
-        -AssetNames @("steadyagent-v2.0.0.zip")
+        -AssetNames @("boring-is-all-you-need-v2.0.0.zip")
     $fixtures.Add($partial.Root) | Out-Null
     $partialResult = Invoke-DraftStepFixture -Fixture $partial
     Assert-True "partial existing draft is rejected for manual recovery" (
@@ -803,7 +810,7 @@ exit 0
     $refRaceLog = $refRaceResult.Log -join "`n"
     Assert-True "post-create ref race fails after removing only the captured release ID" (
         $refRaceResult.ExitCode -ne 0 -and
-        $refRaceLog -match 'api\|.*DELETE.*repos/fixture/steadyagent/releases/5101' -and
+        $refRaceLog -match 'api\|.*DELETE.*repos/fixture/boring-is-all-you-need/releases/5101' -and
         $refRaceLog -notmatch '(?m)^release\|delete\|'
     ) ($refRaceResult.Output + "; " + $refRaceLog)
 
@@ -819,7 +826,7 @@ exit 0
     Assert-True "post-delete captured ID observation failure stays fail closed" (
         $idObservationFailureResult.ExitCode -ne 0 -and
         $idObservationFailureLog -match
-            'api[|].*repos/fixture/steadyagent/releases/5101(?:[|]|$)'
+            'api[|].*repos/fixture/boring-is-all-you-need/releases/5101(?:[|]|$)'
     ) ($idObservationFailureResult.Output + "; " + $idObservationFailureLog)
 
     $postDeleteReplacement = New-ReleaseFixture `
@@ -838,10 +845,10 @@ exit 0
     }
     else { [int]$postDeleteReplacementState.release.databaseId }
     $postDeleteDeleteCount = @($postDeleteReplacementResult.Log | Where-Object {
-        $_ -match 'api[|].*DELETE[|].*repos/fixture/steadyagent/releases/[0-9]+'
+        $_ -match 'api[|].*DELETE[|].*repos/fixture/boring-is-all-you-need/releases/[0-9]+'
     }).Count
     $postDeleteIdReadObserved = @($postDeleteReplacementResult.Log | Where-Object {
-        $_ -match 'api[|].*repos/fixture/steadyagent/releases/5101(?:[|]|$)'
+        $_ -match 'api[|].*repos/fixture/boring-is-all-you-need/releases/5101(?:[|]|$)'
     }).Count -ge 1
     Assert-True "post-delete replacement is preserved after captured ID absence" (
         $postDeleteReplacementResult.ExitCode -ne 0 -and

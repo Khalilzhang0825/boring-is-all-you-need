@@ -14,7 +14,7 @@ When the user asks to find a skill, or a specialist skill is clearly needed, fol
    $SteadyAgentRoot = Join-Path $HOME ".steadyagent"
    $SkillSearch = Join-Path $SteadyAgentRoot "tools\skill-search.ps1"
    if (-not (Test-Path -LiteralPath $SkillSearch -PathType Leaf)) {
-     throw "The installed SteadyAgent skill search is missing."
+     throw "The installed Boring Is All You Need skill search is missing."
    }
    $SkillQuery = Read-Host "Describe the task or intent"
    if ([string]::IsNullOrWhiteSpace($SkillQuery)) { throw "A skill query is required." }

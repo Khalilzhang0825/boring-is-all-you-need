@@ -1,7 +1,7 @@
 # GitHub Publication Runbook
 
 前置条件：`git` 与当前版 `gh` 已认证，`origin` 指向
-`Khalilzhang0825/steadyagent`，maintainer 有权限推送已审查分支并创建受保护的
+`Khalilzhang0825/boring-is-all-you-need`，maintainer 有权限推送已审查分支并创建受保护的
 `v2.0.0` tag，仓库 Actions 允许写 contents、OIDC token 与 attestations。
 
 本文件用于本地 release-readiness 通过后、公开 push / tag / release 前的最终执行。
@@ -59,7 +59,7 @@ workflow 将 `v1.0.0` 冻结到
 推荐 GitHub description：
 
 ```text
-SteadyAgent 2: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
+Boring Is All You Need: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
 ```
 
 推荐 topics：
@@ -76,7 +76,7 @@ Release template：
 
 ```text
 Tag: v2.0.0
-Title: SteadyAgent v2.0.0
+Title: Boring Is All You Need v2.0.0
 Target commit: 由下方命令解析并验证的精确 `$ReviewedSha`
 ```
 
@@ -128,38 +128,38 @@ if ($null -eq $RemoteTagCommit) {
 }
 ```
 
-已审查 commit 合并到 `main` 且仍是当前 tip 后，推送精确的 `v2.0.0` tag 会触发三个固定版本、Node-24-native、最小权限 job，并由精确 release concurrency group 串行化。只读 build job 从冻结的 V1 whitespace 基线重新运行干净 tag-checkout 门、生成 `steadyagent-v2.0.0.zip`、在没有 `.git` 的精确解压包上运行验证，并传递 SHA-256 绑定的 bundle；attestation job 仅拥有 read、OIDC 与 attestation 权限并证明该 archive；contents-write job 只创建显示 reviewed commit 的 **draft** GitHub Release。它在创建前后重新解析 live lightweight/annotated tag 与 `main`。重跑只接受标题、正文和 archive、checksum、机器可读 provenance 三个 asset 字节均精确一致、且不是 prerelease 的 draft；其他既有 release 全部保留供人工检查。上传后还会读回 live release，强制 captured release ID、draft 状态、正文、资产、摘要、tag 与 `main` 全部精确一致。若创建后 refs 漂移，只有 live draft 仍匹配本次 run 捕获的 release ID 且保持 exact 时才自动清理。
+已审查 commit 合并到 `main` 且仍是当前 tip 后，推送精确的 `v2.0.0` tag 会触发三个固定版本、Node-24-native、最小权限 job，并由精确 release concurrency group 串行化。只读 build job 从冻结的 V1 whitespace 基线重新运行干净 tag-checkout 门、生成 `boring-is-all-you-need-v2.0.0.zip`、在没有 `.git` 的精确解压包上运行验证，并传递 SHA-256 绑定的 bundle；attestation job 仅拥有 read、OIDC 与 attestation 权限并证明该 archive；contents-write job 只创建显示 reviewed commit 的 **draft** GitHub Release。它在创建前后重新解析 live lightweight/annotated tag 与 `main`。重跑只接受标题、正文和 archive、checksum、机器可读 provenance 三个 asset 字节均精确一致、且不是 prerelease 的 draft；其他既有 release 全部保留供人工检查。上传后还会读回 live release，强制 captured release ID、draft 状态、正文、资产、摘要、tag 与 `main` 全部精确一致。若创建后 refs 漂移，只有 live draft 仍匹配本次 run 捕获的 release ID 且保持 exact 时才自动清理。
 
 发布草稿前运行：
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
 if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
     [string]$Provenance.releaseTag -cne "v2.0.0" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
-    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
     [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
-    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\steadyagent-v2.0.0.zip `
-  -R Khalilzhang0825/steadyagent `
-  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+  -R Khalilzhang0825/boring-is-all-you-need `
+  --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
   --source-ref refs/tags/v2.0.0 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\steadyagent-v2.0.0.zip .\release-check
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\steadyagent-v2.0.0\tools\validate-release-archive.ps1
+Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\release-check
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\boring-is-all-you-need-v2.0.0\tools\validate-release-archive.ps1
 ```
 
 如果 `gh attestation verify --help` 失败，先安装或更新当前 [GitHub CLI](https://cli.github.com/)。在线 attestation 验证需要访问 GitHub；不能把同源 sidecar 单独当成来源证明。
@@ -171,7 +171,7 @@ output。下面的恢复流程会捕获数字 ID、把每个现有 asset 与 wor
 的同时确认旧 ID 已消失：
 
 ```powershell
-$Repository = "Khalilzhang0825/steadyagent"
+$Repository = "Khalilzhang0825/boring-is-all-you-need"
 $Tag = "v2.0.0"
 $RunIdText = Read-Host "粘贴失败的 release workflow run ID"
 $RunId = 0L
@@ -179,7 +179,7 @@ if (-not [long]::TryParse($RunIdText, [ref]$RunId) -or $RunId -le 0) { throw "Wo
 $ExpectedRoot = Join-Path $env:TEMP ("steadyagent-release-recovery-" + [guid]::NewGuid().ToString("N"))
 $RemoteRoot = Join-Path $ExpectedRoot "remote"
 New-Item -ItemType Directory -Path $RemoteRoot -Force | Out-Null
-gh run download $RunId -R $Repository -n steadyagent-v2.0.0-release-bundle -D $ExpectedRoot
+gh run download $RunId -R $Repository -n boring-is-all-you-need-v2.0.0-release-bundle -D $ExpectedRoot
 if ($LASTEXITCODE -ne 0) { throw "无法下载失败 run 的已审查 bundle。" }
 
 function Get-ReleaseById {
@@ -205,13 +205,13 @@ $CapturedDraft = $tagJson | ConvertFrom-Json
 $CapturedReleaseId = [long]$CapturedDraft.id
 $ExpectedBody = [IO.File]::ReadAllText((Join-Path $ExpectedRoot "RELEASE_BODY.md"), [Text.Encoding]::UTF8)
 $ExpectedAssetNames = @(
-  "steadyagent-v2.0.0.provenance.json",
-  "steadyagent-v2.0.0.zip",
-  "steadyagent-v2.0.0.zip.sha256"
+  "boring-is-all-you-need-v2.0.0.provenance.json",
+  "boring-is-all-you-need-v2.0.0.zip",
+  "boring-is-all-you-need-v2.0.0.zip.sha256"
 )
 $CapturedAssetNames = @($CapturedDraft.assets | ForEach-Object { [string]$_.name } | Sort-Object)
 if ($CapturedReleaseId -le 0 -or -not [bool]$CapturedDraft.draft -or [bool]$CapturedDraft.prerelease -or
-    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "SteadyAgent v2.0.0" -or
+    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "Boring Is All You Need v2.0.0" -or
     [string]$CapturedDraft.body -cne $ExpectedBody -or $CapturedAssetNames.Count -ge 3 -or
     @($CapturedAssetNames | Where-Object { $ExpectedAssetNames -notcontains $_ }).Count -ne 0 -or
     @($CapturedAssetNames | Sort-Object -Unique).Count -ne $CapturedAssetNames.Count) {
@@ -254,14 +254,14 @@ Release 草稿正文应包含：
 只有 workflow 绿色、attestation 验证通过、摘要一致，且无 `.git` 的 archive validator 报告 `fail=0` 后，才能发布草稿。另需确认 tag 的 fresh clone 能通过依赖 Git 的 clean release gate。公开前必须再次解析 live tag 与 `main`，并要求二者都等于记录的已审查 commit。Attestation 证明来源，不代表代码绝对没有漏洞。
 
 ```powershell
-$Repository = "Khalilzhang0825/steadyagent"
+$Repository = "Khalilzhang0825/boring-is-all-you-need"
 $Tag = "v2.0.0"
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
 $ExpectedAssetNames = @(
-  "steadyagent-v2.0.0.provenance.json",
-  "steadyagent-v2.0.0.zip",
-  "steadyagent-v2.0.0.zip.sha256"
+  "boring-is-all-you-need-v2.0.0.provenance.json",
+  "boring-is-all-you-need-v2.0.0.zip",
+  "boring-is-all-you-need-v2.0.0.zip.sha256"
 )
 $ReleaseNotes = [IO.File]::ReadAllText((Resolve-Path .\RELEASE_NOTES.md), [Text.Encoding]::UTF8).TrimEnd([char[]]"`r`n")
 $ExpectedBody = $ReleaseNotes + "`n`n## Verified provenance`n`nReviewed commit: $ReviewedSha`nSource ref: refs/tags/v2.0.0`n"
@@ -290,9 +290,9 @@ function Assert-ExactReleaseDraft {
   param([object]$State, [long]$ReleaseId)
   $assetNames = @($State.assets | ForEach-Object { [string]$_.name } | Sort-Object)
   if ([long]$State.id -ne $ReleaseId -or -not [bool]$State.draft -or [bool]$State.prerelease -or
-      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "SteadyAgent v2.0.0" -or
+      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "Boring Is All You Need v2.0.0" -or
       [string]$State.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "steadyagent-v2.0.0.provenance.json|steadyagent-v2.0.0.zip|steadyagent-v2.0.0.zip.sha256") {
+      "boring-is-all-you-need-v2.0.0.provenance.json|boring-is-all-you-need-v2.0.0.zip|boring-is-all-you-need-v2.0.0.zip.sha256") {
     throw "Captured release 不是精确的已审查 draft。"
   }
 }
@@ -387,9 +387,9 @@ foreach ($state in @($Published, $Readback)) {
   }) | ConvertTo-Json -Depth 4 -Compress
   if ([long]$state.id -ne $CapturedReleaseId -or [bool]$state.draft -or [bool]$state.prerelease -or
       -not [bool]$state.immutable -or
-      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "SteadyAgent v2.0.0" -or
+      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "Boring Is All You Need v2.0.0" -or
       [string]$state.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "steadyagent-v2.0.0.provenance.json|steadyagent-v2.0.0.zip|steadyagent-v2.0.0.zip.sha256" -or
+      "boring-is-all-you-need-v2.0.0.provenance.json|boring-is-all-you-need-v2.0.0.zip|boring-is-all-you-need-v2.0.0.zip.sha256" -or
       $assetProjection -cne $CapturedAssetProjection) {
     throw "发布后的 release 回读不精确。"
   }
@@ -402,7 +402,7 @@ foreach ($state in @($Published, $Readback)) {
 
 - 确认 README 在 GitHub 正常渲染。
 - 确认 GitHub Actions 通过。
-- 确认 release workflow 使用固定 action commit，且 attestation 可针对 `Khalilzhang0825/steadyagent` 验证。
+- 确认 release workflow 使用固定 action commit，且 attestation 可针对 `Khalilzhang0825/boring-is-all-you-need` 验证。
 - 确认下载压缩包与 SHA-256 sidecar 一致，并且 fresh extraction 能通过 `validate-release-archive.ps1`。
 - 确认 tag 的 fresh clone 能通过依赖 Git 的 `validate-release-readiness.ps1`。
 - 确认 release 页面指向正确 tag 和 target commit。

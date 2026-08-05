@@ -1,4 +1,4 @@
-# SteadyAgent 规则库
+# Boring Is All You Need 规则库
 
 这些文件是渐进加载的公开规则。常驻模板保持短，只在任务需要时加载对应规则。
 

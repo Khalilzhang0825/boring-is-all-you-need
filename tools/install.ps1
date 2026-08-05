@@ -103,7 +103,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "2.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "1446D8FB23322537F2C8D0CD02FCB667F6B15D130E839A6DDB556C5CFA91DB48"
+$expectedPackageManifestSha256 = "EEA97EDE37944FBB1E9CC59218A542CFB1530BE23731607088AEBD1066819C29"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -854,7 +854,7 @@ if ($TestAsElevated -and -not $isTestMode) {
 $isProcessElevated = (Test-IsProcessElevated) -or [bool]$TestAsElevated
 if ($isProcessElevated) {
     throw (
-        "SteadyAgent install planning and apply must run from a non-elevated PowerShell session. " +
+        "Boring Is All You Need install planning and apply must run from a non-elevated PowerShell session. " +
         "Close this administrator session and re-run the reviewed command without elevation."
     )
 }
@@ -1185,7 +1185,7 @@ try {
             -not $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
             $conflicts += ("Git core.hooksPath=" + $gitHooksBefore)
         }
-        Write-Host "DRY-RUN SteadyAgent 2.0.0 migration"
+        Write-Host "DRY-RUN Boring Is All You Need v2.0.0 migration"
         Write-Host (
             (
                 "Plan: {0} operations; {1} existing conflict(s); " +
@@ -1221,7 +1221,7 @@ try {
     $mutex = New-SteadyAgentMigrationMutex -TestRoot $(if ($isTestMode) { $testRootFull } else { $null })
     try { $lockTaken = $mutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $lockTaken = $true }
-    if (-not $lockTaken) { throw "Another SteadyAgent install or rollback transaction is active." }
+    if (-not $lockTaken) { throw "Another Boring Is All You Need install or rollback transaction is active." }
 
     $activeReceipt = $null
     $activePointerPath = Get-ActiveReceiptPointerPath -TargetRoot $targetFull
@@ -1237,7 +1237,7 @@ try {
         $activeRollbackJournalState = Get-ActiveRollbackJournalState -ActiveReceipt $activeReceipt
         if ($activeRollbackJournalState -and $activeRollbackJournalState -cne "completed") {
             [Console]::Error.WriteLine(
-                "SteadyAgent install refused: the active rollback journal is not completed."
+                "Boring Is All You Need install refused: the active rollback journal is not completed."
             )
             Write-Host ("Recovery receipt: " + [string]$activeReceipt.Path)
             Write-Host (
@@ -1257,7 +1257,7 @@ try {
         }
         if ([string]$activeReceipt.Status -in @("applying", "rollback_incomplete")) {
             [Console]::Error.WriteLine(
-                "SteadyAgent install refused: an active applying receipt requires recovery."
+                "Boring Is All You Need install refused: an active applying receipt requires recovery."
             )
             Write-Host ("Recovery receipt: " + [string]$activeReceipt.Path)
             Write-Host (
@@ -1284,13 +1284,13 @@ try {
         else {
             Resolve-ActiveAppliedReceipt -TargetRoot $targetFull
         }
-        Write-Host "[OK] SteadyAgent 2.0.0 is already installed; no target/config/backup/receipt/state writes."
+        Write-Host "[OK] Boring Is All You Need v2.0.0 is already installed; no target/config/backup/receipt/state writes."
         Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $activeReceiptPath
         exit 0
     }
     if ($activeReceipt -and [string]$activeReceipt.Status -ceq "applied") {
         [Console]::Error.WriteLine(
-            "SteadyAgent install refused: the active applied receipt no longer matches installed state."
+            "Boring Is All You Need install refused: the active applied receipt no longer matches installed state."
         )
         [Console]::Error.WriteLine("Recovery receipt: " + [string]$activeReceipt.Path)
         exit 3
@@ -1336,7 +1336,7 @@ try {
           -not $gitHooksBefore.Equals($preWriteGitHooks, [StringComparison]::OrdinalIgnoreCase)))
     )
     if ($gitHooksChangedAfterPlan -and -not $ReplaceExistingWorkflow) {
-        Write-Host "[FAIL] Git core.hooksPath changed after planning. No SteadyAgent files were written."
+        Write-Host "[FAIL] Git core.hooksPath changed after planning. No Boring Is All You Need files were written."
         exit 2
     }
     $gitHooksBefore = $preWriteGitHooks
@@ -1361,7 +1361,7 @@ try {
         $gitConfigAfterSHA256 = Get-Sha256Bytes -Bytes $gitConfigBytesAfter
     }
     if ($preWriteConflicts.Count -gt 0 -and -not $ReplaceExistingWorkflow) {
-        Write-Host "[FAIL] A target changed after planning. No SteadyAgent files were written."
+        Write-Host "[FAIL] A target changed after planning. No Boring Is All You Need files were written."
         foreach ($conflict in $preWriteConflicts) { Write-Host ("CONFLICT " + $conflict) }
         exit 2
     }
@@ -1706,7 +1706,7 @@ try {
         Invoke-TestHardKill -Point "after-applied-receipt-before-pointer"
     }
     Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $receiptPath
-    Write-Host ("[OK] SteadyAgent {0} installed and verified: {1} operations." -f $version, $operations.Count)
+    Write-Host ("[OK] Boring Is All You Need {0} installed and verified: {1} operations." -f $version, $operations.Count)
     Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $receiptPath
     exit 0
 }
@@ -1813,7 +1813,7 @@ catch {
         Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $failedReceiptPath
     }
     if ($rollbackErrors.Count -gt 0) {
-        [Console]::Error.WriteLine("SteadyAgent migration failed and rollback was incomplete.")
+        [Console]::Error.WriteLine("Boring Is All You Need migration failed and rollback was incomplete.")
         $failedReceiptPath = Join-Path $backupFull "migration-receipt.json"
         [Console]::Error.WriteLine("Preserve this recovery receipt: " + $failedReceiptPath)
         [Console]::Error.WriteLine("Recovery journal/state: " + $failedReceiptPath)
@@ -1821,7 +1821,7 @@ catch {
         [Console]::Error.WriteLine("Do not blindly retry install or rollback; inspect the receipt and recovery state first.")
         exit 3
     }
-    [Console]::Error.WriteLine(("SteadyAgent migration blocked: " + $_.Exception.Message))
+    [Console]::Error.WriteLine(("Boring Is All You Need migration blocked: " + $_.Exception.Message))
     exit 2
 }
 finally {

@@ -366,7 +366,7 @@ try {
         [Text.Encoding]::UTF8
     )
     Assert-True "diagnosis is Codex-only" (
-        $diagnoseText -match 'SteadyAgent 2[.]0[.]0 Codex diagnosis' -and
+        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]0 Codex diagnosis' -and
         $diagnoseText -notmatch '[.]claude'
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')

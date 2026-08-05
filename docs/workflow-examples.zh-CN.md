@@ -1,13 +1,13 @@
 # 工作流示例
 
-这些示例说明安装 SteadyAgent 后应该怎么向 agent 下任务。你不需要点名每个内部文件，只需要说明目标，并要求 agent 使用 SteadyAgent 的过程。
+这些示例说明安装 Boring Is All You Need 后应该怎么向 agent 下任务。你不需要点名每个内部文件，只需要说明目标，并要求 agent 使用 Boring Is All You Need 的过程。
 
 ## 通用起手提示词
 
 如果不确定宿主是否自动加载了指令，可以先发这一段：
 
 ```text
-Use the SteadyAgent workflow for this repository. Inspect first, keep the change scoped, run the smallest relevant validation, and end with changed files, verification, remaining risks, and Git status.
+Use the Boring Is All You Need workflow for this repository. Inspect first, keep the change scoped, run the smallest relevant validation, and end with changed files, verification, remaining risks, and Git status.
 ```
 
 预期行为：
@@ -23,7 +23,7 @@ Use the SteadyAgent workflow for this repository. Inspect first, keep the change
 提示词：
 
 ```text
-The login test is failing. Use SteadyAgent to investigate, find the smallest fix, run the relevant test, and checkpoint only after the diff is reviewed.
+The login test is failing. Use the Boring Is All You Need workflow to investigate, find the smallest fix, run the relevant test, and checkpoint only after the diff is reviewed.
 ```
 
 预期 agent 流程：
@@ -49,7 +49,7 @@ Git: clean after checkpoint.
 提示词：
 
 ```text
-Add a dark-mode toggle to the settings page. Use SteadyAgent: inspect existing UI patterns, give me a short plan, implement the smallest complete version, run the relevant checks, and report residual risk.
+Add a dark-mode toggle to the settings page. Use the Boring Is All You Need workflow: inspect existing UI patterns, give me a short plan, implement the smallest complete version, run the relevant checks, and report residual risk.
 ```
 
 预期 agent 流程：
@@ -66,7 +66,7 @@ Add a dark-mode toggle to the settings page. Use SteadyAgent: inspect existing U
 提示词：
 
 ```text
-Review this branch before we change anything. Use SteadyAgent review style: findings first, order by severity, cite file and line, then list test gaps and residual risk.
+Review this branch before we change anything. Use the Boring Is All You Need review style: findings first, order by severity, cite file and line, then list test gaps and residual risk.
 ```
 
 预期 agent 流程：
@@ -83,7 +83,7 @@ Review this branch before we change anything. Use SteadyAgent review style: find
 提示词：
 
 ```text
-Continue the migration from the last checkpoint. Use SteadyAgent: first read the project state file, verify Git status, summarize current progress, then continue with the next smallest step.
+Continue the migration from the last checkpoint. Use the Boring Is All You Need workflow: first read the project state file, verify Git status, summarize current progress, then continue with the next smallest step.
 ```
 
 预期 agent 流程：
@@ -101,7 +101,7 @@ Continue the migration from the last checkpoint. Use SteadyAgent: first read the
 提示词：
 
 ```text
-Check whether this repository is ready for a public release. Use SteadyAgent: run the release-readiness gate, inspect any failure, and do not push or tag unless I explicitly approve.
+Check whether this repository is ready for a public release. Use the Boring Is All You Need workflow: run the release-readiness gate, inspect any failure, and do not push or tag unless I explicitly approve.
 ```
 
 预期 agent 流程：
@@ -121,7 +121,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 3. 把失败解释成具体问题，例如缺文件、链接断裂、发布文案过时、hook 冒烟测试失败或命名残留。
 4. 没有明确批准，不 publish、不 retag、不 rewrite remote history。
 
-## 一个好的 SteadyAgent 回复应该包含什么
+## 一个好的 Boring Is All You Need 回复应该包含什么
 
 任务结束时，回复应该包含：
 

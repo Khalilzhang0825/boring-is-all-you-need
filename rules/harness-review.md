@@ -57,11 +57,11 @@ custom root. After completing the review, write the current UTC date as
   strict diagnosis without a path placeholder:
 
   ```powershell
-  $SteadyAgentRoot = Read-Host "Installed SteadyAgent root"
+  $SteadyAgentRoot = Read-Host "Installed Boring Is All You Need root"
   $ReceiptPath = Read-Host "Successful migration receipt path"
   if ([string]::IsNullOrWhiteSpace($SteadyAgentRoot) -or
       -not (Test-Path -LiteralPath $SteadyAgentRoot -PathType Container)) {
-    throw "The installed SteadyAgent root is missing."
+    throw "The installed Boring Is All You Need root is missing."
   }
   if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or
       -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) {

@@ -744,7 +744,7 @@ if (-not $testMode) {
     if (-not $receiptTargetRoot.Equals($defaultTargetRoot, [StringComparison]::OrdinalIgnoreCase) -or
         -not $receiptCodexHome.Equals($defaultCodexHome, [StringComparison]::OrdinalIgnoreCase) -or
         -not $receiptManagedConfig.Equals($defaultManagedConfig, [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Production receipt paths do not match the default SteadyAgent path roles."
+        throw "Production receipt paths do not match the default Boring Is All You Need compatibility path roles."
     }
     if (-not ($effectiveGitConfig.Equals(
             (Join-Path $productionHome ".gitconfig"),
@@ -1196,7 +1196,7 @@ $preLockAuthorityFingerprint = Get-RollbackAuthorityFingerprint `
 
 if (-not $Apply) {
     if ($hasRollbackJournal -and [string]$rollbackJournal.state -eq "completed") {
-        Write-Host "[OK] SteadyAgent rollback transaction was already completed; 0 writes."
+        Write-Host "[OK] Boring Is All You Need rollback transaction was already completed; 0 writes."
         exit 0
     }
     $dryRunClassification = Get-ValidatedRuntimeClassification -AllowPending
@@ -1205,7 +1205,7 @@ if (-not $Apply) {
         @($dryRunClassification.PendingPaths).Count -eq 0) {
         Write-Host "STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0"
     }
-    Write-Host ("DRY-RUN SteadyAgent 2.0.0 rollback: {0} files; 0 writes." -f $validated.Count)
+    Write-Host ("DRY-RUN Boring Is All You Need v2.0.0 rollback: {0} files; 0 writes." -f $validated.Count)
     foreach ($pendingPath in @($dryRunClassification.PendingPaths)) {
         Write-Host ("PENDING BOUND RECOVERY " + $pendingPath)
     }
@@ -1256,7 +1256,7 @@ try {
     }
     try { $lockTaken = $mutex.WaitOne(0) }
     catch [Threading.AbandonedMutexException] { $lockTaken = $true }
-    if (-not $lockTaken) { throw "Another SteadyAgent install or rollback transaction is active." }
+    if (-not $lockTaken) { throw "Another Boring Is All You Need install or rollback transaction is active." }
 
     $postLockAuthorityFingerprint = Get-RollbackAuthorityFingerprint `
         -ReceiptPath $receiptFull `
@@ -1372,7 +1372,7 @@ try {
                     -ExpectedCurrentSHA256 $ownedActivePointer.SHA256 | Out-Null
                 $activePointerReleasedDurably = $true
             }
-            Write-Host "[OK] SteadyAgent rollback transaction was already completed."
+            Write-Host "[OK] Boring Is All You Need rollback transaction was already completed."
             exit 0
         }
         if ([string]$rollbackJournal.state -eq "compensated") {
@@ -1888,7 +1888,7 @@ try {
             -ExpectedCurrentSHA256 $ownedActivePointer.SHA256 | Out-Null
         $activePointerReleasedDurably = $true
     }
-    Write-Host ("[OK] SteadyAgent 2.0.0 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
+    Write-Host ("[OK] Boring Is All You Need v2.0.0 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
     exit 0
 }
 catch {
@@ -1906,7 +1906,7 @@ catch {
         }
         if ([string]$persistedFinalizationJournal.state -eq "completed") {
             if ($activePointerReleasedDurably) {
-                Write-Host "[OK] SteadyAgent rollback transaction was already completed."
+                Write-Host "[OK] Boring Is All You Need rollback transaction was already completed."
                 exit 0
             }
             [Console]::Error.WriteLine(

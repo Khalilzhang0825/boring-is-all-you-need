@@ -1,4 +1,4 @@
 interface:
-  display_name: "SteadyAgent Workflow"
+  display_name: "Boring Is All You Need Workflow"
   short_description: "Workflow guardrails for AI coding agents"
   default_prompt: "Use steadyagent-workflow to structure this task with diagnosis, planning, verification, context control, review, and checkpoint evidence."

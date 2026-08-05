@@ -3,7 +3,7 @@
 Use this runbook after local release-readiness passes and before any public push, tag, or release.
 
 Prerequisites: authenticated `git` and current `gh`, `origin` set to
-`Khalilzhang0825/steadyagent`, permission to push the reviewed branch and create
+`Khalilzhang0825/boring-is-all-you-need`, permission to push the reviewed branch and create
 the protected `v2.0.0` tag, and repository Actions allowed to write contents,
 OIDC tokens, and attestations.
 
@@ -61,7 +61,7 @@ and requires the single repository root
 Recommended GitHub description:
 
 ```text
-SteadyAgent 2: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
+Boring Is All You Need: a Codex Desktop workflow replacement with transactional migration, fail-closed safety hooks, risk-based review, checkpoint commits, and release evidence.
 ```
 
 Recommended topics:
@@ -78,7 +78,7 @@ Release template:
 
 ```text
 Tag: v2.0.0
-Title: SteadyAgent v2.0.0
+Title: Boring Is All You Need v2.0.0
 Target commit: the exact `$ReviewedSha` resolved and verified below
 ```
 
@@ -131,38 +131,38 @@ if ($null -eq $RemoteTagCommit) {
 }
 ```
 
-The tag triggers three pinned, Node-24-native, least-privilege jobs serialized by an exact-release concurrency group. The read-only build job reruns the clean tag-checkout gate from the frozen V1 whitespace baseline, creates `steadyagent-v2.0.0.zip`, validates the exact extracted archive without `.git`, and transfers its SHA-256-bound bundle. The attestation job has only read, OIDC, and attestation permissions and attests that reviewed archive. The contents-write job creates only a **draft** GitHub release whose generated body displays the reviewed commit. It re-resolves the live lightweight or annotated tag and `main` immediately before and after creation. On retry it accepts only a non-prerelease draft with the exact title/body and three byte-exact assets: archive, checksum, and machine-readable provenance. Every other existing release is preserved for manual review. After upload it reads the live release back and requires the captured release ID, exact draft state, body, assets, digests, tag, and `main`. If refs drift after creation, automatic cleanup is allowed only when the live draft still has the release ID captured from that run and remains exact.
+The tag triggers three pinned, Node-24-native, least-privilege jobs serialized by an exact-release concurrency group. The read-only build job reruns the clean tag-checkout gate from the frozen V1 whitespace baseline, creates `boring-is-all-you-need-v2.0.0.zip`, validates the exact extracted archive without `.git`, and transfers its SHA-256-bound bundle. The attestation job has only read, OIDC, and attestation permissions and attests that reviewed archive. The contents-write job creates only a **draft** GitHub release whose generated body displays the reviewed commit. It re-resolves the live lightweight or annotated tag and `main` immediately before and after creation. On retry it accepts only a non-prerelease draft with the exact title/body and three byte-exact assets: archive, checksum, and machine-readable provenance. Every other existing release is preserved for manual review. After upload it reads the live release back and requires the captured release ID, exact draft state, body, assets, digests, tag, and `main`. If refs drift after creation, automatic cleanup is allowed only when the live draft still has the release ID captured from that run and remains exact.
 
 Before publishing that draft:
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
 if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.0 release assets." }
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
     [string]$Provenance.releaseTag -cne "v2.0.0" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
-    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
     [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
-    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\steadyagent-v2.0.0.zip `
-  -R Khalilzhang0825/steadyagent `
-  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+  -R Khalilzhang0825/boring-is-all-you-need `
+  --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
   --source-ref refs/tags/v2.0.0 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\steadyagent-v2.0.0.zip .\release-check
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\steadyagent-v2.0.0\tools\validate-release-archive.ps1
+Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\release-check
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\boring-is-all-you-need-v2.0.0\tools\validate-release-archive.ps1
 ```
 
 Install or update the current [GitHub CLI](https://cli.github.com/) if `gh attestation verify --help` fails. Online attestation verification requires network access to GitHub; do not substitute the sidecar alone as provenance.
@@ -175,7 +175,7 @@ re-reads the same ID immediately before deletion, deletes only that ID, and
 confirms that ID is absent while preserving any concurrent replacement:
 
 ```powershell
-$Repository = "Khalilzhang0825/steadyagent"
+$Repository = "Khalilzhang0825/boring-is-all-you-need"
 $Tag = "v2.0.0"
 $RunIdText = Read-Host "Paste the failed release workflow run ID"
 $RunId = 0L
@@ -183,7 +183,7 @@ if (-not [long]::TryParse($RunIdText, [ref]$RunId) -or $RunId -le 0) { throw "Th
 $ExpectedRoot = Join-Path $env:TEMP ("steadyagent-release-recovery-" + [guid]::NewGuid().ToString("N"))
 $RemoteRoot = Join-Path $ExpectedRoot "remote"
 New-Item -ItemType Directory -Path $RemoteRoot -Force | Out-Null
-gh run download $RunId -R $Repository -n steadyagent-v2.0.0-release-bundle -D $ExpectedRoot
+gh run download $RunId -R $Repository -n boring-is-all-you-need-v2.0.0-release-bundle -D $ExpectedRoot
 if ($LASTEXITCODE -ne 0) { throw "Could not download the failed run's reviewed bundle." }
 
 function Get-ReleaseById {
@@ -209,13 +209,13 @@ $CapturedDraft = $tagJson | ConvertFrom-Json
 $CapturedReleaseId = [long]$CapturedDraft.id
 $ExpectedBody = [IO.File]::ReadAllText((Join-Path $ExpectedRoot "RELEASE_BODY.md"), [Text.Encoding]::UTF8)
 $ExpectedAssetNames = @(
-  "steadyagent-v2.0.0.provenance.json",
-  "steadyagent-v2.0.0.zip",
-  "steadyagent-v2.0.0.zip.sha256"
+  "boring-is-all-you-need-v2.0.0.provenance.json",
+  "boring-is-all-you-need-v2.0.0.zip",
+  "boring-is-all-you-need-v2.0.0.zip.sha256"
 )
 $CapturedAssetNames = @($CapturedDraft.assets | ForEach-Object { [string]$_.name } | Sort-Object)
 if ($CapturedReleaseId -le 0 -or -not [bool]$CapturedDraft.draft -or [bool]$CapturedDraft.prerelease -or
-    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "SteadyAgent v2.0.0" -or
+    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "Boring Is All You Need v2.0.0" -or
     [string]$CapturedDraft.body -cne $ExpectedBody -or $CapturedAssetNames.Count -ge 3 -or
     @($CapturedAssetNames | Where-Object { $ExpectedAssetNames -notcontains $_ }).Count -ne 0 -or
     @($CapturedAssetNames | Sort-Object -Unique).Count -ne $CapturedAssetNames.Count) {
@@ -258,14 +258,14 @@ The draft release body should include:
 Publish only after the workflow is green, attestation verification succeeds, the digest matches, and the no-Git archive validator reports `fail=0`. Separately confirm a fresh clone of the tag passes the Git-aware clean release gate. Immediately before making the draft public, resolve the live tag and `main` again and require both to equal the recorded reviewed commit. Attestation establishes provenance; it is not a guarantee that the code is vulnerability-free.
 
 ```powershell
-$Repository = "Khalilzhang0825/steadyagent"
+$Repository = "Khalilzhang0825/boring-is-all-you-need"
 $Tag = "v2.0.0"
-$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
 $ExpectedAssetNames = @(
-  "steadyagent-v2.0.0.provenance.json",
-  "steadyagent-v2.0.0.zip",
-  "steadyagent-v2.0.0.zip.sha256"
+  "boring-is-all-you-need-v2.0.0.provenance.json",
+  "boring-is-all-you-need-v2.0.0.zip",
+  "boring-is-all-you-need-v2.0.0.zip.sha256"
 )
 $ReleaseNotes = [IO.File]::ReadAllText((Resolve-Path .\RELEASE_NOTES.md), [Text.Encoding]::UTF8).TrimEnd([char[]]"`r`n")
 $ExpectedBody = $ReleaseNotes + "`n`n## Verified provenance`n`nReviewed commit: $ReviewedSha`nSource ref: refs/tags/v2.0.0`n"
@@ -294,9 +294,9 @@ function Assert-ExactReleaseDraft {
   param([object]$State, [long]$ReleaseId)
   $assetNames = @($State.assets | ForEach-Object { [string]$_.name } | Sort-Object)
   if ([long]$State.id -ne $ReleaseId -or -not [bool]$State.draft -or [bool]$State.prerelease -or
-      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "SteadyAgent v2.0.0" -or
+      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "Boring Is All You Need v2.0.0" -or
       [string]$State.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "steadyagent-v2.0.0.provenance.json|steadyagent-v2.0.0.zip|steadyagent-v2.0.0.zip.sha256") {
+      "boring-is-all-you-need-v2.0.0.provenance.json|boring-is-all-you-need-v2.0.0.zip|boring-is-all-you-need-v2.0.0.zip.sha256") {
     throw "The captured release is not the exact reviewed draft."
   }
 }
@@ -391,9 +391,9 @@ foreach ($state in @($Published, $Readback)) {
   }) | ConvertTo-Json -Depth 4 -Compress
   if ([long]$state.id -ne $CapturedReleaseId -or [bool]$state.draft -or [bool]$state.prerelease -or
       -not [bool]$state.immutable -or
-      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "SteadyAgent v2.0.0" -or
+      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "Boring Is All You Need v2.0.0" -or
       [string]$state.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "steadyagent-v2.0.0.provenance.json|steadyagent-v2.0.0.zip|steadyagent-v2.0.0.zip.sha256" -or
+      "boring-is-all-you-need-v2.0.0.provenance.json|boring-is-all-you-need-v2.0.0.zip|boring-is-all-you-need-v2.0.0.zip.sha256" -or
       $assetProjection -cne $CapturedAssetProjection) {
     throw "Published release readback is not exact."
   }
@@ -406,7 +406,7 @@ Publication is blocked unless GitHub Live proves both repository immutable relea
 
 - Confirm README renders on GitHub.
 - Confirm GitHub Actions is green.
-- Confirm the release workflow used pinned action commits and its attestation verifies against `Khalilzhang0825/steadyagent`.
+- Confirm the release workflow used pinned action commits and its attestation verifies against `Khalilzhang0825/boring-is-all-you-need`.
 - Confirm the downloaded archive matches its SHA-256 sidecar and a fresh extraction passes `validate-release-archive.ps1`.
 - Confirm a fresh clone of the tag passes the Git-aware `validate-release-readiness.ps1`.
 - Confirm release page links to the correct tag and target commit.

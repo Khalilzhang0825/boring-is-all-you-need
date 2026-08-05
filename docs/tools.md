@@ -1,4 +1,4 @@
-# SteadyAgent 2 Tools
+# Boring Is All You Need Tools
 
 All commands target Windows PowerShell 5.1.
 

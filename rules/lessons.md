@@ -1,4 +1,4 @@
-# SteadyAgent Lessons
+# Boring Is All You Need Lessons
 
 These are title-level reminders for repeated, general failure modes. The
 SessionStart Hook injects only the headings; open this file for details.
