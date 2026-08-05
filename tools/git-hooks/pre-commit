@@ -1,3 +1,20 @@
 #!/bin/sh
-hook_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$hook_dir/pre-commit-check.ps1"
+hook_dir=${0%/*}
+if [ "$hook_dir" = "$0" ]; then hook_dir=.; fi
+hook_dir=$(CDPATH= cd -- "$hook_dir" && pwd) || exit 1
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$hook_dir/pre-commit-check.ps1" || exit $?
+
+if [ "${STEADYAGENT_CHAINING_LOCAL_PRE_COMMIT:-}" = "1" ]; then
+  exit 0
+fi
+
+common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0
+local_hook="$common_dir/hooks/pre-commit"
+if [ -x "$local_hook" ] && [ "$local_hook" != "$hook_dir/pre-commit" ]; then
+  STEADYAGENT_CHAINING_LOCAL_PRE_COMMIT=1
+  export STEADYAGENT_CHAINING_LOCAL_PRE_COMMIT
+  exec "$local_hook" "$@"
+fi
+
+exit 0

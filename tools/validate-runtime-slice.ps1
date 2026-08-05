@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$SkipHookBehaviorSuite
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -16,9 +18,14 @@ function Check {
 $templatePath = Join-Path $root "templates\codex\requirements.managed-hooks.example.toml"
 $template = [IO.File]::ReadAllText($templatePath, [Text.Encoding]::UTF8)
 $blocks = ([regex]::Matches($template, '(?m)^\[\[hooks[.][A-Za-z]+[.]hooks\]\]$')).Count
-Check "managed template has four hook blocks" ($blocks -eq 4) ("blocks=" + $blocks)
+Check "managed template has three hook blocks" ($blocks -eq 3) ("blocks=" + $blocks)
 Check "managed template omits high-frequency events" ($template -notmatch "UserPromptSubmit|PermissionRequest|PostToolUse")
-foreach ($required in @("agent-hook-context", "agent-hook-command-guard", "agent-hook-file-guard", "agent-hook-precompact")) {
+Check "managed template has one unified PreToolUse guard" (
+    ([regex]::Matches($template, '(?m)^\[\[hooks[.]PreToolUse\]\]$')).Count -eq 1 -and
+    $template -match 'agent-hook-command-guard[.]ps1\\" -GuardMode Unified' -and
+    $template -notmatch 'agent-hook-file-guard[.]ps1'
+)
+foreach ($required in @("agent-hook-context", "agent-hook-command-guard", "agent-hook-precompact")) {
     Check ("managed template includes " + $required) ($template -match [regex]::Escape($required))
 }
 foreach ($removed in @("agent-hook-prompt-reminder.ps1", "agent-hook-permission-guard.ps1", "agent-hook-posttool-audit.ps1")) {
@@ -32,9 +39,14 @@ foreach ($scriptPath in @(Get-ChildItem -LiteralPath (Join-Path $root "tools\hoo
     Check ("PowerShell parses: " + $scriptPath.Name) ($errors.Count -eq 0) (($errors | ForEach-Object Message) -join "; ")
 }
 
-$output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\test-agent-hooks.ps1")
-$code = $LASTEXITCODE
-Check "Hook behavior suite passes" ($code -eq 0 -and ($output | Out-String) -match "fail=0") ($output | Out-String)
+if ($SkipHookBehaviorSuite) {
+    Check "Hook behavior suite is delegated to the parent semantic gate" $true
+}
+else {
+    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root "tools\test-agent-hooks.ps1")
+    $code = $LASTEXITCODE
+    Check "Hook behavior suite passes" ($code -eq 0 -and ($output | Out-String) -match "fail=0") ($output | Out-String)
+}
 
 Write-Host ("RESULT pass={0} fail={1}" -f $script:Passed, $script:Failed)
 if ($script:Failed -gt 0) { exit 1 }

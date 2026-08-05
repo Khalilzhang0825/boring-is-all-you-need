@@ -74,12 +74,12 @@ function Add-LessonsIndex {
         $trimmed = $line.Trim()
         if ($trimmed.StartsWith("### ")) {
             $title = $trimmed.Substring(4).Trim()
-            if ($title) { $titles.Add($title) }
+            if ($title -and $title -ne "<placeholder>") { $titles.Add($title) }
         }
     }
     if ($titles.Count -eq 0) { return }
     $Lines.Add("")
-    $Lines.Add(("Known pitfalls to avoid (full detail in {0}):" -f $Path))
+    $Lines.Add("Known pitfalls to avoid (full detail in rules\lessons.md):")
     $budget = 300
     $shown = 0
     $selected = New-Object Collections.Generic.List[string]
@@ -101,12 +101,6 @@ function Add-LessonsIndex {
 }
 
 $lines = New-Object Collections.Generic.List[string]
-$lines.Add("SteadyAgent Codex host contract:")
-$lines.Add("- Read the closest AGENTS.md plus project state before editing.")
-$lines.Add("- Keep context lean; load detailed rules only when needed.")
-$lines.Add("- Run preflight before edits and verify before claiming completion.")
-$lines.Add("- Multi-file changes alone do not require independent review; use review for real risk or an explicit request.")
-$lines.Add("- Use explicit-file checkpoint commits; do not push unless asked.")
 
 if ($source -eq "startup" -or -not $source) {
     $lines.Add("")
@@ -138,8 +132,9 @@ if ($source -eq "compact" -or $source -eq "resume") {
 }
 
 $reviewMarker = Join-Path $SteadyAgentHome ".harness-last-review"
-$reviewDue = $true
+$reviewDue = $false
 $daysSince = $null
+$reviewBasis = ""
 try {
     if (Test-Path -LiteralPath $reviewMarker -PathType Leaf) {
         $rawMarker = Get-Content -LiteralPath $reviewMarker -Raw -Encoding UTF8
@@ -151,15 +146,53 @@ try {
             [Globalization.DateTimeStyles]::None,
             [ref]$parsed
         )) {
-            $daysSince = [int]((Get-Date) - $parsed).TotalDays
-            $reviewDue = ([Math]::Abs($daysSince) -ge 90)
+            $utcToday = [datetime]::SpecifyKind([datetime]::UtcNow.Date, [DateTimeKind]::Unspecified)
+            $daysSince = ($utcToday - $parsed.Date).Days
+            if ($daysSince -lt 0) {
+                $daysSince = $null
+                $reviewDue = $true
+            }
+            else {
+                $reviewDue = ($daysSince -ge 90)
+                $reviewBasis = "marker"
+            }
+        }
+        else {
+            $reviewDue = $true
+            $reviewBasis = "invalid"
+        }
+    }
+    else {
+        $installedContext = Join-Path $SteadyAgentHome "tools\hooks\agent-hook-context.ps1"
+        if (Test-Path -LiteralPath $installedContext -PathType Leaf) {
+            $installedUtc = [IO.File]::GetLastWriteTimeUtc($installedContext).Date
+            $daysSince = ([datetime]::UtcNow.Date - $installedUtc).Days
+            if ($daysSince -lt 0) {
+                $daysSince = $null
+                $reviewDue = $true
+                $reviewBasis = "invalid"
+            }
+            else {
+                $reviewDue = ($daysSince -ge 90)
+                $reviewBasis = "install"
+            }
+        }
+        else {
+            $reviewDue = $true
+            $reviewBasis = "invalid"
         }
     }
 }
-catch { $reviewDue = $true }
+catch {
+    $reviewDue = $true
+    $reviewBasis = "invalid"
+}
 if ($reviewDue) {
     $lines.Add("")
-    if ($null -ne $daysSince) {
+    if ($null -ne $daysSince -and $reviewBasis -eq "install") {
+        $lines.Add(("[HARNESS-REVIEW DUE] Installed copy is {0} days old with no review marker. Run the checklist in rules\harness-review.md." -f $daysSince))
+    }
+    elseif ($null -ne $daysSince) {
         $lines.Add(("[HARNESS-REVIEW DUE] Last config review {0} days ago. Run the checklist in rules\harness-review.md." -f $daysSince))
     }
     else {

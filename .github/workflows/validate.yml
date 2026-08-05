@@ -6,16 +6,27 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   release-readiness:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     defaults:
       run:
         shell: pwsh
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
       - name: Release readiness gate
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+        env:
+          STEADYAGENT_RELEASE_BASE_REF: f80c05c4b79e069ee3a35db3c09a8f870bca0b59
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -BaseRef "$env:STEADYAGENT_RELEASE_BASE_REF"

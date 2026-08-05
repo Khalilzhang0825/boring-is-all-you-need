@@ -59,7 +59,7 @@ Expected agent flow:
 3. Reuse existing UI patterns instead of inventing a separate design system.
 4. Add focused tests if the codebase already has a matching test pattern.
 5. Run lint, type check, unit test, or browser verification depending on the project.
-6. Request independent review before checkpoint if the change touches several files or visible behavior.
+6. Request independent review before checkpoint when the maintainer explicitly asks for it, the work is high risk, or the agent identifies a specific material risk; file count alone is not a trigger.
 
 ## Example 3: Code Review Before Editing
 

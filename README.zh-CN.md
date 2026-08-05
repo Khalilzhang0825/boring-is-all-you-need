@@ -9,25 +9,67 @@ SteadyAgent `v2.0.0` 是面向 Windows 的 Codex Desktop 工作流替换包。�
 ## 2.0.0 的核心变化
 
 - 唯一支持宿主为 Codex Desktop。
-- 常驻 runtime 精简为 4 个 managed hook block：一个 `SessionStart`、两个 `PreToolUse`、一个 `PreCompact`。
+- 常驻 runtime 精简为 3 个 managed hook block：一个 `SessionStart`、一个统一的 `PreToolUse`、一个 `PreCompact`。
 - 不安装 `UserPromptSubmit`、`PermissionRequest` 或 `PostToolUse`。
 - 文件数量本身不再触发独立审查。
-- Command/File Guard 递归检查嵌套 parallel；匹配到的 payload 无法理解时 fail closed。
+- 统一的 Command/File Guard 会在一个 PowerShell 进程内同时递归检查嵌套 parallel 中的两类叶子；相关 payload 无法理解时 fail closed。
 - Guard 日志只记录固定原因、规范化工具名和输入 SHA-256。
-- Git checkpoint 使用隔离 index、显式文件、范围复核和单写者锁。
+- Git checkpoint 使用隔离 index 与对象隔离区、显式文件、暂存对象与范围复核，以及单写者锁。
+- checkpoint CLI 保留维护者工作流中由人明确批准的 `-All` 初始 checkpoint 能力；Codex command guard 仍会阻止 agent 批量暂存。
 - 全新安装及 V1→V2 迁移均采用事务：预览、冲突检查、备份、原子应用、验证、收据和失败回滚。
+- 已加载的 installer 会锚定规范化的 52 项源资产 `package-assets.sha256`，并且只安装一次性读取且哈希匹配的字节。
+- Apply 与 rollback 会明确拒绝提权 token；全部迁移 I/O 都使用当前用户的普通 token，避免把同用户路径竞态升级成管理员写入。
 - 版本化 V1 资产清单会在明确授权替换时移除旧 Codex 发行面，并可通过同一收据完整恢复。
-- 冻结的 23 项等价清单把维护者已审查的本机 postimage 能力逐一映射到可移植公开源与安装目标。
+- 冻结的 23 项等价清单把维护者已审查的本机 Codex-active 能力逐一映射到可移植公开源与安装目标。本机 Hook smoke 项另行冻结了 65 条保留断言和 8 条明确排除的 Claude 或已移除事件断言；这是范围明确的等价，不表示 V2 会重新发布被排除的 V1 能力面。
 - 包内包含线程绑定的 skill 索引与检索，但不会发布维护者的 runtime catalog、线程 ID 或私人路径。
-- SessionStart 保留维护者工作流中的 Caveman lite 状态、可移植 lessons 标题和 90 天 Harness 维护提醒。
+- SessionStart 只输出动态 Caveman lite 状态、可移植 lessons 标题、真正到期的 90 天 Harness 维护提醒，以及 resume/compact 状态。fresh install 以已安装 context Hook 的 mtime 作为首次复查基线，不会立即告警。
 
 ## 为什么只发布 Codex
 
-维护者的 Anthropic 账户被封，因此从 V2 起停止发布 Anthropic/Claude 兼容层。这是维护者个人经历及据此作出的产品决定。
+V2 只支持 Codex Desktop。其他 agent 宿主及其 runtime、模板、settings 与 Hook 能力不属于 V2 的支持和安装合同。
 
-> 一个连封门都比解释快的公司，就别指望开源维护者继续替它擦门牌了。
+V1 历史版本仍保留在 Git 历史中。V2 归档只保留证明替换与范围等价所必需的 V1 迁移 tombstone 和明确排除的断言证据；不会安装或支持 Claude runtime、模板、settings 或 Hooks。
 
-V1 历史版本仍保留在 Git 历史中；V2 不再发布 Claude 模板、settings、hooks、测试或安装路径。
+## 运行前验证发行包
+
+正式发行输入是 GitHub Release 附带的 `steadyagent-v2.0.0.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.0` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
+
+同时下载 archive、checksum 与机器可读 provenance 三个资产，解压或运行 `install.ps1` 前直接运行以下可复制验证：
+
+```powershell
+gh attestation verify --help | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
+gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
+$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$ReviewedSha = [string]$Provenance.reviewedCommit
+$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+if ([int]$Provenance.schemaVersion -ne 1 -or
+    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
+    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveSha256 -cne $Actual -or
+    $Expected -cne $Actual -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+  throw "Release provenance or digest mismatch."
+}
+gh attestation verify .\steadyagent-v2.0.0.zip `
+  -R Khalilzhang0825/steadyagent `
+  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+  --source-ref refs/tags/v2.0.0 `
+  --source-digest $ReviewedSha
+if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
+Expand-Archive .\steadyagent-v2.0.0.zip .\steadyagent-v2.0.0-release
+Set-Location .\steadyagent-v2.0.0-release\steadyagent-v2.0.0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
+```
+
+`-IntegrityOnly` 是普通用户使用的快速完整性门：检查精确 release inventory、package manifest 与哈希、PowerShell 5.1 解析和编码、Hook 文件格式、本地文档链接以及 Codex-only 归档边界。CI 和维护者会不带该开关运行默认命令，执行包括行为、runtime、等价性与空白检查重套件在内的完整发布门。
+
+这要求安装当前 [GitHub CLI](https://cli.github.com/)、能够访问 GitHub API，并且 `gh` 已提供 `attestation verify`。签名 attestation 与独立下载的 provenance asset 会把压缩包绑定到 GitHub 仓库、精确 signer workflow、tag ref、reviewed commit 与 SHA-256；release body 会显示同一 commit。它们不代表代码绝对没有漏洞。若无法完成验证或验证失败，应把下载物视为不可信并停止运行。
 
 ## 安全的一键迁移
 
@@ -37,7 +79,7 @@ V1 历史版本仍保留在 Git 历史中；V2 不再发布 Claude 模板、sett
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```
 
-它会列出所有目标、现有冲突、managed Hook 替换和 Git Hook 变化，但不会写入文件。
+它会列出所有目标、现有冲突、managed Hook 替换和 Git Hook 变化，且不会写入目标、配置、备份、收据或状态。Dry-run 会在系统临时目录中完成短暂 staging，并在正常退出时删除；进程被中断时最多只会留下该 staging 目录。
 
 确认计划后，全新安装：
 
@@ -51,47 +93,70 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -App
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-若 Codex managed 配置位于 `%ProgramData%`，请在管理员 PowerShell 中执行替换命令。
+请始终在普通、非管理员 PowerShell 中运行。SteadyAgent 会在任何迁移写入前拒绝提权 Apply 与 rollback。默认 managed 配置只有在当前用户 token 可更新时才受支持；若 `%ProgramData%\OpenAI\Codex\requirements.toml` 被管理员锁定，安装器会明确报告 unsupported，不会触发 UAC、修改 ACL 或接管 owner。`managed` 表示 Codex 的配置机制，不表示能抵抗同用户恶意软件。
 
 安装器会：
 
-1. 按当前机器渲染可移植包；
+1. 验证规范 package manifest，一次性读取每项可信源字节，再按当前机器渲染可移植包；
 2. 写入前验证全部源与目标；
 3. 未明确授权替换时阻断未知差异；
-4. 保存每个现有目标及原 Git Hook 路径；
+4. durable 保存每个现有目标及原 Git Hook 路径，并在首次目标或 Git 写入前写入、输出 `applying` 恢复收据；
 5. 备份并移除旧 Codex 位置中已知的 V1-owned 文件；
-6. 在当前会话唯一的 SteadyAgent 迁移互斥锁下原子应用；
+6. 在全机器唯一的 SteadyAgent 迁移互斥锁下原子应用；
 7. 逐项并全量验证最终结果；
 8. 任一步失败时恢复全部已变更目标；
-9. 生成机器可读的 `migration-receipt.json`。
+9. durable 将机器可读的 `migration-receipt.json` 推进到 `applied`。
 
 安装器不会修改模型或推理强度。
 
-若要撤销已完成的迁移，先预览，再应用该次安装生成的收据：
+安装后的全局 `core.hooksPath` 会先运行 SteadyAgent staged-file guard，再链接执行仓库自身的可执行 `.git/hooks/pre-commit`。若原先存在不同的全局 `core.hooksPath`，它仍是必须审阅的替换冲突：只有检查 dry-run 后才使用 `-ReplaceExistingWorkflow`，并通过收据恢复原值。
+
+使用安装后的 rollback 工具与安装时输出的收据：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<备份目录>\migration-receipt.json"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<备份目录>\migration-receipt.json" -Apply
+$SteadyAgentRoot = Join-Path $HOME ".steadyagent"
+$ReceiptPath = Read-Host "粘贴 install.ps1 在 'Recovery receipt:' 后输出的精确路径"
+if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "安装器输出的恢复收据路径无效。" }
+$ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
+# 审阅预览后，在同一非提权用户会话中运行：
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-回滚器会在任何写入前验证收据、全部已安装文件、原始快照及 active Git Hook 路径；只要安装后发生漂移，就以零写入停止。只使用你自己的 SteadyAgent 安装生成的收据。
+不要提权运行 rollback。若进程在安装后的 rollback 副本出现前被强制中止，请改用同一个已验证解压发行包中的 `tools\rollback.ps1`；`applying` 收据会绑定该脚本应安装字节的精确哈希。回滚器在写入前把每个目标和 active Git Hook 路径分类为精确原态或精确安装后态；任何第三种状态、收据漂移或快照漂移都会以零写入停止，合法混合状态会事务式恢复 managed 文件的字节内容与存在性，以及记录的 `core.hooksPath` 值和 fixture Git-config 字节。迁移不会捕获或恢复 ACL、owner、文件属性、时间戳或 alternate data streams。
+
+rollback 会在首次文件或 Git 变更前发布 durable
+`rollback-journal.json`，因此强制中止后仍能确定性续跑或补偿。若退出码为 3
+或收据进入 `rollback_incomplete`，必须保留收据、备份、journal、当前目标和
+Git 配置；不得编辑或盲目重试，必须按记录哈希人工对账。测试迁移根必须位于
+系统临时目录下，basename 严格为
+`steadyagent-v2-migration-<32 位小写十六进制>`。
 
 ## 安装后
 
-重启 Codex Desktop。若要执行与维护者相同的严格审计，先生成当前任务绑定的 skill index，再强制核验 Hooks、runtime catalog 和 Git identity：
+重启 Codex Desktop，打开一个新的 Codex 任务，并让 Codex 在该任务的终端中运行下面的代码块。不要把它粘贴到无关的普通 PowerShell 会话：skill index 必须绑定新任务的 `CODEX_THREAD_ID`。代码块会先验证该身份，再强制核验 Hooks、runtime catalog 和 Git identity：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\skill-index.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
+$SteadyAgentRoot = Join-Path $HOME ".steadyagent"
+$ReceiptPath = Read-Host "粘贴 install.ps1 在 'Recovery receipt:' 后输出的精确路径"
+if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "安装器输出的恢复收据路径无效。" }
+$ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
+if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { throw "请从新启动的 Codex 任务运行此审计。" }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
 ```
+
+catalog 工具会从自身所在的 `tools` 目录推导安装根目录，并默认写入
+`Join-Path $SteadyAgentRoot "runtime-skill-catalogs"`。
 
 预期结果：
 
 ```text
-RESULT pass=<n> warn=0 fail=0
+WARN manual Codex Live acceptance is still required
+RESULT pass=<n> warn=1 fail=0
 ```
 
-诊断会检查安装资产、空用户 hooks、精确 4-block managed 矩阵、所有已知 V1-owned Codex 文件均已移除、渲染路径、active Git Hook 路径以及安装后的 Hook smoke。
+诊断会检查安装资产、空用户 hooks、包含一个统一 `PreToolUse` 的精确 3-block managed 矩阵、所有已知 V1-owned Codex 文件均已移除、渲染路径、active Git Hook 路径以及安装后的 Hook smoke。`-RequireRuntimeCatalog` 只验证与 `CODEX_THREAD_ID` 绑定、内部一致的 `rollout-file-confirmed` catalog；它不能证明当前宿主或 Live 已启用。必须重启 Codex Desktop、打开真实新任务，并观察 SessionStart 与一个受控 Hook 行为，才能完成 Live 验收。
 
 ## 日常闭环
 
@@ -119,12 +184,13 @@ SteadyAgent 要求 Codex：
 | `tools/diagnose-install.ps1` | 验证安装资产和 active managed hooks。 |
 | `tools/test-v2-migration.ps1` | 验证全新安装、替换、冲突和回滚。 |
 | `tools/test-agent-hooks.ps1` | 验证 SessionStart、Guard、日志和 PreCompact。 |
-| `tools/test-git-checkpoint.ps1` | 验证显式文件 checkpoint 事务。 |
+| `tools/test-git-checkpoint.ps1` | 验证显式文件及人工明确批准的全范围 checkpoint 事务。 |
 | `tools/test-pre-commit.ps1` | 验证 staged 密钥和大文件防线。 |
 | `tools/skill-index.ps1` | 生成绑定宿主、线程、prompt 和 digest 的 runtime skill catalog。 |
-| `tools/skill-search.ps1` | 只检索当前 Codex runtime 明示的 skill catalog。 |
+| `tools/skill-search.ps1` | 只检索与当前任务身份绑定的 `rollout-file-confirmed` catalog；这不能证明当前宿主或 Live 已启用。 |
 | `tools/test-local-equivalence.ps1` | 验证本机到公开包 23/23 映射，并证明故意篡改会变红。 |
 | `tools/validate-release-readiness.ps1` | 运行完整 V2 发布门。 |
+| `tools/validate-release-archive.ps1` | 在不依赖 `.git` 的情况下验证精确解压后的 release asset；用户使用 `-IntegrityOnly`，CI 和维护者运行默认完整门。 |
 
 ## Runtime 架构
 

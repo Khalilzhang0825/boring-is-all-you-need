@@ -8,7 +8,7 @@ param(
     [switch]$RepairExisting,
     [string]$MarkdownPath,
     [string]$JsonPath,
-    [string]$CatalogRoot = (Join-Path $env:USERPROFILE ".steadyagent\runtime-skill-catalogs"),
+    [string]$CatalogRoot,
     [int]$MaxDescriptionLength = 220
 )
 
@@ -16,6 +16,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { }
 . (Join-Path $PSScriptRoot "skill-catalog-resolver.ps1")
+if ([string]::IsNullOrWhiteSpace($CatalogRoot)) {
+    $CatalogRoot = Get-DefaultCatalogRoot
+}
 
 function Get-HostVersion {
     param([string]$HostName)
@@ -46,6 +49,14 @@ function Write-AtomicUtf8 {
 
 if ($RolloutPath -and -not $FixtureMode) { throw "RolloutPath is available only with FixtureMode." }
 if ($FixtureMode -and -not $RolloutPath) { throw "FixtureMode requires RolloutPath." }
+if (-not $FixtureMode) {
+    if ([string]::IsNullOrWhiteSpace([string]$env:CODEX_THREAD_ID)) {
+        throw "Production catalog evidence requires CODEX_THREAD_ID from the current Codex task."
+    }
+    if ([string]::IsNullOrWhiteSpace($ThreadId) -or $ThreadId -cne [string]$env:CODEX_THREAD_ID) {
+        throw "ThreadId must match CODEX_THREAD_ID from the current Codex task."
+    }
+}
 if ($FixtureMode) {
     $hostName = Resolve-CatalogHostName -HostSurface $HostSurface
     $resolvedRollout = [IO.Path]::GetFullPath($RolloutPath)
@@ -53,7 +64,9 @@ if ($FixtureMode) {
 } else {
     $resolvedRollout = Find-CatalogRollout -ThreadId $ThreadId
 }
-$rolloutLines = @(Read-CatalogRolloutLines -Path $resolvedRollout)
+$rolloutCapture = Read-CatalogBoundRollout -Path $resolvedRollout
+$resolvedRollout = [string]$rolloutCapture.Path
+$rolloutLines = @($rolloutCapture.Lines)
 if (-not $FixtureMode) {
     $hostName = Resolve-CatalogHostForRollout `
         -HostSurface $HostSurface `
@@ -62,20 +75,44 @@ if (-not $FixtureMode) {
         -RolloutLines $rolloutLines
 }
 
+$sessionMetadata = $null
+if (-not $FixtureMode) {
+    $sessionMetadata = Get-CatalogSessionMetadata `
+        -RolloutPath $resolvedRollout `
+        -ThreadId $ThreadId `
+        -RolloutLines $rolloutLines
+}
 $skillsBlock = Get-CatalogSkillsBlock -RolloutPath $resolvedRollout -RolloutLines $rolloutLines
 $skills = @(Get-CatalogSkillsFromBlock -Block $skillsBlock -MaxDescriptionLength $MaxDescriptionLength)
 $promptHash = Get-CatalogSha256 -Text $skillsBlock
 $skillsHash = Get-CatalogSkillsDigest -Skills $skills
 $snapshotId = $hostName + ":" + $ThreadId + ":" + $promptHash
+$rolloutBinding = $null
+if (-not $FixtureMode) {
+    $rolloutBinding = [pscustomobject][ordered]@{
+        canonical_path = [string]$rolloutCapture.Path
+        file_identity = [string]$rolloutCapture.FileIdentity
+        frozen_length = [long]$rolloutCapture.FrozenLength
+        evidence_prefix_length = [long]$rolloutCapture.EvidencePrefixLength
+        evidence_prefix_sha256 = [string]$rolloutCapture.EvidencePrefixSha256
+        session_meta_sha256 = Get-CatalogSessionMetadataDigest -Metadata $sessionMetadata
+        skills_block_sha256 = $promptHash
+    }
+}
 $catalog = [pscustomobject][ordered]@{
     schema_version = 2
     snapshot_id = $snapshotId
     host = $hostName
     host_version = Get-HostVersion -HostName $hostName
-    visibility = $(if ($FixtureMode) { "fixture-confirmed" } else { "runtime-confirmed" })
+    visibility = $(if ($FixtureMode) { "fixture-confirmed" } else { "rollout-file-confirmed" })
     thread_id = $ThreadId
+    session_started_utc = $(if ($FixtureMode) { $null } else { [string]$sessionMetadata.started_utc })
     skills_prompt_sha256 = $promptHash
     skills_sha256 = $skillsHash
+    rollout_binding = $rolloutBinding
+    rollout_binding_sha256 = $(if ($FixtureMode) { $null } else {
+        Get-CatalogRolloutBindingDigest -Binding $rolloutBinding
+    })
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
     skills = $skills
 }
@@ -96,6 +133,8 @@ if ($defaultOutput) {
         PromptHash = $promptHash
         SkillsHash = $skillsHash
         SnapshotId = $snapshotId
+        SessionStartedUtc = $(if ($FixtureMode) { "" } else { [string]$sessionMetadata.started_utc })
+        RolloutPath = $resolvedRollout
         JsonPath = $JsonPath
         MarkdownPath = $MarkdownPath
     }
@@ -105,10 +144,10 @@ if ($defaultOutput) {
     try {
         try { $lockTaken = $mutex.WaitOne([TimeSpan]::FromSeconds(30)) }
         catch [Threading.AbandonedMutexException] { $lockTaken = $true }
-        if (-not $lockTaken) { throw "Timed out waiting for the runtime catalog publisher lock." }
+        if (-not $lockTaken) { throw "Timed out waiting for the rollout-file catalog publisher lock." }
         if (-not $FixtureMode -and (Test-Path -LiteralPath $finalDirectory -PathType Container) -and
-            -not (Test-RuntimeCatalogSnapshot -Expected $expected)) {
-            if (-not $RepairExisting) { throw "Existing runtime snapshot is invalid; repair was not authorized." }
+            -not (Test-RolloutFileCatalogSnapshot -Expected $expected)) {
+            if (-not $RepairExisting) { throw "Existing rollout-file snapshot is invalid; repair was not authorized." }
             $quarantine = Join-Path $threadRoot (".corrupt." + [guid]::NewGuid().ToString("N"))
             [IO.Directory]::Move($finalDirectory, $quarantine)
             Write-Host ("Quarantined invalid snapshot: {0}" -f $quarantine)
@@ -125,8 +164,8 @@ if ($defaultOutput) {
                 if (Test-Path -LiteralPath $tempDirectory) { Remove-Item -LiteralPath $tempDirectory -Recurse -Force }
             }
         }
-        if (-not (Test-RuntimeCatalogSnapshot -Expected $expected) -and -not $FixtureMode) {
-            throw "Published runtime snapshot failed identity verification."
+        if (-not (Test-RolloutFileCatalogSnapshot -Expected $expected) -and -not $FixtureMode) {
+            throw "Published rollout-file snapshot failed identity verification."
         }
     } finally {
         if ($lockTaken) { $mutex.ReleaseMutex() }

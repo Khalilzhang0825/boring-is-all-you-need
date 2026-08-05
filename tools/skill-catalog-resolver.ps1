@@ -3,6 +3,77 @@ param()
 
 Set-StrictMode -Version Latest
 
+$script:SteadyAgentCatalogToolsRoot = [IO.Path]::GetFullPath($PSScriptRoot)
+
+if (-not ("SteadyAgentCatalogFileIdentity" -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Win32.SafeHandles;
+
+public static class SteadyAgentCatalogFileIdentity {
+    [StructLayout(LayoutKind.Sequential)]
+    private struct BY_HANDLE_FILE_INFORMATION {
+        public uint FileAttributes;
+        public System.Runtime.InteropServices.ComTypes.FILETIME CreationTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastAccessTime;
+        public System.Runtime.InteropServices.ComTypes.FILETIME LastWriteTime;
+        public uint VolumeSerialNumber;
+        public uint FileSizeHigh;
+        public uint FileSizeLow;
+        public uint NumberOfLinks;
+        public uint FileIndexHigh;
+        public uint FileIndexLow;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool GetFileInformationByHandle(
+        SafeFileHandle handle,
+        out BY_HANDLE_FILE_INFORMATION information);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint GetFinalPathNameByHandle(
+        SafeFileHandle handle,
+        StringBuilder path,
+        uint pathLength,
+        uint flags);
+
+    public static string Get(SafeFileHandle handle) {
+        BY_HANDLE_FILE_INFORMATION information;
+        if (!GetFileInformationByHandle(handle, out information)) {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        ulong index = ((ulong)information.FileIndexHigh << 32) | information.FileIndexLow;
+        return information.VolumeSerialNumber.ToString("X8") + ":" + index.ToString("X16");
+    }
+
+    public static string GetFinalPath(SafeFileHandle handle) {
+        StringBuilder path = new StringBuilder(32768);
+        uint length = GetFinalPathNameByHandle(handle, path, (uint)path.Capacity, 0);
+        if (length == 0 || length >= path.Capacity) {
+            throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+        }
+        string value = path.ToString();
+        if (value.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase)) {
+            return @"\\" + value.Substring(8);
+        }
+        if (value.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase)) {
+            return value.Substring(4);
+        }
+        return value;
+    }
+}
+'@
+}
+
+function Get-DefaultCatalogRoot {
+    return [IO.Path]::GetFullPath(
+        (Join-Path $script:SteadyAgentCatalogToolsRoot "..\runtime-skill-catalogs")
+    )
+}
+
 function Resolve-CatalogHostName {
     param([string]$HostSurface = "Auto")
     if ($HostSurface -eq "Auto") {
@@ -26,6 +97,71 @@ function Read-CatalogRolloutLines {
     }
 }
 
+function Get-CatalogByteSha256 {
+    param([byte[]]$Bytes)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace("-", "")
+    } finally { $sha.Dispose() }
+}
+
+function Read-CatalogBoundRollout {
+    param([string]$Path)
+    $canonicalPath = [IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $canonicalPath -PathType Leaf)) {
+        throw "Rollout does not exist."
+    }
+    if ((Get-Item -LiteralPath $canonicalPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+        throw "Rollout path must not be a reparse point."
+    }
+    $stream = New-Object IO.FileStream(
+        $canonicalPath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::ReadWrite
+    )
+    try {
+        $identity = [SteadyAgentCatalogFileIdentity]::Get($stream.SafeFileHandle)
+        $canonicalPath = [IO.Path]::GetFullPath(
+            [SteadyAgentCatalogFileIdentity]::GetFinalPath($stream.SafeFileHandle)
+        )
+        if ($stream.Length -gt [int]::MaxValue) { throw "Rollout is too large to index safely." }
+        $bytes = New-Object byte[] ([int]$stream.Length)
+        $read = 0
+        while ($read -lt $bytes.Length) {
+            $count = $stream.Read($bytes, $read, $bytes.Length - $read)
+            if ($count -le 0) { throw "Rollout was truncated while it was being indexed." }
+            $read += $count
+        }
+        $bomLength = if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and
+            $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { 3 } else { 0 }
+        $text = [Text.Encoding]::UTF8.GetString($bytes, $bomLength, $bytes.Length - $bomLength)
+        $lines = @($text -split "`r`n|`n|`r")
+        $prefixLength = $bomLength
+        $processedTextBytes = 0
+        foreach ($match in [regex]::Matches($text, '(?s).*?(?:\r\n|\n|\r|$)')) {
+            if ($match.Length -eq 0) { continue }
+            $processedTextBytes += [Text.Encoding]::UTF8.GetByteCount($match.Value)
+            if ($match.Value.Contains("skills_instructions") -or $match.Value.Contains('"session_meta"')) {
+                $prefixLength = $bomLength + $processedTextBytes
+            }
+        }
+        if ($prefixLength -le $bomLength) { throw "Rollout has no bindable catalog evidence prefix." }
+        $prefix = New-Object byte[] $prefixLength
+        [Array]::Copy($bytes, 0, $prefix, 0, $prefixLength)
+        return [pscustomobject]@{
+            Path = $canonicalPath
+            FileIdentity = $identity
+            FrozenLength = [long]$bytes.Length
+            EvidencePrefixLength = [long]$prefixLength
+            EvidencePrefixSha256 = Get-CatalogByteSha256 -Bytes $prefix
+            Lines = $lines
+        }
+    } finally {
+        $stream.Dispose()
+    }
+}
+
 function ConvertFrom-CatalogRolloutJson {
     param([string]$Text, [int]$LineNumber)
     try {
@@ -33,6 +169,42 @@ function ConvertFrom-CatalogRolloutJson {
     }
     catch {
         throw ("Rollout contains malformed JSONL at line {0}." -f $LineNumber)
+    }
+}
+
+function ConvertTo-CatalogUtcTimestamp {
+    param([string]$Value, [string]$FieldName)
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        throw ($FieldName + " is missing.")
+    }
+    if ($Value -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$') {
+        throw ($FieldName + " must include an explicit UTC offset.")
+    }
+    $parsed = [DateTimeOffset]::MinValue
+    $styles = [Globalization.DateTimeStyles]::AllowWhiteSpaces -bor
+        [Globalization.DateTimeStyles]::AssumeUniversal -bor
+        [Globalization.DateTimeStyles]::AdjustToUniversal
+    if (-not [DateTimeOffset]::TryParse(
+        $Value,
+        [Globalization.CultureInfo]::InvariantCulture,
+        $styles,
+        [ref]$parsed
+    )) {
+        throw ($FieldName + " is not a valid timestamp.")
+    }
+    return $parsed.ToUniversalTime()
+}
+
+function Assert-CatalogSessionStartedAfterReceipt {
+    param([string]$SessionStartedUtc, [string]$ReceiptCompletedUtc)
+    $sessionStarted = ConvertTo-CatalogUtcTimestamp `
+        -Value $SessionStartedUtc `
+        -FieldName "Owning session_meta timestamp"
+    $receiptCompleted = ConvertTo-CatalogUtcTimestamp `
+        -Value $ReceiptCompletedUtc `
+        -FieldName "Receipt completed_utc"
+    if ($sessionStarted -le $receiptCompleted) {
+        throw "The current Codex task did not start after the completed installation receipt."
     }
 }
 
@@ -56,12 +228,20 @@ function Get-CatalogSessionMetadata {
         if (-not $jsonLine) { continue }
         $event = ConvertFrom-CatalogRolloutJson -Text $jsonLine -LineNumber $lineNumber
         if ([string]$event.type -ne "session_meta") { continue }
-        $matches.Add($event.payload)
+        $timestamp = $null
+        if ($event.PSObject.Properties.Name -contains "timestamp") {
+            $timestamp = [string]$event.timestamp
+        }
+        $matches.Add([pscustomobject]@{
+            payload = $event.payload
+            timestamp = $timestamp
+        })
     }
     if ($matches.Count -eq 0) {
         throw ("No session_meta was found for thread {0}." -f $ThreadId)
     }
-    $owner = $matches[0]
+    $ownerRecord = $matches[0]
+    $owner = $ownerRecord.payload
     $ownerThreadId = [string]$owner.id
     $ownerOriginator = [string]$owner.originator
     if ([string]::IsNullOrWhiteSpace($ownerThreadId) -or $ownerThreadId -ne $ThreadId) {
@@ -71,7 +251,8 @@ function Get-CatalogSessionMetadata {
         throw "Rollout session metadata has no originator."
     }
     $ownerMatches = 0
-    foreach ($match in $matches) {
+    foreach ($matchRecord in $matches) {
+        $match = $matchRecord.payload
         $observedThreadId = [string]$match.id
         $originator = [string]$match.originator
         if ([string]::IsNullOrWhiteSpace($observedThreadId) -or
@@ -89,9 +270,22 @@ function Get-CatalogSessionMetadata {
     return [pscustomobject]@{
         id = $ThreadId
         originator = $ownerOriginator
+        started_utc = [string]$ownerRecord.timestamp
         observed_count = $ownerMatches
         inherited_count = $matches.Count - $ownerMatches
     }
+}
+
+function Get-CatalogSessionMetadataDigest {
+    param([object]$Metadata)
+    $canonical = [pscustomobject][ordered]@{
+        id = [string]$Metadata.id
+        originator = [string]$Metadata.originator
+        started_utc = [string]$Metadata.started_utc
+        observed_count = [int]$Metadata.observed_count
+        inherited_count = [int]$Metadata.inherited_count
+    } | ConvertTo-Json -Compress
+    return Get-CatalogSha256 -Text $canonical
 }
 
 function Resolve-CatalogHostFromOriginator {
@@ -296,6 +490,20 @@ function Get-CatalogSkillsDigest {
     return Get-CatalogSha256 -Text $canonical
 }
 
+function Get-CatalogRolloutBindingDigest {
+    param([object]$Binding)
+    $canonical = [pscustomobject][ordered]@{
+        canonical_path = [IO.Path]::GetFullPath([string]$Binding.canonical_path)
+        file_identity = [string]$Binding.file_identity
+        frozen_length = [long]$Binding.frozen_length
+        evidence_prefix_length = [long]$Binding.evidence_prefix_length
+        evidence_prefix_sha256 = [string]$Binding.evidence_prefix_sha256
+        session_meta_sha256 = [string]$Binding.session_meta_sha256
+        skills_block_sha256 = [string]$Binding.skills_block_sha256
+    } | ConvertTo-Json -Compress
+    return Get-CatalogSha256 -Text $canonical
+}
+
 function Get-CatalogMarkdown {
     param([object]$Catalog)
     $builder = New-Object Text.StringBuilder
@@ -306,6 +514,10 @@ function Get-CatalogMarkdown {
     [void]$builder.AppendLine(("Thread: {0}  " -f $Catalog.thread_id))
     [void]$builder.AppendLine(("Snapshot: {0}  " -f $Catalog.snapshot_id))
     [void]$builder.AppendLine(("Skills digest: {0}  " -f $Catalog.skills_sha256))
+    if ($Catalog.PSObject.Properties.Name -contains "rollout_binding_sha256" -and
+        -not [string]::IsNullOrWhiteSpace([string]$Catalog.rollout_binding_sha256)) {
+        [void]$builder.AppendLine(("Rollout evidence digest: {0}  " -f $Catalog.rollout_binding_sha256))
+    }
     [void]$builder.AppendLine(("Generated: {0}  " -f $Catalog.generated_at))
     [void]$builder.AppendLine(("Total skills: {0}" -f @($Catalog.skills).Count))
     [void]$builder.AppendLine("")
@@ -321,15 +533,148 @@ function Get-CatalogMarkdown {
     return $builder.ToString()
 }
 
-function Resolve-RuntimeCatalogSnapshot {
+function Test-CatalogRolloutBinding {
+    param([object]$Catalog)
+    try {
+        $binding = $Catalog.rollout_binding
+        if ($null -eq $binding -or
+            [string]::IsNullOrWhiteSpace([string]$binding.canonical_path) -or
+            -not [IO.Path]::IsPathRooted([string]$binding.canonical_path) -or
+            [string]$binding.file_identity -notmatch '^[A-F0-9]{8}:[A-F0-9]{16}$' -or
+            [long]$binding.frozen_length -lt [long]$binding.evidence_prefix_length -or
+            [long]$binding.evidence_prefix_length -le 0 -or
+            [string]$binding.evidence_prefix_sha256 -notmatch '^[A-F0-9]{64}$' -or
+            [string]$binding.session_meta_sha256 -notmatch '^[A-F0-9]{64}$' -or
+            [string]$binding.skills_block_sha256 -cne [string]$Catalog.skills_prompt_sha256 -or
+            [string]$Catalog.rollout_binding_sha256 -cne
+                (Get-CatalogRolloutBindingDigest -Binding $binding)) {
+            return $false
+        }
+        $path = [IO.Path]::GetFullPath([string]$binding.canonical_path)
+        if ($path -cne [string]$binding.canonical_path -or
+            -not (Test-Path -LiteralPath $path -PathType Leaf) -or
+            ((Get-Item -LiteralPath $path -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            return $false
+        }
+        $stream = New-Object IO.FileStream(
+            $path,
+            [IO.FileMode]::Open,
+            [IO.FileAccess]::Read,
+            [IO.FileShare]::ReadWrite
+        )
+        try {
+            if ([SteadyAgentCatalogFileIdentity]::Get($stream.SafeFileHandle) -cne
+                [string]$binding.file_identity -or
+                $stream.Length -lt [long]$binding.frozen_length -or
+                $stream.Length -lt [long]$binding.evidence_prefix_length -or
+                [long]$binding.evidence_prefix_length -gt [int]::MaxValue) {
+                return $false
+            }
+            $prefix = New-Object byte[] ([int][long]$binding.evidence_prefix_length)
+            $read = 0
+            while ($read -lt $prefix.Length) {
+                $count = $stream.Read($prefix, $read, $prefix.Length - $read)
+                if ($count -le 0) { return $false }
+                $read += $count
+            }
+            if ((Get-CatalogByteSha256 -Bytes $prefix) -cne
+                [string]$binding.evidence_prefix_sha256) {
+                return $false
+            }
+            $reader = New-Object IO.StreamReader($stream, [Text.Encoding]::UTF8, $true)
+            try {
+                while (-not $reader.EndOfStream) {
+                    $line = $reader.ReadLine()
+                    if (-not $line -or
+                        (-not $line.Contains("skills_instructions") -and
+                        -not $line.Contains('"session_meta"'))) { continue }
+                    $event = ConvertFrom-CatalogRolloutJson -Text $line -LineNumber 0
+                    if ([string]$event.type -eq "session_meta") { return $false }
+                    if ([string]$event.type -ne "response_item" -or
+                        [string]$event.payload.type -ne "message" -or
+                        [string]$event.payload.role -ne "developer") { continue }
+                    $hasCatalogTag = $false
+                    foreach ($part in @($event.payload.content)) {
+                        if ([string]$part.type -eq "input_text" -and
+                            ([string]$part.text).Contains("skills_instructions")) {
+                            $hasCatalogTag = $true
+                        }
+                    }
+                    if ($hasCatalogTag) {
+                        $block = Get-CatalogSkillsBlock -RolloutPath $path -RolloutLines @($line)
+                        if ((Get-CatalogSha256 -Text $block) -cne
+                            [string]$binding.skills_block_sha256) { return $false }
+                    }
+                }
+            } finally { $reader.Dispose() }
+        } finally { $stream.Dispose() }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Resolve-BoundRolloutFileCatalogSnapshot {
     param(
         [ValidateSet("Auto", "CodexDesktop", "CodexCli")]
         [string]$HostSurface = "Auto",
         [string]$ThreadId,
-        [string]$CatalogRoot = (Join-Path $env:USERPROFILE ".steadyagent\runtime-skill-catalogs"),
+        [string]$CatalogRoot
+    )
+    if ([string]::IsNullOrWhiteSpace($CatalogRoot)) { $CatalogRoot = Get-DefaultCatalogRoot }
+    $hosts = if ($HostSurface -eq "Auto") {
+        @("codex-desktop", "codex-cli")
+    } else {
+        @(Resolve-CatalogHostName -HostSurface $HostSurface)
+    }
+    $candidates = New-Object Collections.Generic.List[string]
+    foreach ($hostName in $hosts) {
+        $threadRoot = Join-Path (Join-Path $CatalogRoot $hostName) $ThreadId
+        if (-not (Test-Path -LiteralPath $threadRoot -PathType Container)) { continue }
+        foreach ($directory in @(Get-ChildItem -LiteralPath $threadRoot -Directory -ErrorAction Stop)) {
+            if ($directory.Name -notmatch '^[A-F0-9]{64}$') { continue }
+            $candidate = Join-Path $directory.FullName "skill-index.json"
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) { $candidates.Add($candidate) }
+        }
+    }
+    if ($candidates.Count -ne 1) {
+        throw ("Expected one bound catalog for thread {0}; found {1}." -f $ThreadId, $candidates.Count)
+    }
+    $jsonPath = [IO.Path]::GetFullPath($candidates[0])
+    $catalog = Get-Content -LiteralPath $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $catalogHost = [string]$catalog.host
+    if (-not ($hosts -contains $catalogHost) -or [string]$catalog.thread_id -cne $ThreadId) {
+        throw "Bound catalog host/thread identity does not match the requested task."
+    }
+    $directory = Split-Path -Parent $jsonPath
+    return [pscustomobject]@{
+        Host = $catalogHost
+        ThreadId = $ThreadId
+        SessionStartedUtc = [string]$catalog.session_started_utc
+        PromptHash = [string]$catalog.skills_prompt_sha256
+        SkillsHash = [string]$catalog.skills_sha256
+        SnapshotId = [string]$catalog.snapshot_id
+        Directory = $directory
+        JsonPath = $jsonPath
+        MarkdownPath = Join-Path $directory "skill-index.md"
+        RolloutPath = [string]$catalog.rollout_binding.canonical_path
+        Skills = @($catalog.skills)
+        Catalog = $catalog
+    }
+}
+
+function Resolve-RolloutFileCatalogSnapshot {
+    param(
+        [ValidateSet("Auto", "CodexDesktop", "CodexCli")]
+        [string]$HostSurface = "Auto",
+        [string]$ThreadId,
+        [string]$CatalogRoot,
         [string]$RolloutPath,
         [string[]]$RolloutLines
     )
+    if ([string]::IsNullOrWhiteSpace($CatalogRoot)) {
+        $CatalogRoot = Get-DefaultCatalogRoot
+    }
     $hasInjectedRollout = $PSBoundParameters.ContainsKey("RolloutPath") -or $PSBoundParameters.ContainsKey("RolloutLines")
     if ($hasInjectedRollout -and $env:STEADYAGENT_TEST_MODE -ne "1") {
         throw "Explicit rollout snapshots are available only to isolated tests."
@@ -353,6 +698,10 @@ function Resolve-RuntimeCatalogSnapshot {
         -RolloutPath $rollout `
         -ThreadId $ThreadId `
         -RolloutLines $lines
+    $sessionMetadata = Get-CatalogSessionMetadata `
+        -RolloutPath $rollout `
+        -ThreadId $ThreadId `
+        -RolloutLines $lines
     $block = Get-CatalogSkillsBlock -RolloutPath $rollout -RolloutLines $lines
     $hash = Get-CatalogSha256 -Text $block
     $skills = @(Get-CatalogSkillsFromBlock -Block $block)
@@ -361,6 +710,7 @@ function Resolve-RuntimeCatalogSnapshot {
     return [pscustomobject]@{
         Host = $actualHost
         ThreadId = $ThreadId
+        SessionStartedUtc = [string]$sessionMetadata.started_utc
         PromptHash = $hash
         SkillsHash = $skillsHash
         SnapshotId = $actualHost + ":" + $ThreadId + ":" + $hash
@@ -372,7 +722,7 @@ function Resolve-RuntimeCatalogSnapshot {
     }
 }
 
-function Test-RuntimeCatalogSnapshot {
+function Test-RolloutFileCatalogSnapshot {
     param([object]$Expected)
     if (-not (Test-Path -LiteralPath $Expected.JsonPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $Expected.MarkdownPath -PathType Leaf)) { return $false }
@@ -382,15 +732,18 @@ function Test-RuntimeCatalogSnapshot {
         $actualSkillsHash = Get-CatalogSkillsDigest -Skills @($catalog.skills)
         $expectedMarkdown = Get-CatalogMarkdown -Catalog $catalog
         return ([int]$catalog.schema_version -eq 2 -and
-            [string]$catalog.visibility -eq "runtime-confirmed" -and
+            [string]$catalog.visibility -eq "rollout-file-confirmed" -and
             [string]$catalog.host -eq [string]$Expected.Host -and
             [string]$catalog.thread_id -eq [string]$Expected.ThreadId -and
             [string]$catalog.skills_prompt_sha256 -eq [string]$Expected.PromptHash -and
             [string]$catalog.skills_sha256 -eq [string]$Expected.SkillsHash -and
             $actualSkillsHash -eq [string]$Expected.SkillsHash -and
             [string]$catalog.snapshot_id -eq [string]$Expected.SnapshotId -and
+            [string]$catalog.session_started_utc -eq [string]$Expected.SessionStartedUtc -and
+            [string]$catalog.rollout_binding.canonical_path -eq [string]$Expected.RolloutPath -and
             (Split-Path -Leaf (Split-Path -Parent $Expected.JsonPath)) -eq [string]$Expected.PromptHash -and
             $markdown -ceq $expectedMarkdown -and
+            (Test-CatalogRolloutBinding -Catalog $catalog) -and
             @($catalog.skills).Count -gt 0)
     } catch {
         return $false

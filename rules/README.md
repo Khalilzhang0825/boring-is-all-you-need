@@ -5,6 +5,7 @@ These files are progressive rules for AI coding agents. Keep always-on templates
 ## Rule Index
 
 - `workflow-routing.md`: choose the right mode, expose conflicts, and keep work scoped.
+- `skill-routing.md`: keep skill discovery explicit, lightweight, and evidence-bound.
 - `verification.md`: choose checks that prove behavior, not confidence.
 - `review-gates.md`: decide when independent review and scoring are required.
 - `context-management.md`: recover long tasks after interruption or compaction.

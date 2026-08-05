@@ -5,6 +5,7 @@
 ## 规则索引
 
 - `workflow-routing.md`：选择工作模式、暴露冲突、控制范围。
+- `skill-routing.md`：保持技能发现显式、轻量，并绑定到真实证据层级。
 - `verification.md`：选择能证明真实行为的验证，而不是只验证自信语气。
 - `review-gates.md`：判断什么时候必须独立审查和评分。
 - `context-management.md`：处理中断、压缩和长任务状态恢复。

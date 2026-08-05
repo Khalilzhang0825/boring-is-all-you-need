@@ -59,7 +59,7 @@ Add a dark-mode toggle to the settings page. Use SteadyAgent: inspect existing U
 3. 复用已有 UI 模式，不另起一套设计系统。
 4. 如果代码库已有匹配测试模式，补聚焦测试。
 5. 根据项目运行 lint、type check、unit test 或浏览器验证。
-6. 如果涉及多文件或可见行为，checkpoint 前触发独立 review。
+6. maintainer 明确要求、任务属于高风险，或 agent 识别并说明了具体实质风险时，checkpoint 前触发独立 review；文件数量本身不是触发条件。
 
 ## 示例 3：先 review 再修改
 

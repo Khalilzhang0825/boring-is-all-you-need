@@ -14,20 +14,12 @@ timeout = 60
 statusMessage = "Loading SteadyAgent context"
 
 [[hooks.PreToolUse]]
-matcher = "Bash|PowerShell|shell_command|functions[.]shell_command|multi_tool_use[.]parallel"
+matcher = "Bash|PowerShell|shell_command|functions[.]shell_command|apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch|multi_tool_use[.]parallel"
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-command-guard.ps1\""
+command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-command-guard.ps1\" -GuardMode Unified"
 timeout = 60
-statusMessage = "Checking command guardrails"
-
-[[hooks.PreToolUse]]
-matcher = "apply_patch|Edit|Write|MultiEdit|functions[.]apply_patch|multi_tool_use[.]parallel"
-[[hooks.PreToolUse.hooks]]
-type = "command"
-command = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%STEADYAGENT_HOME_JSON%\\tools\\hooks\\agent-hook-file-guard.ps1\""
-timeout = 60
-statusMessage = "Checking file guardrails"
+statusMessage = "Checking command and file guardrails"
 
 [[hooks.PreCompact]]
 matcher = "manual|auto"

@@ -9,25 +9,67 @@ SteadyAgent `v2.0.0` is a Codex Desktop workflow replacement for Windows. One re
 ## What changed in 2.0.0
 
 - Codex Desktop is the only supported host.
-- The runtime is reduced to exactly four managed hook blocks: one `SessionStart`, two `PreToolUse` guards, and one `PreCompact`.
+- The runtime is reduced to exactly three managed hook blocks: one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact`.
 - `UserPromptSubmit`, `PermissionRequest`, and `PostToolUse` are not installed.
 - File count alone no longer triggers independent review.
-- Command and file guards recursively inspect nested parallel calls and fail closed when a matched payload cannot be understood.
+- One unified command/file guard recursively inspects both kinds of leaf in nested parallel calls, starts one PowerShell process per matched event, and fails closed when a relevant payload cannot be understood.
 - Guard logs contain only a fixed reason, normalized tool name, and input SHA-256.
-- Git checkpointing uses an isolated index, explicit files, scope revalidation, and a single-writer lock.
+- Git checkpointing uses an isolated index and object quarantine, explicit files, staged-object and scope revalidation, and a single-writer lock.
+- The checkpoint CLI retains the maintainer workflow's deliberate `-All` option for a human-approved initial checkpoint; the Codex command guard still blocks agents from blanket staging.
 - Installation and V1 migration are transactional: preview, conflict detection, backup, atomic apply, verification, receipt, and rollback.
+- The loaded installer anchors a canonical 52-source `package-assets.sha256` manifest and installs only the once-read bytes that match it.
+- Apply and rollback deliberately refuse an elevated token. All migration I/O runs with the current user's ordinary token, so the installer never turns a same-user path race into an administrator write.
 - A versioned V1-owned-file manifest removes the old Codex release surface during authorized replacement and restores it from the same receipt if rolled back.
-- A frozen 23-item equivalence manifest maps every capability in the maintainer's reviewed local postimage to a portable public source and installed destination.
+- A frozen 23-item equivalence manifest maps every Codex-active capability in the maintainer's reviewed local postimage to a portable public source and installed destination. The local Hook smoke item separately freezes 65 retained assertions and eight explicit Claude or removed-event exclusions; it is scoped equivalence, not a claim that V2 republishes the excluded V1 surfaces.
 - Thread-bound skill indexing and search are included without publishing the maintainer's runtime catalog, session IDs, or private paths.
-- SessionStart retains the maintainer workflow's Caveman lite status, portable lessons headings, and 90-day Harness maintenance reminder.
+- SessionStart emits only dynamic Caveman lite status, portable lesson headings, due 90-day Harness maintenance reminders, and resume/compact state. A fresh install uses the installed context Hook mtime as its first review baseline instead of warning immediately.
 
 ## Why Codex only
 
-The maintainer stopped publishing Anthropic/Claude compatibility after Anthropic terminated the maintainer's account. This is a statement about the maintainer's own experience and product decision.
+V2 supports Codex Desktop only. Other agent hosts and their runtime, template, settings, and Hook surfaces are outside the V2 support and installation contract.
 
-> A company that can close the door faster than it can explain the door should not expect open-source maintainers to keep polishing its welcome mat.
+Historical V1 releases remain in Git history. The V2 archive retains only the V1 migration tombstones and explicit excluded-assertion evidence needed to prove replacement and scoped equivalence; it does not install or support a Claude runtime, templates, settings, or Hooks.
 
-Historical V1 releases remain in Git history. V2 does not ship Claude templates, settings, hooks, tests, or installation paths.
+## Verify the release before running it
+
+The supported release input is the `steadyagent-v2.0.0.zip` asset attached to the GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v2.0.0` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
+
+Download the archive, checksum, and machine-readable provenance assets, then run this copyable verification before extracting or running `install.ps1`:
+
+```powershell
+gh attestation verify --help | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
+gh release download v2.0.0 -R Khalilzhang0825/steadyagent -p "steadyagent-v2.0.0.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.0 release assets." }
+$Provenance = Get-Content -Raw .\steadyagent-v2.0.0.provenance.json | ConvertFrom-Json
+$ReviewedSha = [string]$Provenance.reviewedCommit
+$Expected = (Get-Content -Raw .\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+if ([int]$Provenance.schemaVersion -ne 1 -or
+    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
+    [string]$Provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+    [string]$Provenance.archiveSha256 -cne $Actual -or
+    $Expected -cne $Actual -or
+    [string]$Provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+  throw "Release provenance or digest mismatch."
+}
+gh attestation verify .\steadyagent-v2.0.0.zip `
+  -R Khalilzhang0825/steadyagent `
+  --signer-workflow Khalilzhang0825/steadyagent/.github/workflows/release.yml `
+  --source-ref refs/tags/v2.0.0 `
+  --source-digest $ReviewedSha
+if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
+Expand-Archive .\steadyagent-v2.0.0.zip .\steadyagent-v2.0.0-release
+Set-Location .\steadyagent-v2.0.0-release\steadyagent-v2.0.0
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
+```
+
+`-IntegrityOnly` is the ordinary-user quick gate: it checks the exact release inventory, package manifest and hashes, PowerShell 5.1 parsing and encoding, Hook file format, local documentation links, and the Codex-only archive boundary. CI and maintainers run the default command without this switch as the full release gate, including the heavier behavioral, runtime, equivalence, and whitespace suites.
+
+This requires a current [GitHub CLI](https://cli.github.com/), an authenticated or public GitHub API connection, and a `gh` build that exposes `attestation verify`. The signed attestation and independently downloaded provenance asset bind the archive to its GitHub repository, exact signer workflow, tag ref, reviewed commit, and SHA-256; the release body displays that same commit. They do not prove the code is vulnerability-free. If verification is unavailable or fails, treat the download as untrusted and do not run it.
 
 ## Safety first
 
@@ -37,7 +79,7 @@ The installer is dry-run by default:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```
 
-It shows every destination, existing conflict, managed Hook replacement, and Git Hook change without writing files.
+It shows every destination, existing conflict, managed Hook replacement, and Git Hook change with zero target, config, backup, receipt, or state writes. Dry-run renders into an ephemeral system-temp staging directory and removes it on normal exit; an interrupted process can leave only that staging directory behind.
 
 After reviewing the plan, perform a fresh installation:
 
@@ -51,47 +93,72 @@ To replace an existing SteadyAgent V1 or custom Codex workflow:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-Run the replacement command from an elevated PowerShell window when the active Codex managed configuration is under `%ProgramData%`.
+Run these commands from an ordinary, non-elevated PowerShell window. SteadyAgent refuses elevated Apply and rollback before any migration write. The default managed configuration is supported only when the current user token can update it; a machine with an administrator-locked `%ProgramData%\OpenAI\Codex\requirements.toml` is reported as unsupported instead of triggering UAC, changing ACLs, or taking ownership. `managed` describes the Codex configuration mechanism, not protection against malicious software running as the same user.
 
 The installer:
 
-1. renders the portable package for the current machine;
+1. verifies the canonical package manifest, reads each trusted source byte sequence once, and renders the portable package for the current machine;
 2. validates every source and destination before writing;
 3. blocks unknown existing differences unless replacement was explicitly authorized;
-4. snapshots every existing target and the previous Git Hook path;
+4. durably snapshots every existing target and the previous Git Hook path, then writes and prints an `applying` recovery receipt before the first target or Git write;
 5. backs up and removes known V1-owned files from the old Codex location;
-6. applies files atomically under a session-wide SteadyAgent migration mutex;
+6. applies files atomically under a machine-wide SteadyAgent migration mutex;
 7. verifies every write and the complete final plan;
 8. restores all changed targets if any step fails;
-9. writes a machine-readable `migration-receipt.json`.
+9. durably advances the machine-readable `migration-receipt.json` to `applied`.
 
 It does not change the user's model or reasoning settings.
 
-To reverse a completed migration, first preview and then apply the generated receipt:
+The installed global `core.hooksPath` runs SteadyAgent's staged-file guard first and then chains an executable repository-local `.git/hooks/pre-commit` when one exists. A differing pre-existing global `core.hooksPath` is still a reviewed replacement conflict: use `-ReplaceExistingWorkflow` only after inspecting the dry-run, and use the receipt to restore it.
+
+Use the installed rollback tool and the receipt path printed by the installation:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath "<backup>\migration-receipt.json" -Apply
+$SteadyAgentRoot = Join-Path $HOME ".steadyagent"
+$ReceiptPath = Read-Host "Paste the exact path printed after 'Recovery receipt:' by install.ps1"
+if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "The printed recovery receipt path is invalid." }
+$ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
+# After reviewing the preview, run from the same non-elevated user session:
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-Rollback verifies the receipt, every installed file, every original snapshot, and the active Git Hook path before writing anything. If an installed file drifted, it stops with zero writes. Use only a receipt generated by your own SteadyAgent installation.
+Do not elevate rollback. If the process was hard-stopped before the installed rollback copy existed, run `tools\rollback.ps1` from the same verified extracted release package instead; the `applying` receipt binds that script's exact installed hash. Rollback classifies every target and the active Git Hook path as exact original or exact post-install state before writing. Any third state, receipt drift, or snapshot drift stops with zero writes; a valid mixed state transactionally restores managed-file byte content and existence plus the recorded `core.hooksPath` value and fixture Git-config bytes. The migration does not capture or restore ACLs, owners, file attributes, timestamps, or alternate data streams.
+
+Rollback publishes a durable `rollback-journal.json` before its first file or
+Git change, so a hard stop can resume or compensate deterministically. If it
+reports exit code 3 or projects `rollback_incomplete`, preserve the receipt,
+backup, journal, current targets, and Git configuration. Do not edit them or
+blindly retry; manual reconciliation against the recorded hashes is required.
+Test-only migration roots must be named
+`steadyagent-v2-migration-<32 lowercase hex>` under the system temp directory.
 
 ## After installation
 
-Restart Codex Desktop. For the same strict audit used by the maintainer, first build the task-bound skill index, then require Hooks, runtime catalog, and Git identity:
+Restart Codex Desktop, open a new Codex task, and ask Codex to run the following block in that task's terminal. Do not paste it into an unrelated PowerShell session: the skill index must bind to the new task's `CODEX_THREAD_ID`. The block first verifies that identity, then requires Hooks, runtime catalog, and Git identity:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\skill-index.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\diagnose-install.ps1" -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
+$SteadyAgentRoot = Join-Path $HOME ".steadyagent"
+$ReceiptPath = Read-Host "Paste the exact path printed after 'Recovery receipt:' by install.ps1"
+if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "The printed recovery receipt path is invalid." }
+$ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
+if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { throw "Run this audit from a newly started Codex task." }
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
 ```
+
+The catalog tools default to
+`Join-Path $SteadyAgentRoot "runtime-skill-catalogs"` by deriving the install
+root from their own `tools` directory.
 
 Expected result:
 
 ```text
-RESULT pass=<n> warn=0 fail=0
+WARN manual Codex Live acceptance is still required
+RESULT pass=<n> warn=1 fail=0
 ```
 
-The diagnosis verifies installed assets, empty user hooks, the exact four-block managed matrix, every known V1-owned Codex file is absent, rendered paths, the active Git Hook path, and the installed Hook smoke suite.
+The diagnosis verifies installed assets, empty user hooks, the exact three-block managed matrix with one unified `PreToolUse`, every known V1-owned Codex file is absent, rendered paths, the active Git Hook path, and the installed Hook smoke suite. `-RequireRuntimeCatalog` validates only an internally consistent `rollout-file-confirmed` catalog bound to `CODEX_THREAD_ID`; it does not prove current-host or Live activation. Restart Codex Desktop, open a real new task, and observe SessionStart plus one controlled Hook behavior to establish Live acceptance.
 
 ## Daily workflow
 
@@ -119,12 +186,13 @@ SteadyAgent instructs Codex to:
 | `tools/diagnose-install.ps1` | Verify installed assets and active Codex managed hooks. |
 | `tools/test-v2-migration.ps1` | Exercise fresh install, replacement, conflict, and rollback fixtures. |
 | `tools/test-agent-hooks.ps1` | Verify SessionStart, guards, logs, and PreCompact behavior. |
-| `tools/test-git-checkpoint.ps1` | Verify explicit-file checkpoint transactions. |
+| `tools/test-git-checkpoint.ps1` | Verify explicit-file and deliberate all-scope checkpoint transactions. |
 | `tools/test-pre-commit.ps1` | Verify staged secret and oversized-blob protection. |
 | `tools/skill-index.ps1` | Build a host-, thread-, prompt-, and digest-bound runtime skill catalog. |
-| `tools/skill-search.ps1` | Search only the catalog advertised by the active Codex runtime. |
+| `tools/skill-search.ps1` | Search only a `rollout-file-confirmed` catalog bound to the current task identity; this does not prove current-host or Live activation. |
 | `tools/test-local-equivalence.ps1` | Prove the 23/23 local-to-public mapping, including a deliberate red mutation. |
 | `tools/validate-release-readiness.ps1` | Run the complete public V2 release gate. |
+| `tools/validate-release-archive.ps1` | Validate the exact extracted release asset without requiring `.git`; users select `-IntegrityOnly`, while CI and maintainers run the full default gate. |
 
 ## Runtime architecture
 

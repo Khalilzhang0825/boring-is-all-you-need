@@ -1,0 +1,457 @@
+name: Build and attest v2.0.0 release
+
+on:
+  push:
+    tags:
+      - v2.0.0
+
+permissions: {}
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: steadyagent-v2.0.0-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-validate:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    outputs:
+      archive-sha256: ${{ steps.build.outputs.archive_sha256 }}
+      release-sha: ${{ steps.verify-input.outputs.release_sha }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout the tagged commit without persisted credentials
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+          persist-credentials: false
+
+      - name: Verify the immutable release input
+        id: verify-input
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+        run: |
+          if ($env:RELEASE_TAG -ne "v2.0.0" -or
+              $env:SOURCE_REPOSITORY -cne "Khalilzhang0825/steadyagent") {
+            throw "Only the reviewed v2.0.0 tag may enter this workflow."
+          }
+          $head = (git rev-parse HEAD).Trim()
+          $tagged = (git rev-list -n 1 "refs/tags/$env:RELEASE_TAG").Trim()
+          $main = (git rev-parse "refs/remotes/origin/main").Trim()
+          $expectedV1 = "f80c05c4b79e069ee3a35db3c09a8f870bca0b59"
+          $expectedRoot = "7641ff9ff8c372036766541d565b81e44e1f8704"
+          $v1 = (git rev-parse "refs/tags/v1.0.0^{commit}").Trim()
+          $roots = @(git rev-list --max-parents=0 $env:RELEASE_SHA)
+          git merge-base --is-ancestor $expectedV1 $env:RELEASE_SHA
+          $v1IsAncestor = $LASTEXITCODE -eq 0
+          if ($LASTEXITCODE -ne 0 -or
+              $head -ne $env:RELEASE_SHA -or
+              $tagged -ne $env:RELEASE_SHA -or
+              $main -ne $env:RELEASE_SHA -or
+              $v1 -ne $expectedV1 -or
+              -not $v1IsAncestor -or
+              $roots.Count -ne 1 -or
+              $roots[0].Trim() -ne $expectedRoot) {
+            throw "The checkout, event SHA, tag target, and current origin/main must be identical."
+          }
+          $status = @(git status --porcelain)
+          if ($status.Count -ne 0) {
+            throw "The tagged checkout is not clean."
+          }
+          "release_sha=$head" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Run the clean tag-checkout release gate
+        env:
+          STEADYAGENT_RELEASE_BASE_REF: f80c05c4b79e069ee3a35db3c09a8f870bca0b59
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -BaseRef "$env:STEADYAGENT_RELEASE_BASE_REF"
+
+      - name: Build the tagged source archive and checksum
+        id: build
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_SHA: ${{ github.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_REF: ${{ github.ref }}
+        run: |
+          New-Item -ItemType Directory -Path .\dist | Out-Null
+          $archiveName = "steadyagent-$env:RELEASE_TAG.zip"
+          $archivePath = Join-Path (Resolve-Path .\dist) $archiveName
+          git archive --format=zip "--prefix=steadyagent-$env:RELEASE_TAG/" "--output=$archivePath" $env:RELEASE_SHA
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+            throw "Could not build the tagged release archive."
+          }
+          $digest = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+          [IO.File]::WriteAllText(
+            ($archivePath + ".sha256"),
+            ($digest + "  " + $archiveName + "`n"),
+            [Text.Encoding]::ASCII
+          )
+          $releaseNotes = [IO.File]::ReadAllText(
+            (Resolve-Path .\RELEASE_NOTES.md),
+            [Text.Encoding]::UTF8
+          ).TrimEnd([char[]]"`r`n")
+          $releaseBodyPath = Join-Path (Resolve-Path .\dist) "RELEASE_BODY.md"
+          $releaseBody = (
+            $releaseNotes + "`n`n## Verified provenance`n`n" +
+            "Reviewed commit: $env:RELEASE_SHA`n" +
+            "Source ref: $env:SOURCE_REF`n"
+          )
+          [IO.File]::WriteAllText(
+            $releaseBodyPath,
+            $releaseBody,
+            (New-Object Text.UTF8Encoding($false))
+          )
+          $releaseBodySha256 = (
+            Get-FileHash -LiteralPath $releaseBodyPath -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          $provenancePath = Join-Path (
+            Resolve-Path .\dist
+          ) "steadyagent-v2.0.0.provenance.json"
+          $provenance = [ordered]@{
+            schemaVersion = 1
+            releaseTag = $env:RELEASE_TAG
+            reviewedCommit = $env:RELEASE_SHA
+            archiveName = $archiveName
+            archiveSha256 = $digest
+            releaseBodySha256 = $releaseBodySha256
+            sourceRepository = $env:SOURCE_REPOSITORY
+            sourceRef = $env:SOURCE_REF
+            signerWorkflow = "$env:SOURCE_REPOSITORY/.github/workflows/release.yml"
+          } | ConvertTo-Json -Depth 4
+          [IO.File]::WriteAllText(
+            $provenancePath,
+            ($provenance + "`n"),
+            (New-Object Text.UTF8Encoding($false))
+          )
+          "archive_sha256=$digest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Validate the exact no-Git archive
+        run: |
+          Expand-Archive -LiteralPath .\dist\steadyagent-v2.0.0.zip -DestinationPath .\archive-check
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\archive-check\steadyagent-v2.0.0\tools\validate-release-archive.ps1
+          if ($LASTEXITCODE -ne 0) {
+            throw "The exact release archive failed no-Git validation."
+          }
+
+      - name: Transfer the reviewed release bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: steadyagent-v2.0.0-release-bundle
+          path: |
+            dist/steadyagent-v2.0.0.zip
+            dist/steadyagent-v2.0.0.zip.sha256
+            dist/steadyagent-v2.0.0.provenance.json
+            dist/RELEASE_BODY.md
+          if-no-files-found: error
+          retention-days: 1
+
+  attest-reviewed-archive:
+    needs: build-and-validate
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download only the reviewed release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: steadyagent-v2.0.0-release-bundle
+          path: dist
+
+      - name: Rebind the transferred archive to the reviewed digest
+        env:
+          EXPECTED_SHA256: ${{ needs.build-and-validate.outputs.archive-sha256 }}
+          EXPECTED_RELEASE_SHA: ${{ needs.build-and-validate.outputs.release-sha }}
+        run: |
+          $actual = (Get-FileHash -LiteralPath .\dist\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = (Get-Content -Raw -LiteralPath .\dist\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+          if ($actual -ne $env:EXPECTED_SHA256 -or $sidecar -ne $env:EXPECTED_SHA256) {
+            throw "The transferred release archive does not match the reviewed digest."
+          }
+          $provenance = Get-Content -Raw -LiteralPath .\dist\steadyagent-v2.0.0.provenance.json |
+            ConvertFrom-Json
+          $bodyHash = (
+            Get-FileHash -LiteralPath .\dist\RELEASE_BODY.md -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          if ([int]$provenance.schemaVersion -ne 1 -or
+              [string]$provenance.releaseTag -cne "v2.0.0" -or
+              [string]$provenance.reviewedCommit -cne $env:EXPECTED_RELEASE_SHA -or
+              [string]$provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+              [string]$provenance.archiveSha256 -cne $env:EXPECTED_SHA256 -or
+              [string]$provenance.releaseBodySha256 -cne $bodyHash -or
+              [string]$provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+              [string]$provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+              [string]$provenance.signerWorkflow -cne
+                "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+            throw "The transferred provenance does not match the reviewed release input."
+          }
+
+      - name: Attest the reviewed release archive
+        uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
+        with:
+          subject-path: dist/steadyagent-v2.0.0.zip
+
+  create-draft:
+    needs:
+      - build-and-validate
+      - attest-reviewed-archive
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Download only the attested release bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: steadyagent-v2.0.0-release-bundle
+          path: dist
+
+      - name: Rebind the draft assets to the reviewed digest
+        env:
+          EXPECTED_SHA256: ${{ needs.build-and-validate.outputs.archive-sha256 }}
+          EXPECTED_RELEASE_SHA: ${{ needs.build-and-validate.outputs.release-sha }}
+        run: |
+          $actual = (Get-FileHash -LiteralPath .\dist\steadyagent-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = (Get-Content -Raw -LiteralPath .\dist\steadyagent-v2.0.0.zip.sha256).Split(" ")[0].Trim()
+          if ($actual -ne $env:EXPECTED_SHA256 -or $sidecar -ne $env:EXPECTED_SHA256) {
+            throw "The draft assets do not match the reviewed digest."
+          }
+          $provenance = Get-Content -Raw -LiteralPath .\dist\steadyagent-v2.0.0.provenance.json |
+            ConvertFrom-Json
+          $bodyHash = (
+            Get-FileHash -LiteralPath .\dist\RELEASE_BODY.md -Algorithm SHA256
+          ).Hash.ToLowerInvariant()
+          if ([int]$provenance.schemaVersion -ne 1 -or
+              [string]$provenance.releaseTag -cne "v2.0.0" -or
+              [string]$provenance.reviewedCommit -cne $env:EXPECTED_RELEASE_SHA -or
+              [string]$provenance.archiveName -cne "steadyagent-v2.0.0.zip" -or
+              [string]$provenance.archiveSha256 -cne $env:EXPECTED_SHA256 -or
+              [string]$provenance.releaseBodySha256 -cne $bodyHash -or
+              [string]$provenance.sourceRepository -cne "Khalilzhang0825/steadyagent" -or
+              [string]$provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+              [string]$provenance.signerWorkflow -cne
+                "Khalilzhang0825/steadyagent/.github/workflows/release.yml") {
+            throw "The draft provenance does not match the reviewed release input."
+          }
+
+      - name: Create or recover the exact draft GitHub release
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          EXPECTED_RELEASE_SHA: ${{ needs.build-and-validate.outputs.release-sha }}
+          EXPECTED_RELEASE_SHA256: ${{ needs.build-and-validate.outputs.archive-sha256 }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          function Get-LiveDraftState {
+            $stateJson = gh release view $env:RELEASE_TAG `
+              -R $env:GH_REPO `
+              --json tagName,name,body,isDraft,isPrerelease,databaseId,assets 2>$null
+            $viewExit = $LASTEXITCODE
+            if ($viewExit -ne 0) {
+              $tagProbeLines = @(gh api --include `
+                "repos/$env:GH_REPO/releases/tags/$env:RELEASE_TAG" 2>$null)
+              $tagProbeExit = $LASTEXITCODE
+              $statusLine = [string]@($tagProbeLines | Where-Object {
+                [string]$_ -match '^HTTP/\S+\s+[0-9]{3}\b'
+              } | Select-Object -First 1)
+              if ($tagProbeExit -ne 0 -and $statusLine -match '^HTTP/\S+\s+404\b') {
+                return $null
+              }
+              throw "Could not determine whether the live release tag is absent."
+            }
+            return ($stateJson | ConvertFrom-Json)
+          }
+
+          function Test-LiveReleaseIdAbsent {
+            param([int64]$ReleaseId)
+            $idProbeLines = @(gh api --include `
+              "repos/$env:GH_REPO/releases/$ReleaseId" 2>$null)
+            $idProbeExit = $LASTEXITCODE
+            $statusLine = [string]@($idProbeLines | Where-Object {
+              [string]$_ -match '^HTTP/\S+\s+[0-9]{3}\b'
+            } | Select-Object -First 1)
+            if ($idProbeExit -ne 0 -and $statusLine -match '^HTTP/\S+\s+404\b') {
+              return $true
+            }
+            if ($idProbeExit -eq 0 -and $statusLine -match '^HTTP/\S+\s+2[0-9]{2}\b') {
+              return $false
+            }
+            throw "Could not confirm the captured release ID state after deletion."
+          }
+
+          function Assert-LiveReleaseRefs {
+            if (-not (Test-LiveReleaseRefsExact)) {
+              throw "The live release tag or main branch moved away from the reviewed commit."
+            }
+          }
+
+          function Test-LiveReleaseRefsExact {
+            $tagRefJson = gh api "repos/$env:GH_REPO/git/ref/tags/$env:RELEASE_TAG"
+            if ($LASTEXITCODE -ne 0) { throw "Could not resolve the live release tag." }
+            $tagObject = ($tagRefJson | ConvertFrom-Json).object
+            for ($depth = 0; $depth -lt 8 -and [string]$tagObject.type -eq "tag"; $depth++) {
+              $tagJson = gh api "repos/$env:GH_REPO/git/tags/$([string]$tagObject.sha)"
+              if ($LASTEXITCODE -ne 0) { throw "Could not dereference the live annotated tag." }
+              $tagObject = ($tagJson | ConvertFrom-Json).object
+            }
+            $mainRefJson = gh api "repos/$env:GH_REPO/git/ref/heads/main"
+            if ($LASTEXITCODE -ne 0) { throw "Could not resolve the live main branch." }
+            $mainObject = ($mainRefJson | ConvertFrom-Json).object
+            return [string]$tagObject.type -eq "commit" -and
+              [string]$tagObject.sha -eq $env:EXPECTED_RELEASE_SHA -and
+              [string]$mainObject.type -eq "commit" -and
+              [string]$mainObject.sha -eq $env:EXPECTED_RELEASE_SHA
+          }
+
+          function Test-ExactRecoverableDraft {
+            param([object]$State)
+            if ($null -eq $State -or
+                -not [bool]$State.isDraft -or
+                [bool]$State.isPrerelease -or
+                [string]$State.tagName -cne $env:RELEASE_TAG -or
+                [string]$State.name -cne "SteadyAgent v2.0.0" -or
+                [string]$State.body -cne (Get-Content -Raw -LiteralPath .\dist\RELEASE_BODY.md) -or
+                [int64]$State.databaseId -le 0) {
+              return $false
+            }
+            $assetNames = @($State.assets | ForEach-Object { [string]$_.name } | Sort-Object)
+            if (($assetNames -join "|") -cne
+                "steadyagent-v2.0.0.provenance.json|steadyagent-v2.0.0.zip|steadyagent-v2.0.0.zip.sha256") {
+              return $false
+            }
+            $recoveryRoot = Join-Path $env:RUNNER_TEMP (
+              "steadyagent-draft-recovery-" + [guid]::NewGuid().ToString("N")
+            )
+            New-Item -ItemType Directory -Path $recoveryRoot | Out-Null
+            gh release download $env:RELEASE_TAG `
+              -R $env:GH_REPO `
+              --dir $recoveryRoot `
+              --pattern "steadyagent-v2.0.0.*"
+            if ($LASTEXITCODE -ne 0) { return $false }
+            $archivePath = Join-Path $recoveryRoot "steadyagent-v2.0.0.zip"
+            $sidecarPath = $archivePath + ".sha256"
+            $provenancePath = Join-Path $recoveryRoot "steadyagent-v2.0.0.provenance.json"
+            if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf) -or
+                -not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
+              return $false
+            }
+            $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $sidecarHash = (Get-FileHash -LiteralPath $sidecarPath -Algorithm SHA256).Hash.ToLowerInvariant()
+            $expectedSidecarHash = (
+              Get-FileHash -LiteralPath .\dist\steadyagent-v2.0.0.zip.sha256 -Algorithm SHA256
+            ).Hash.ToLowerInvariant()
+            $provenanceHash = (
+              Get-FileHash -LiteralPath $provenancePath -Algorithm SHA256
+            ).Hash.ToLowerInvariant()
+            $expectedProvenanceHash = (
+              Get-FileHash -LiteralPath .\dist\steadyagent-v2.0.0.provenance.json -Algorithm SHA256
+            ).Hash.ToLowerInvariant()
+            return $archiveHash -eq $env:EXPECTED_RELEASE_SHA256 -and
+              $sidecarHash -eq $expectedSidecarHash -and
+              $provenanceHash -eq $expectedProvenanceHash
+          }
+
+          Assert-LiveReleaseRefs
+          $existingDraft = Get-LiveDraftState
+          if ($null -ne $existingDraft) {
+            if (-not (Test-ExactRecoverableDraft -State $existingDraft)) {
+              throw "A non-matching GitHub release already exists for this tag; preserve it for manual review."
+            }
+            Assert-LiveReleaseRefs
+            Write-Host "An exact draft already exists for the reviewed commit and assets; retry is complete."
+            exit 0
+          }
+          Assert-LiveReleaseRefs
+          $requestPath = Join-Path $env:RUNNER_TEMP (
+            "steadyagent-release-request-" + [guid]::NewGuid().ToString("N") + ".json"
+          )
+          try {
+            $request = [ordered]@{
+              tag_name = $env:RELEASE_TAG
+              name = "SteadyAgent v2.0.0"
+              body = Get-Content -Raw -LiteralPath .\dist\RELEASE_BODY.md
+              draft = $true
+              prerelease = $false
+              make_latest = "false"
+            } | ConvertTo-Json -Depth 4
+            [IO.File]::WriteAllText(
+              $requestPath,
+              $request,
+              (New-Object Text.UTF8Encoding($false))
+            )
+            $createdJson = gh api --method POST "repos/$env:GH_REPO/releases" --input $requestPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "Could not create the draft GitHub release."
+            }
+            $createdRelease = $createdJson | ConvertFrom-Json
+            $createdReleaseId = [int64]$createdRelease.id
+            if ($createdReleaseId -le 0) {
+              throw "The created draft did not return a valid release ID."
+            }
+          }
+          finally {
+            Remove-Item -LiteralPath $requestPath -Force -ErrorAction SilentlyContinue
+          }
+          gh release upload $env:RELEASE_TAG `
+            -R $env:GH_REPO `
+            .\dist\steadyagent-v2.0.0.zip `
+            .\dist\steadyagent-v2.0.0.zip.sha256 `
+            .\dist\steadyagent-v2.0.0.provenance.json
+          if ($LASTEXITCODE -ne 0) {
+            throw "The draft was created but its exact assets were not uploaded; preserve it for manual recovery."
+          }
+          $finalDraft = Get-LiveDraftState
+          if (-not (Test-ExactRecoverableDraft -State $finalDraft) -or
+              [int64]$finalDraft.databaseId -ne $createdReleaseId) {
+            throw "The live release changed after asset upload; preserve it for manual review."
+          }
+          if (-not (Test-LiveReleaseRefsExact)) {
+            $finalizationFailure =
+              "The live release tag or main branch moved away from the reviewed commit."
+            $createdDraft = Get-LiveDraftState
+            if (-not (Test-ExactRecoverableDraft -State $createdDraft) -or
+                [int64]$createdDraft.databaseId -ne $createdReleaseId) {
+              throw (
+                "The live release changed after draft creation and is not the exact draft created by this run; " +
+                "preserve it for manual review. " + $finalizationFailure
+              )
+            }
+            gh api --method DELETE "repos/$env:GH_REPO/releases/$createdReleaseId"
+            if ($LASTEXITCODE -ne 0 -or
+                -not (Test-LiveReleaseIdAbsent -ReleaseId $createdReleaseId)) {
+              throw (
+                "Live refs changed after draft creation and captured-ID cleanup failed; " +
+                "manual recovery is required. " + $finalizationFailure
+              )
+            }
+            $replacementDraft = Get-LiveDraftState
+            if ($null -ne $replacementDraft) {
+              throw (
+                "The captured partial draft was removed, but a replacement release now exists and was preserved; " +
+                "manual review is required. " + $finalizationFailure
+              )
+            }
+            throw (
+              "Live refs changed after draft creation; the exact partial draft was removed and the job is safe to retry. " +
+              $finalizationFailure
+            )
+          }

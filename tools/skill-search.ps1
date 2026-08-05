@@ -6,7 +6,7 @@ param(
     [ValidateSet("Auto", "CodexDesktop", "CodexCli")]
     [string]$HostSurface = "Auto",
     [string]$ThreadId = $env:CODEX_THREAD_ID,
-    [string]$CatalogRoot = (Join-Path $env:USERPROFILE ".steadyagent\runtime-skill-catalogs"),
+    [string]$CatalogRoot,
     [int]$Top = 12,
     [switch]$NoRebuild,
     [switch]$AllowFixtureCatalog
@@ -15,6 +15,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "skill-catalog-resolver.ps1")
+if ([string]::IsNullOrWhiteSpace($CatalogRoot)) {
+    $CatalogRoot = Get-DefaultCatalogRoot
+}
 
 $catalog = $null
 
@@ -37,28 +40,49 @@ if ($JsonPath) {
         exit 2
     }
 } else {
+    if ([string]::IsNullOrWhiteSpace([string]$env:CODEX_THREAD_ID)) {
+        [Console]::Error.WriteLine("Production catalog search requires CODEX_THREAD_ID from the current Codex task.")
+        exit 2
+    }
+    if ([string]::IsNullOrWhiteSpace($ThreadId) -or $ThreadId -cne [string]$env:CODEX_THREAD_ID) {
+        [Console]::Error.WriteLine("ThreadId must match CODEX_THREAD_ID from the current Codex task.")
+        exit 2
+    }
+    $expected = $null
     try {
-        $expected = Resolve-RuntimeCatalogSnapshot `
+        $expected = Resolve-BoundRolloutFileCatalogSnapshot `
             -HostSurface $HostSurface `
             -ThreadId $ThreadId `
             -CatalogRoot $CatalogRoot
     } catch {
-        [Console]::Error.WriteLine(("Cannot resolve current runtime catalog identity: {0}" -f $_.Exception.Message))
+        if ($NoRebuild) {
+            [Console]::Error.WriteLine(("Cannot resolve bound rollout-file catalog: {0}" -f $_.Exception.Message))
+            exit 2
+        }
+        & (Join-Path $PSScriptRoot "skill-index.ps1") `
+            -HostSurface $HostSurface `
+            -ThreadId $ThreadId `
+            -CatalogRoot $CatalogRoot | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            [Console]::Error.WriteLine("Rollout-file catalog initial build failed.")
+            exit 2
+        }
+        try {
+            $expected = Resolve-BoundRolloutFileCatalogSnapshot `
+                -HostSurface $HostSurface `
+                -ThreadId $ThreadId `
+                -CatalogRoot $CatalogRoot
+        } catch {
+            [Console]::Error.WriteLine(("Cannot resolve newly built rollout-file catalog: {0}" -f $_.Exception.Message))
+            exit 2
+        }
+    }
+    if (-not (Test-RolloutFileCatalogSnapshot -Expected $expected)) {
+        [Console]::Error.WriteLine(("Bound rollout-file catalog or owning rollout evidence is invalid: {0}" -f $expected.SnapshotId))
         exit 2
     }
-    if (-not (Test-RuntimeCatalogSnapshot -Expected $expected)) {
-        if ($NoRebuild) {
-            [Console]::Error.WriteLine(("Runtime catalog mismatch: expected {0}" -f $expected.SnapshotId))
-            exit 2
-        }
-        & (Join-Path $PSScriptRoot "skill-index.ps1") -HostSurface $HostSurface -ThreadId $ThreadId -CatalogRoot $CatalogRoot -RepairExisting | Out-Null
-        if ($LASTEXITCODE -ne 0 -or -not (Test-RuntimeCatalogSnapshot -Expected $expected)) {
-            [Console]::Error.WriteLine(("Runtime catalog rebuild failed identity verification: {0}" -f $expected.SnapshotId))
-            exit 2
-        }
-    }
     $JsonPath = $expected.JsonPath
-    $catalog = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $catalog = $expected.Catalog
 }
 
 function Convert-CodePointsToText {
@@ -109,7 +133,28 @@ $ranked = foreach ($skill in @($catalog.skills)) {
     }
 }
 
-$ranked |
+$matches = @($ranked |
     Sort-Object @{ Expression = "score"; Descending = $true }, @{ Expression = "name"; Ascending = $true } |
-    Select-Object -First $Top |
-    Format-Table score, name, source, description -AutoSize
+    Select-Object -First $Top)
+
+foreach ($match in $matches) {
+    $skillPath = [string]$match.path
+    if (-not [IO.Path]::IsPathRooted($skillPath) -or
+        (Split-Path -Leaf $skillPath) -cne "SKILL.md" -or
+        -not (Test-Path -LiteralPath $skillPath -PathType Leaf)) {
+        [Console]::Error.WriteLine(
+            "Matched skill path is not an existing absolute SKILL.md file; no results were emitted."
+        )
+        exit 2
+    }
+}
+
+for ($index = 0; $index -lt $matches.Count; $index++) {
+    $match = $matches[$index]
+    Write-Output ("Name: " + [string]$match.name)
+    Write-Output ("Score: " + [string]$match.score)
+    Write-Output ("Source: " + [string]$match.source)
+    Write-Output ("Description: " + [string]$match.description)
+    Write-Output ("SKILL.md: " + [IO.Path]::GetFullPath([string]$match.path))
+    if ($index -lt $matches.Count - 1) { Write-Output "" }
+}

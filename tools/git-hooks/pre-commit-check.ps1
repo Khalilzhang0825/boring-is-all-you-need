@@ -22,11 +22,37 @@ $staged = & git -c core.quotepath=false diff --cached --name-only --diff-filter=
 if (-not $staged) { exit 0 }
 
 $blocked = New-Object System.Collections.Generic.List[string]
+$credentialName = "(?:" +
+    ("api" + "[_-]?key") + "|" +
+    ("access" + "[_-]?token") + "|" +
+    ("secret" + "[_-]?key") + "|" +
+    ("pass" + "word") + ")"
+$credentialAssignmentPattern = '(?im)\b' + $credentialName +
+    '\b\s*[:=]\s*[''"]?[^\s''"]{8,}'
+$privateKeyPattern = '(?im)^-----BEGIN (?:RSA |OPENSSH |EC |DSA )?' +
+    ("PRIVATE" + " KEY-----")
 foreach ($path in $staged) {
     if (-not $path) { continue }
     $protectedReason = Get-ProtectedPathReason -Path $path
     if ($protectedReason) {
         $blocked.Add("$path  ($protectedReason)")
+        continue
+    }
+
+    $workingPath = [IO.Path]::GetFullPath((Join-Path (Get-Location).Path $path))
+    if (-not (Test-Path -LiteralPath $workingPath -PathType Leaf)) {
+        $blocked.Add("$path  (working-tree file is unavailable for single-link verification)")
+        continue
+    }
+    try {
+        $linkCount = Get-SteadyAgentFileLinkCount -Path $workingPath
+    }
+    catch {
+        $blocked.Add("$path  (cannot bind working-tree file identity)")
+        continue
+    }
+    if ($linkCount -ne 1) {
+        $blocked.Add("$path  (working-tree file has multiple hard links)")
         continue
     }
 
@@ -39,6 +65,16 @@ foreach ($path in $staged) {
     $len = [int64]$sizeText
     if ($len -gt ($MaxMB * 1MB)) {
         $blocked.Add(("{0}  ({1:N1} MB > {2} MB)" -f $path, ($len / 1MB), $MaxMB))
+        continue
+    }
+
+    $content = @(& git cat-file blob $blobSpec 2>$null) -join "`n"
+    if ($LASTEXITCODE -ne 0) {
+        $blocked.Add("$path  (cannot inspect staged blob content)")
+        continue
+    }
+    if ($content -match $credentialAssignmentPattern -or $content -match $privateKeyPattern) {
+        $blocked.Add("$path  (Possible secrets: staged content matches a secret pattern)")
     }
 }
 
