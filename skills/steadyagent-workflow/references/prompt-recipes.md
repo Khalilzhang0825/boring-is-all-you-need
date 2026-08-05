@@ -20,10 +20,10 @@ Use this reference when a task needs a reusable Chinese prompt template.
 请派一个不继承当前讨论假设的子代理审查这次修改。重点检查边界条件、权限、并发、缓存、数据迁移、测试缺口和是否过度实现。按 P0-P3 排序，只报告可操作问题。
 ```
 
-## AGENTS.md / CLAUDE.md Iteration
+## AGENTS.md Iteration
 
 ```text
-请阅读当前 AGENTS.md / CLAUDE.md，指出哪些规则值得常驻加载，哪些应该移到 skill、docs 或 references。每条新增或保留规则必须对应真实失败模式，最后给出精简后的版本和取舍说明。
+请阅读当前 AGENTS.md，指出哪些规则值得常驻加载，哪些应该移到 skill、docs 或 references。每条新增或保留规则必须对应真实失败模式，最后给出精简后的版本和取舍说明。
 ```
 
 ## Skill Creation

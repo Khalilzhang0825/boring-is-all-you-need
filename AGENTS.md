@@ -1,10 +1,10 @@
-# AGENTS.md - SteadyAgent Codex Guide
+# AGENTS.md - Boring Is All You Need Codex Guide
 
-This file gives Codex a compact project map for contributing to SteadyAgent.
+This file gives Codex a compact project map for contributing to Boring Is All You Need.
 
 ## Project Intent
 
-SteadyAgent is a local-first harness for AI coding agents. It packages concise instructions, progressive rules, validation scripts, lifecycle hook examples, and release evidence so agent-assisted development is easier to scope, verify, review, and recover.
+Boring Is All You Need is a local-first harness for AI coding agents. It packages concise instructions, progressive rules, validation scripts, lifecycle hook examples, and release evidence so agent-assisted development is easier to scope, verify, review, and recover.
 
 ## Working Rules
 

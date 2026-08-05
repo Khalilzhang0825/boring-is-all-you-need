@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Choose the right working mode before editing. SteadyAgent work should stay scoped, observable, and recoverable.
+Choose the right working mode before editing. Work under the Boring Is All You Need workflow should stay scoped, observable, and recoverable.
 
 ## Use When
 
@@ -10,7 +10,7 @@ Use this rule when a task is ambiguous, multi-step, risky, or likely to touch mu
 
 ## Rules
 
-- Use the core loop: `understand -> plan -> red check -> smallest change -> green check -> review -> checkpoint`.
+- Use the core loop: `understand -> plan -> red check -> smallest change -> green check -> risk gate -> independent review when required, otherwise self-review -> checkpoint`.
 - If the goal, boundary, or acceptance criteria are unclear, diagnose before editing.
 - Identify the time scale: short-term stopgap, transitional workflow, or long-term system.
 - For bugs, reproduce the behavior or find observable evidence before changing code.

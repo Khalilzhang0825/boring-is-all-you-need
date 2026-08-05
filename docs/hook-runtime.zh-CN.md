@@ -1,41 +1,23 @@
-# SteadyAgent Hook Runtime
+# Boring Is All You Need Hook Runtime
 
-这一阶段把 SteadyAgent 从文档型工作流推进到 hook-driven local harness。当前实现是 Windows-first，基于 PowerShell。
+Codex runtime 精确包含 3 个 managed Hook block：
 
-## Runtime Events
+| 事件 | 行为 |
+| --- | --- |
+| `SessionStart` | 只注入动态 Caveman 状态、lessons 标题、真正到期的 90 天 Harness review 提醒，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`。fresh install 缺少 review marker 时，以已安装 context Hook 的 mtime 作为首次 90 天基线。 |
+| `PreToolUse` | 在一个 PowerShell 进程内递归检查匹配的 shell 与文件编辑叶子，并拒绝危险命令或受保护路径。mixed parallel 同时检查两类叶子，相关输入不完整时 fail closed。 |
+| `PreCompact` | 提醒 Agent 固化当前状态。 |
 
-- `SessionStart`：注入精简操作提醒，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`。
-- `UserPromptSubmit`：注入短规则指针，并按风险关键词补充提醒。
-- `PreToolUse`：在工具执行前拦截确定性的危险 shell 命令和密钥文件编辑。
-- `PermissionRequest`：对已知危险提权请求做二次拒绝，不只依赖 approval prompt。
-- `PostToolUse`：工具执行后记录紧凑审计日志；命令文本会脱敏并记录 hash。
-- `PreCompact`：压缩前通过受支持的 `systemMessage` 提醒 agent 固化任务状态。
+V2 没有每轮 prompt、权限请求或工具后审计 Hook。
 
-## Managed Hooks
+匹配事件中的 malformed 输入、不完整相关 leaf 和未知嵌套 parallel schema 均 fail closed；明确命名的无关工具不作决定。Hook 套件会记录普通 shell、文件编辑和 mixed parallel 的精确 managed 调用次数，并报告宽松的 Windows PowerShell 5.1 冷启动预算，用来捕获重复启动或明显退化，而不是设置容易抖动的紧墙钟阈值。
 
-Codex 可以走 managed hooks。这个路径下，用户级 `hooks.json` 可以保持为空，由运行时托管配置负责注册 hook。公开模板见 `templates/codex/requirements.managed-hooks.example.toml`。
-
-Claude Code 使用 `settings.json` 注册 hook，公开模板见 `templates/claude/settings.hooks.example.json`。
-
-两个模板都使用 `STEADYAGENT_HOME` 作为占位符。真正应用前需要替换成 checkout 或安装目录。
-
-当传入目标根目录时，`tools/install.ps1` 会自动渲染 host-specific examples：Codex 得到已替换目标路径的 `requirements.managed-hooks.example.toml`，Claude Code 得到已替换目标路径的 `settings.hooks.example.json`。
-
-渲染配置文件不等于启用宿主 hooks。完整路径见 [activation-guide.zh-CN.md](activation-guide.zh-CN.md)：Codex 需要写入 active managed manifest，Claude Code 需要合并 settings，然后重启宿主。用 `tools/diagnose-install.ps1 -RequireHooksActive` 检查完整设置。
-
-## Logs
-
-如果设置了 `STEADYAGENT_LOG_DIR`，hook 日志写入该目录；否则写入用户本地应用数据目录。
-
-## Verification
+Guard 日志只含时间、固定原因、规范化工具名和输入 SHA-256，不记录原始命令、路径、patch 或文件内容。
 
 运行：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-agent-hooks.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
 ```
 
-测试会通过真实 stdin 模拟 hook event JSON，验证可观察行为，而不是只检查内部函数。
-
-这些测试证明脚本能运行，不证明 Codex 或 Claude Code 已经把这些脚本加载为真实 hooks。
+脚本测试只能证明包内行为，不能证明宿主已注册。重启 Codex 后，安装后诊断只建立配置与 rollout-file 证据；还必须在真实新任务中观察 SessionStart 和一个受控 Hook 行为，才能完成 Live 验收。
