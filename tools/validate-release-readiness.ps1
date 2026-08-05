@@ -658,6 +658,7 @@ try {
     ) ($hookInvocationLines -join ",")
 
     $workflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\validate.yml"), [Text.Encoding]::UTF8)
+    $releaseWorkflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\release.yml"), [Text.Encoding]::UTF8)
     Check "GitHub Actions runs on Windows" ($workflow -match "windows-latest")
     Check "GitHub Actions runs release readiness" ($workflow -match "validate-release-readiness[.]ps1")
     Check "GitHub Actions limits elevated execution to strict isolated fixtures" (
@@ -671,7 +672,6 @@ try {
         $workflow -match 'actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd' -and
         $workflow -match '(?m)^\s*FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:\s*["'']?true["'']?\s*$'
     )
-    $releaseWorkflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\release.yml"), [Text.Encoding]::UTF8)
     Check "release workflow is exact-tag and draft-only" (
         $releaseWorkflow -match '(?m)^\s+- v2[.]0[.]0\s*$' -and
         $releaseWorkflow -match 'gh api --method POST "repos/\$env:GH_REPO/releases"' -and

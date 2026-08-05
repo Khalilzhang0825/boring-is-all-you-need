@@ -24,6 +24,58 @@ Boring Is All You Need `v2.0.0` is a local-first Codex Desktop harness for Windo
 | Verification | Host-shape and smoke validation | 52-source trust manifest, 23-item equivalence map, negative mutations, clean-clone and no-Git archive gates |
 | Release proof | Local release checks | Exact-tag Windows workflow, SHA-256 sidecar, machine-readable provenance, attestation, and draft-only publication |
 
+## What you gain in real work
+
+This is not a bigger prompt that asks Codex to “be careful.” It is a small enforcement layer around the work Codex already does.
+
+| Advantage | Why it is practical |
+| --- | --- |
+| **Lightweight by design** | The live path contains only three Hook blocks. A matched tool event starts one unified guard process, SessionStart stays below an 800-character ceiling, and heavyweight equivalence/release tests never run during ordinary prompts. |
+| **Safe by default** | Install and rollback preview before writing, elevated execution is refused, nested command/file inputs are inspected, relevant unknown payloads fail closed, and destructive or external actions still require authority. |
+| **Non-invasive** | The workflow preserves unrelated and untracked files, refuses to absorb an existing staged index into a checkpoint, commits explicit paths, and chains an existing executable repository-local pre-commit Hook. |
+| **Recoverable** | Migration snapshots, a durable receipt, atomic replacement, a rollback journal, and exact before/after hashes turn a partial install or hard stop into a classified recovery problem instead of guesswork. |
+| **Evidence-driven** | “Implemented,” “tests passed,” “pushed,” and “Live after restart” are separate states. The harness asks for a reproduction or red check, the narrowest green check, and concrete Git/runtime evidence before claiming the corresponding result. |
+| **Context-resilient** | Before compaction, current goals, decisions, remaining work, and prohibitions are written to project state; after compaction, Codex reloads that state instead of trusting a vague summary. |
+
+The practical effect is less cleanup and fewer false-finish messages. These examples are illustrative behavior contracts, not claims that every model response will use identical wording.
+
+### Example: “Fix the bug and commit it”
+
+**Without the harness:**
+
+```text
+Fixed the issue and committed the changes.
+Tests pass.
+```
+
+That answer may hide whether the bug was reproduced, which tests ran, whether unrelated staged files were included, and whether the commit actually exists.
+
+**With Boring Is All You Need:**
+
+```text
+Cause: the empty input reaches parseConfig() without the required default.
+Changed: src/config.ts and tests/config.test.ts only.
+Verified: focused regression 12/12; typecheck passed.
+Git: checkpoint 8f31c2a created; pre-existing notes.md remains untracked.
+Remaining risk: the Windows integration suite was not run on this Linux host.
+```
+
+The useful difference is not verbosity. It is that scope, evidence, residual risk, and Git state are explicit and independently checkable.
+
+### Example: “Clean this up and push it”
+
+| Moment | Without a harness | With Boring Is All You Need |
+| --- | --- | --- |
+| Before editing | May start rewriting immediately | Inspects repository instructions, branch, dirty state, `.gitignore`, and the failure evidence first |
+| During editing | May broaden into adjacent refactors | Keeps the smallest change that closes the stated goal and preserves unrelated work |
+| Before commit | May use blanket staging | Rechecks the diff and checkpoints an explicit file list through an isolated index |
+| Before push | May treat “continue” as permission | Pushes only when the user explicitly authorizes push/sync/release |
+| Final report | “Done” | Separates changed, locally verified, committed, pushed, released, and post-restart Live states |
+
+### Example: a risky command hidden inside a parallel tool call
+
+Without a recursive guard, a destructive leaf can be missed when it is nested in a batch payload. The unified `PreToolUse` guard walks both command and file leaves, including nested parallel calls. A relevant request it cannot understand is blocked rather than guessed safe; the audit record keeps only a fixed reason, normalized tool name, and input SHA-256 instead of the raw potentially sensitive command.
+
 ## Local validation snapshot
 
 The workflow-logic candidate at `b4f56905b1bdf5841a723b96982b56df090383d6` passed the following local release evidence on Windows PowerShell 5.1 on 2026-08-05. The aggregate entrypoint was `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1` from a clean full-history clone; the exact extracted `git archive` was then checked with `tools\validate-release-archive.ps1`. The branded release candidate must rerun the same gates before push, and the tag workflow reruns them again before it can create a draft release.

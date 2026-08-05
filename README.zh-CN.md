@@ -24,6 +24,57 @@ Boring Is All You Need `v2.0.0` 是面向 Windows 的本地优先 Codex Desktop 
 | 验证闭环 | 宿主配置形态与 smoke | 52 项源信任清单、23 项等价图、负向变异、clean clone 与无 Git archive 门 |
 | 发行证据 | 本地发布检查 | 精确 tag Windows workflow、SHA-256 sidecar、机器可读 provenance、attestation 与 draft-only 发布 |
 
+## 安装后能带来什么实质变化
+
+它不是一段更长的提示词，也不是只要求 Codex“认真一点”。它是在 Codex 原有工作外侧增加一层小而确定的执行约束。
+
+| 优势 | 为什么有实际价值 |
+| --- | --- |
+| **足够轻量** | 日常热路径只有 3 个 Hook block；一次匹配事件只启动一个统一 guard 进程；SessionStart 有 800 字符硬上限；重型等价与发行测试不会在普通对话中运行。 |
+| **默认安全** | 安装和回滚先预览再写入；拒绝管理员 token；递归检查嵌套 command/file 输入；相关 payload 无法理解时 fail closed；破坏性或外部操作仍需明确授权。 |
+| **不打扰已有工作** | 保护无关与 untracked 文件；不会把用户已经 staged 的内容混进 checkpoint；只提交显式路径；已有可执行仓库级 pre-commit Hook 会被链接执行，而不是静默覆盖。 |
+| **可恢复** | 迁移快照、durable receipt、原子替换、rollback journal 和前后态哈希，让半安装或强制中止变成可分类、可续跑、可对账的问题，而不是凭记忆猜怎么恢复。 |
+| **证据闭环** | “已实现”“测试通过”“已 push”“重启后 Live”是不同状态。Harness 要求先有复现或 red check，再给最小 green check，并用 Git/runtime 证据支撑对应结论。 |
+| **长任务不断片** | 压缩前把目标、决策、剩余工作和禁止项写入项目状态；压缩后重新读取事实源，不把模糊 summary 当作完成事实。 |
+
+实际收益是更少的返工、更少的误删误提交，以及更少“看起来完成、其实没有证据”的回复。下列内容展示的是行为合同，不承诺每个模型都逐字输出相同文案。
+
+### 例 1：“修复这个 bug，然后提交”
+
+**没有 Harness 时，常见输出：**
+
+```text
+问题已经修复并提交，测试全部通过。
+```
+
+这句话没有说明是否真正复现、跑了哪些测试、是否混入用户原有 staged 文件，也没有给出可核对的 commit。
+
+**安装 Boring Is All You Need 后，目标输出：**
+
+```text
+原因：空输入进入 parseConfig() 时没有补默认值。
+改动：仅 src/config.ts 与 tests/config.test.ts。
+验证：聚焦回归 12/12；typecheck 通过。
+Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked。
+剩余风险：当前 Linux 主机未运行 Windows 集成套件。
+```
+
+区别不在于话更多，而在于范围、证据、剩余风险和 Git 状态都明确且可以独立核对。
+
+### 例 2：“整理一下，然后推上去”
+
+| 时刻 | 没有 Harness | 有 Boring Is All You Need |
+| --- | --- | --- |
+| 修改前 | 可能直接开始重写 | 先检查仓库规则、分支、dirty state、`.gitignore` 与失败证据 |
+| 修改中 | 容易顺手扩大到相邻重构 | 只保留关闭当前目标所需的最小改动，保护无关工作 |
+| 提交前 | 可能直接 blanket staging | 复查 diff，通过隔离 index 只 checkpoint 显式文件 |
+| push 前 | 可能把“继续”理解为授权 | 只有用户明确要求 push、同步或发布时才执行 |
+| 最终报告 | 一句“完成” | 分开说明已修改、本地验证、已提交、已推送、已发布、重启后 Live |
+
+### 例 3：危险命令藏在 parallel 嵌套调用里
+
+普通的浅层检查可能漏掉 batch payload 深处的破坏性叶子。统一 `PreToolUse` guard 会递归遍历 command 与 file 两类叶子，包括嵌套 parallel 调用；相关请求无法可靠解析时会阻断，不会猜测为安全。审计日志也不会原样保存可能敏感的命令，只记录固定原因、规范化工具名与输入 SHA-256。
+
 ## 本地验证快照
 
 工作流逻辑候选 `b4f56905b1bdf5841a723b96982b56df090383d6` 于 2026-08-05 在 Windows PowerShell 5.1 上取得以下本地发行证据。聚合入口是在 clean full-history clone 中运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；随后使用 `tools\validate-release-archive.ps1` 检查精确解压的 `git archive`。品牌化发行候选在 push 前必须重新运行同一组门禁，tag workflow 还会在创建 draft release 前再运行一次。

@@ -448,7 +448,7 @@
       "payload": "09-git-checkpoint-test.ps1",
       "localSha256": "32AD24E4FD61486E55F2AF5AA0918866641A1E36E6CF1436458CA1B90B861E45",
       "publicSource": "tools/test-git-checkpoint.ps1",
-      "publicSha256": "847950E35962115967767E8A9065EE6AAEEAF66921BDF9F7F2E41EE92C61542D",
+      "publicSha256": "736107214A1C562D4996BE7D1F67B959A151B79DBA911C35C841900C59C0A509",
       "installedDestination": "tools/test-git-checkpoint.ps1",
       "mode": "behavior-superset",
       "evidence": "checkpoint transaction, hardlink alias, pre-add growth, object-quarantine, transient index ABA, and concurrent-index adversarial suite",

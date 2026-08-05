@@ -533,7 +533,11 @@ function Invoke-SameContentExternalLockIdentityRegression {
 }
 
 function Invoke-QuarantineAncestorJunctionRecoveryRegression {
-    $repository = New-TestRepo 'quarantine-ancestor-junction-recovery'
+    # Keep the full quarantined-object path below the legacy Windows MAX_PATH
+    # boundary used by GitHub-hosted runners. The runner temp prefix is longer
+    # than a typical local profile path, while the fixture semantics do not
+    # depend on this directory name.
+    $repository = New-TestRepo 'quarantine-junction'
     Push-Location $repository
     try {
         [IO.File]::WriteAllText(
