@@ -353,6 +353,17 @@ function Add-HookPathsFromValue {
         return
     }
 
+    $valueToolName = Get-HookToolName -Object $Value
+    if ($valueToolName -match '(?i)^(?:apply_patch|functions[.]apply_patch)$') {
+        foreach ($containerName in @("input", "tool_input", "parameters")) {
+            $container = Get-HookPropertyValue -Object $Value -Name $containerName
+            $command = Get-HookPropertyValue -Object $container -Name "command"
+            if ($command -is [string]) {
+                Add-PatchPathsFromText -Text ([string]$command) -Paths $Paths
+            }
+        }
+    }
+
     foreach ($name in @("file_path", "path")) {
         $path = Get-HookPropertyValue -Object $Value -Name $name
         if ($path) { Add-HookString -List $Paths -Value $path }
@@ -484,6 +495,7 @@ function Get-CommandTokenStatements {
             continue
         }
         if ($character -eq ";" -or $character -eq "|" -or $character -eq "&" -or
+            $character -eq "{" -or $character -eq "}" -or
             $character -eq "`r" -or $character -eq "`n") {
             if ($token.Length -gt 0) {
                 $tokens.Add((ConvertTo-CommandGuardToken -Token $token.ToString())) | Out-Null
@@ -695,12 +707,47 @@ function Get-NormalizedCmdInvocationTokens {
     }
 }
 
+function Get-PowerShellCommandTexts {
+    param([string]$Command)
+
+    $parseTokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput(
+        $Command,
+        [ref]$parseTokens,
+        [ref]$parseErrors
+    )
+    if (@($parseErrors).Count -gt 0) {
+        return [pscustomobject]@{
+            Parsed = $false
+            Commands = [string[]]@()
+        }
+    }
+
+    $commands = New-Object System.Collections.Generic.List[string]
+    $commandAsts = @($ast.FindAll({
+        param($node)
+        return $node -is [System.Management.Automation.Language.CommandAst]
+    }, $true))
+    foreach ($commandAst in $commandAsts) {
+        $commandText = [string]$commandAst.Extent.Text
+        if (-not [string]::IsNullOrWhiteSpace($commandText)) {
+            $commands.Add($commandText) | Out-Null
+        }
+    }
+    return [pscustomobject]@{
+        Parsed = $true
+        Commands = [string[]]$commands.ToArray()
+    }
+}
+
 function Test-DangerousCommand {
     param(
         [string]$Command,
         [int]$InspectionDepth = 0,
         [ValidateSet("Generic", "Cmd", "PowerShell")]
-        [string]$CommandLanguage = "Generic"
+        [string]$CommandLanguage = "Generic",
+        [switch]$SkipPowerShellAst
     )
     if (-not $Command) { return $null }
     if ($Command.Length -gt 65536) {
@@ -711,6 +758,20 @@ function Test-DangerousCommand {
     }
     if (Test-CommandHasUninspectableBacktick -Command $Command) {
         return "Blocked: command guard cannot safely inspect executable shell backtick escapes. Use a literal command without backtick escapes."
+    }
+    if ($CommandLanguage -ne "Cmd" -and -not $SkipPowerShellAst) {
+        $powerShellCommands = Get-PowerShellCommandTexts -Command $Command
+        if ($powerShellCommands.Parsed) {
+            foreach ($powerShellCommand in @($powerShellCommands.Commands)) {
+                $powerShellReason = Test-DangerousCommand `
+                    -Command ([string]$powerShellCommand) `
+                    -InspectionDepth ($InspectionDepth + 1) `
+                    -CommandLanguage $CommandLanguage `
+                    -SkipPowerShellAst
+                if ($powerShellReason) { return $powerShellReason }
+            }
+            return $null
+        }
     }
     $statements = @(Get-CommandTokenStatements -Command $Command)
     if ($statements.Count -gt 256) {
@@ -755,11 +816,21 @@ function Test-DangerousCommand {
 
             $removedPowerShellStructure = $false
             while ($tokens.Count -gt 0 -and $tokens[0] -eq "{") {
-                $tokens = if ($tokens.Count -eq 1) { @() } else { @($tokens[1..($tokens.Count - 1)]) }
+                if ($tokens.Count -eq 1) {
+                    $tokens = @()
+                }
+                else {
+                    $tokens = @($tokens[1..($tokens.Count - 1)])
+                }
                 $removedPowerShellStructure = $true
             }
             while ($tokens.Count -gt 0 -and $tokens[$tokens.Count - 1] -eq "}") {
-                $tokens = if ($tokens.Count -eq 1) { @() } else { @($tokens[0..($tokens.Count - 2)]) }
+                if ($tokens.Count -eq 1) {
+                    $tokens = @()
+                }
+                else {
+                    $tokens = @($tokens[0..($tokens.Count - 2)])
+                }
                 $removedPowerShellStructure = $true
             }
             if ($removedPowerShellStructure) {

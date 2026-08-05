@@ -819,6 +819,31 @@ try {
     Assert-Deny "command guard checks commands after or separator" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = "rm safe.txt`nrm -rf build" } })
     Assert-Deny "command guard checks commands after newline" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = 'foreach ($item in 1) { if ($item) { Write-Output $item } }' }
+    })
+    Assert-NoDecision "command guard allows safe nested PowerShell blocks" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = 'foreach ($item in 1) { if ($item) { git reset --hard HEAD } }' }
+    })
+    Assert-Deny "command guard denies danger inside nested PowerShell blocks" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = '$h = @{ ''Remove-Item'' = ''-Recurse'' }' }
+    })
+    Assert-NoDecision "command guard allows command-like PowerShell hashtable data" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = '@{ rm = ''-rf'' } | ConvertTo-Json' }
+    })
+    Assert-NoDecision "command guard allows rm-like PowerShell hashtable data" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = '$h = @{ value = $(git reset --hard HEAD) }' }
+    })
+    Assert-Deny "command guard denies danger executed inside PowerShell hashtable data" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Write-Output "GNU rm"; Get-ChildItem -Recurse .' } })
     Assert-NoDecision "command guard does not combine quoted rm text with later flags" $result
     $quotedDangerCases = @(
@@ -1039,6 +1064,16 @@ try {
         tool_input = @{ patch = "*** Begin Patch`n*** Add File: .env`n+TOKEN=fixture`n*** End Patch" }
     })
     Assert-Deny "file guard still parses apply_patch patch fields" $result
+    $result = Invoke-Hook "agent-hook-file-guard.ps1" (New-Event @{
+        tool_name = "apply_patch"
+        tool_input = @{ command = "*** Begin Patch`n*** Add File: docs/safe.md`n+safe`n*** End Patch" }
+    })
+    Assert-NoDecision "file guard allows safe command-shaped apply_patch payload" $result
+    $result = Invoke-Hook "agent-hook-file-guard.ps1" (New-Event @{
+        tool_name = "apply_patch"
+        tool_input = @{ command = "*** Begin Patch`n*** Add File: .env`n+TOKEN=fixture`n*** End Patch" }
+    })
+    Assert-Deny "file guard denies protected command-shaped apply_patch payload" $result
     $result = Invoke-Hook "agent-hook-file-guard.ps1" (New-Event $unknownParallel)
     Assert-Deny "file guard fails closed on unknown nested wrapper" $result
     $result = Invoke-Hook "agent-hook-file-guard.ps1" (New-Event @{ tool_name = "functions.shell_command"; tool_input = @{ command = "git status" } })
