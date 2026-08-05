@@ -6,6 +6,8 @@
 *.yaml text eol=lf
 *.json text eol=lf
 *.toml text eol=lf
+*.sha256 text eol=lf
+*.txt text eol=lf
 *.sh text eol=lf
 tools/git-hooks/pre-commit text eol=lf
 .gitattributes text eol=lf
