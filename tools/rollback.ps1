@@ -119,8 +119,14 @@ if (($InjectTargetMutationPath -or $InjectSnapshotMutationPath -or $InjectMutexF
 
 
 $testMode = $env:STEADYAGENT_TEST_MODE -eq "1"
+$allowElevatedFixture = (
+    $testMode -and
+    $env:STEADYAGENT_ALLOW_ELEVATED_FIXTURE -eq "1" -and
+    $env:GITHUB_ACTIONS -eq "true" -and
+    $env:RUNNER_OS -eq "Windows"
+)
 $isProcessElevated = Test-IsProcessElevated
-if ($isProcessElevated -or $TestAsElevated) {
+if ($TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)) {
     throw (
         "Rollback requires a non-elevated PowerShell process. " +
         "No receipt, snapshot, or target content was read and no writes were made."

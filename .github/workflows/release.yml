@@ -9,6 +9,7 @@ permissions: {}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  STEADYAGENT_ALLOW_ELEVATED_FIXTURE: "1"
 
 concurrency:
   group: boring-is-all-you-need-v2.0.0-release-${{ github.ref }}

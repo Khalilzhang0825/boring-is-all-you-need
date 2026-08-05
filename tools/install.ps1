@@ -103,7 +103,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "2.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "EEA97EDE37944FBB1E9CC59218A542CFB1530BE23731607088AEBD1066819C29"
+$expectedPackageManifestSha256 = "5EC428562BF9E82F3082F625826690FD4011ECEE05EB0ED519B35865A54E0F2F"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -851,8 +851,14 @@ if ($isTestMode) {
 if ($TestAsElevated -and -not $isTestMode) {
     throw "TestAsElevated is available only in the isolated migration test."
 }
-$isProcessElevated = (Test-IsProcessElevated) -or [bool]$TestAsElevated
-if ($isProcessElevated) {
+$allowElevatedFixture = (
+    $isTestMode -and
+    $env:STEADYAGENT_ALLOW_ELEVATED_FIXTURE -eq "1" -and
+    $env:GITHUB_ACTIONS -eq "true" -and
+    $env:RUNNER_OS -eq "Windows"
+)
+$isProcessElevated = Test-IsProcessElevated
+if ($TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)) {
     throw (
         "Boring Is All You Need install planning and apply must run from a non-elevated PowerShell session. " +
         "Close this administrator session and re-run the reviewed command without elevation."

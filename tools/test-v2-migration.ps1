@@ -2132,11 +2132,15 @@ try {
         $installerSource -match "AreAccessRulesProtected" -and
         $rollbackSource -match "AreAccessRulesProtected"
     )
-    Assert-True "production migration declares a non-elevated-only execution contract" (
+    Assert-True "production migration rejects elevation outside the exact GitHub fixture contract" (
         $installerSource -match "non-elevated PowerShell session" -and
-        $installerSource -match [regex]::Escape('(Test-IsProcessElevated) -or [bool]$TestAsElevated') -and
+        $installerSource -match [regex]::Escape('$TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)') -and
+        $installerSource -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $installerSource -match 'GITHUB_ACTIONS' -and $installerSource -match 'RUNNER_OS' -and
         $rollbackSource -match "non-elevated PowerShell process" -and
-        $rollbackSource -match [regex]::Escape('$isProcessElevated -or $TestAsElevated')
+        $rollbackSource -match [regex]::Escape('$TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)') -and
+        $rollbackSource -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $rollbackSource -match 'GITHUB_ACTIONS' -and $rollbackSource -match 'RUNNER_OS'
     )
     Assert-True "production migration exposes no protected recovery capsule entry point" (
         $installerSource -notmatch "AcknowledgeTrustedElevationSession|RequireProtectedRecovery|RecoveryRoot|TestRecoverySddl|InjectProtectedReceipt|SteadyAgent\\recovery|Protected recovery receipt|recovery capsule" -and
@@ -4184,7 +4188,7 @@ exit 0
         "migration mutex excludes unrelated authenticated users",
         "unavailable machine-wide migration mutex fails closed",
         "rollback fails closed when the machine-wide mutex is unavailable",
-        "production migration declares a non-elevated-only execution contract",
+        "production migration rejects elevation outside the exact GitHub fixture contract",
         "production migration exposes no protected recovery capsule entry point",
         "simulated elevated install apply fails closed",
         "simulated elevated install apply performs zero case writes",

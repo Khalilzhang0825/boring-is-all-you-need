@@ -446,6 +446,12 @@ try {
     Check "production install and rollback reject elevated execution" (
         $installerText -match 'must run from a non-elevated PowerShell session' -and
         $rollbackText -match 'Rollback requires a non-elevated PowerShell process' -and
+        $installerText -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $rollbackText -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $installerText -match 'GITHUB_ACTIONS' -and $rollbackText -match 'GITHUB_ACTIONS' -and
+        $installerText -match 'RUNNER_OS' -and $rollbackText -match 'RUNNER_OS' -and
+        $installerText -match '\$TestAsElevated -or \(\$isProcessElevated -and -not \$allowElevatedFixture\)' -and
+        $rollbackText -match '\$TestAsElevated -or \(\$isProcessElevated -and -not \$allowElevatedFixture\)' -and
         $installerText -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery|RecoveryRoot|TestRecoverySddl' -and
         $rollbackText -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery|TestRecoverySddl'
     )
@@ -654,6 +660,10 @@ try {
     $workflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\validate.yml"), [Text.Encoding]::UTF8)
     Check "GitHub Actions runs on Windows" ($workflow -match "windows-latest")
     Check "GitHub Actions runs release readiness" ($workflow -match "validate-release-readiness[.]ps1")
+    Check "GitHub Actions limits elevated execution to strict isolated fixtures" (
+        $workflow -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE:\s*["'']?1["'']?' -and
+        $releaseWorkflow -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE:\s*["'']?1["'']?'
+    )
     Check "GitHub Actions release gate has a bounded timeout" ($workflow -match "timeout-minutes:\s*\d+")
     Check "GitHub Actions fetches history and supplies a release base" (
         $workflow -match "fetch-depth:\s*0" -and

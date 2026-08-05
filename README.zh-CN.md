@@ -43,6 +43,8 @@ Boring Is All You Need `v2.0.0` 是面向 Windows 的本地优先 Codex Desktop 
 
 这些是本地 committed-state 结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
+GitHub-hosted Windows runner 使用管理员 token。测试 workflow 因此只提供一个 CI fixture 例外：必须同时满足 `STEADYAGENT_TEST_MODE=1`、严格隔离的系统临时目录测试根有效，并存在 GitHub 的 `GITHUB_ACTIONS`/`RUNNER_OS` 信号。生产安装与 rollback 仍会在 managed write 前拒绝提权进程。
+
 ## 2.0.0 的核心变化
 
 - 唯一支持宿主为 Codex Desktop。

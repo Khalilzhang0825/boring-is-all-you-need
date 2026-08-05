@@ -11,6 +11,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  STEADYAGENT_ALLOW_ELEVATED_FIXTURE: "1"
 
 jobs:
   release-readiness:

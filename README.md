@@ -43,6 +43,8 @@ The daily runtime remains deliberately small: one unified `PreToolUse` PowerShel
 
 These are local committed-state results, not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
 
+GitHub-hosted Windows runners execute with an administrator token. The test workflows therefore expose one CI-only fixture allowance, accepted only when `STEADYAGENT_TEST_MODE=1`, the strict isolated system-temp test root is valid, and GitHub's `GITHUB_ACTIONS`/`RUNNER_OS` signals are present. Production install and rollback invocations still refuse elevation before managed writes.
+
 ## What changed in 2.0.0
 
 - Codex Desktop is the only supported host.
