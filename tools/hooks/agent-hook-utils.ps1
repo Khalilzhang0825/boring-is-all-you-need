@@ -250,6 +250,7 @@ function Write-HookDeny {
         [string]$HookEventName,
         [string]$Reason
     )
+    if ($script:SteadyAgentGuardEnforcementMode -eq "Audit") { return }
     @{
         hookSpecificOutput = @{
             hookEventName = $HookEventName
@@ -317,6 +318,53 @@ function Get-HookCommands {
         -TraversalState $traversalState
 
     return @($commands | Select-Object -Unique)
+}
+
+function Add-HookWorkingDirectoriesFromValue {
+    param(
+        [object]$Value,
+        [System.Collections.Generic.List[string]]$Directories,
+        [int]$Depth = 0,
+        [hashtable]$TraversalState
+    )
+    if ($null -eq $Value -or $Value -is [string]) { return }
+    if ($null -eq $TraversalState) { $TraversalState = New-HookTraversalState }
+    Assert-HookTraversalBudget -Depth $Depth -State $TraversalState
+
+    foreach ($name in @("cwd", "workdir", "working_directory")) {
+        $directory = Get-HookPropertyValue -Object $Value -Name $name
+        if ($directory -is [string]) {
+            Add-HookString -List $Directories -Value $directory
+        }
+    }
+    foreach ($containerName in @("input", "tool_input", "parameters")) {
+        Add-HookWorkingDirectoriesFromValue `
+            -Value (Get-HookPropertyValue -Object $Value -Name $containerName) `
+            -Directories $Directories -Depth ($Depth + 1) `
+            -TraversalState $TraversalState
+    }
+    $toolUses = Get-HookPropertyValue -Object $Value -Name "tool_uses"
+    if ($toolUses) {
+        $items = @($toolUses)
+        Assert-HookCollectionWidth -Items $items
+        foreach ($item in $items) {
+            Add-HookWorkingDirectoriesFromValue `
+                -Value $item -Directories $Directories -Depth ($Depth + 1) `
+                -TraversalState $TraversalState
+        }
+    }
+}
+
+function Get-HookWorkingDirectories {
+    param([object]$Event)
+
+    $directories = New-Object System.Collections.Generic.List[string]
+    if ($null -ne $Event) {
+        Add-HookWorkingDirectoriesFromValue `
+            -Value $Event -Directories $directories -Depth 0 `
+            -TraversalState (New-HookTraversalState)
+    }
+    return @($directories | Select-Object -Unique)
 }
 
 function Add-PatchPathsFromText {
@@ -741,12 +789,359 @@ function Get-PowerShellCommandTexts {
     }
 }
 
+function Get-StaticPowerShellSwitchState {
+    param([object]$Argument)
+
+    if ($null -eq $Argument) { return "Enabled" }
+    $text = ""
+    if ($Argument -is [System.Management.Automation.Language.VariableExpressionAst]) {
+        $text = [string]$Argument.VariablePath.UserPath
+    }
+    elseif ($Argument.PSObject.Properties["Value"]) {
+        $text = [string]$Argument.Value
+    }
+    else {
+        return "Dynamic"
+    }
+    if ($text -match '(?i)^(?:true|1)$') { return "Enabled" }
+    if ($text -match '(?i)^(?:false|0)$') { return "Disabled" }
+    return "Dynamic"
+}
+
+function Get-StaticPowerShellStringValue {
+    param([object]$Expression)
+
+    if ($Expression -is [System.Management.Automation.Language.StringConstantExpressionAst]) {
+        return [pscustomobject]@{
+            Static = $true
+            Value = [string]$Expression.Value
+            Variable = $false
+            VariableName = ""
+        }
+    }
+    if ($Expression -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -and
+        @($Expression.NestedExpressions).Count -eq 0) {
+        return [pscustomobject]@{
+            Static = $true
+            Value = [string]$Expression.Value
+            Variable = $false
+            VariableName = ""
+        }
+    }
+    if ($Expression -is [System.Management.Automation.Language.VariableExpressionAst]) {
+        $variableName = [string]$Expression.VariablePath.UserPath
+        $protectedVariableNames = @(
+            "HOME", "USERPROFILE", "PWD", "PSScriptRoot", "ExecutionContext",
+            "args", "input", "null", "true", "false", "_", "this"
+        )
+        if ($variableName -cmatch '^[A-Za-z_][A-Za-z0-9_]*$' -and
+            @($protectedVariableNames | Where-Object {
+                $_.Equals($variableName, [StringComparison]::OrdinalIgnoreCase)
+            }).Count -eq 0) {
+            return [pscustomobject]@{
+                Static = $false
+                Value = ""
+                Variable = $true
+                VariableName = $variableName
+            }
+        }
+    }
+    return [pscustomobject]@{
+        Static = $false
+        Value = ""
+        Variable = $false
+        VariableName = ""
+    }
+}
+
+function Get-PowerShellStatementContainer {
+    param([object]$Node)
+
+    $cursor = $Node
+    while ($null -ne $cursor) {
+        if ($cursor -is [System.Management.Automation.Language.NamedBlockAst] -or
+            $cursor -is [System.Management.Automation.Language.StatementBlockAst]) {
+            return $cursor
+        }
+        $cursor = $cursor.Parent
+    }
+    return $null
+}
+
+function Get-RecursiveRemoveItemPathReason {
+    param(
+        [string]$Path,
+        [string[]]$ProtectedRoots = @()
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or
+        $Path -match '[$`*?,;|&{}()]' -or
+        -not [IO.Path]::IsPathRooted($Path) -or
+        $Path -notmatch '^[A-Za-z]:[\\/]') {
+        return "Blocked: recursive Remove-Item requires one static absolute local -LiteralPath target."
+    }
+    try {
+        $fullPath = [IO.Path]::GetFullPath($Path)
+        $rootPath = [IO.Path]::GetPathRoot($fullPath)
+    }
+    catch {
+        return "Blocked: recursive Remove-Item target path is invalid."
+    }
+    if ([string]::IsNullOrWhiteSpace($rootPath)) {
+        return "Blocked: recursive Remove-Item target path is invalid."
+    }
+    $trimmedRoot = $rootPath.TrimEnd([char[]]@([char]92, [char]47))
+    $trimmedTarget = $fullPath.TrimEnd([char[]]@([char]92, [char]47))
+    if ($trimmedTarget.Equals($trimmedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        return "Blocked: recursive Remove-Item target is a filesystem root."
+    }
+    $relative = $fullPath.Substring($rootPath.Length).Trim([char[]]@([char]92, [char]47))
+    $segments = @($relative -split '[\\/]' | Where-Object { $_.Length -gt 0 })
+    if ($segments.Count -lt 2) {
+        return "Blocked: recursive Remove-Item target is too broad."
+    }
+
+    $protected = New-Object System.Collections.Generic.List[string]
+    foreach ($candidate in @(
+        $env:USERPROFILE,
+        $env:HOME,
+        $env:LOCALAPPDATA,
+        $env:APPDATA,
+        $env:TEMP,
+        $env:TMP,
+        $env:ProgramData,
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:SystemRoot
+    ) + @($ProtectedRoots)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$candidate)) {
+            $protected.Add([string]$candidate) | Out-Null
+        }
+    }
+    if ($env:USERPROFILE) {
+        foreach ($leaf in @(".codex", ".steadyagent", ".ssh")) {
+            $protected.Add((Join-Path $env:USERPROFILE $leaf)) | Out-Null
+        }
+    }
+    foreach ($candidate in @($protected | Select-Object -Unique)) {
+        try {
+            if (-not [IO.Path]::IsPathRooted($candidate)) { continue }
+            $protectedFull = [IO.Path]::GetFullPath($candidate).TrimEnd([char[]]@([char]92, [char]47))
+        }
+        catch {
+            continue
+        }
+        if ($protectedFull.Equals($trimmedTarget, [StringComparison]::OrdinalIgnoreCase) -or
+            $protectedFull.StartsWith($trimmedTarget + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+            return "Blocked: recursive Remove-Item target is a protected root or its ancestor."
+        }
+    }
+
+    $cursor = $fullPath
+    while (-not [string]::IsNullOrWhiteSpace($cursor)) {
+        if (Test-Path -LiteralPath $cursor) {
+            try {
+                $item = Get-Item -LiteralPath $cursor -Force -ErrorAction Stop
+                if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                    return "Blocked: recursive Remove-Item target crosses a reparse point."
+                }
+            }
+            catch {
+                return "Blocked: recursive Remove-Item target could not be verified."
+            }
+        }
+        $parent = Split-Path -Parent $cursor
+        if ([string]::IsNullOrWhiteSpace($parent) -or
+            $parent.Equals($cursor, [StringComparison]::OrdinalIgnoreCase)) {
+            break
+        }
+        $cursor = $parent
+    }
+    return $null
+}
+
+function Get-RecursiveRemoveItemDecision {
+    param(
+        [string]$Command,
+        [string[]]$ProtectedRoots = @()
+    )
+
+    $parseTokens = $null
+    $parseErrors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput(
+        $Command,
+        [ref]$parseTokens,
+        [ref]$parseErrors
+    )
+    if (@($parseErrors).Count -gt 0) {
+        return [pscustomobject]@{ Matched = $false; Reason = $null }
+    }
+    $commands = @($ast.FindAll({
+        param($node)
+        return $node -is [System.Management.Automation.Language.CommandAst]
+    }, $true))
+    if ($commands.Count -ne 1) {
+        return [pscustomobject]@{ Matched = $false; Reason = $null }
+    }
+    $commandAst = $commands[0]
+    $commandName = [string]$commandAst.GetCommandName()
+    if ((Get-CommandExecutableLeaf -Token $commandName) -ine "Remove-Item") {
+        return [pscustomobject]@{ Matched = $false; Reason = $null }
+    }
+
+    $elements = @($commandAst.CommandElements)
+    $literalPath = $null
+    $literalPathVariable = $null
+    $literalPathVariableExpression = $null
+    $literalPathCount = 0
+    $hasRecurse = $false
+    $shapeReason = $null
+    for ($index = 1; $index -lt $elements.Count; $index++) {
+        $element = $elements[$index]
+        if ($element -isnot [System.Management.Automation.Language.CommandParameterAst]) {
+            $shapeReason = "Blocked: recursive Remove-Item requires exactly one explicit -LiteralPath target."
+            continue
+        }
+        $parameterName = [string]$element.ParameterName
+        if ($parameterName -ieq "LiteralPath") {
+            $literalPathCount++
+            $argument = $element.Argument
+            if ($null -eq $argument -and $index + 1 -lt $elements.Count -and
+                $elements[$index + 1] -isnot [System.Management.Automation.Language.CommandParameterAst]) {
+                $index++
+                $argument = $elements[$index]
+            }
+            $staticPath = Get-StaticPowerShellStringValue -Expression $argument
+            if ($staticPath.Static) {
+                $literalPath = [string]$staticPath.Value
+            }
+            elseif ($staticPath.Variable) {
+                $literalPathVariable = [string]$staticPath.VariableName
+                $literalPathVariableExpression = $argument
+            }
+            else {
+                $shapeReason = "Blocked: recursive Remove-Item requires a literal path or one local variable target."
+            }
+            continue
+        }
+        if ($parameterName -match '(?i)^(?:R|Re|Rec|Recu|Recur|Recurs|Recurse)$') {
+            $switchState = Get-StaticPowerShellSwitchState -Argument $element.Argument
+            if ($switchState -eq "Dynamic") {
+                return [pscustomobject]@{
+                    Matched = $true
+                    Reason = "Blocked: recursive Remove-Item has a dynamic -Recurse value."
+                }
+            }
+            if ($switchState -eq "Enabled") { $hasRecurse = $true }
+            continue
+        }
+        if ($parameterName -match '(?i)^(?:Force|Verbose|Debug|WhatIf|Confirm)$') {
+            if ((Get-StaticPowerShellSwitchState -Argument $element.Argument) -eq "Dynamic") {
+                $shapeReason = "Blocked: recursive Remove-Item contains a dynamic switch value."
+            }
+            continue
+        }
+        if ($parameterName -match '(?i)^(?:ErrorAction|WarningAction|InformationAction|ProgressAction)$') {
+            $argument = $element.Argument
+            if ($null -eq $argument -and $index + 1 -lt $elements.Count -and
+                $elements[$index + 1] -isnot [System.Management.Automation.Language.CommandParameterAst]) {
+                $index++
+                $argument = $elements[$index]
+            }
+            $staticValue = Get-StaticPowerShellStringValue -Expression $argument
+            if (-not $staticValue.Static -or
+                $staticValue.Value -notmatch '(?i)^(?:SilentlyContinue|Stop|Continue|Ignore|Inquire|Suspend|Break)$') {
+                $shapeReason = "Blocked: recursive Remove-Item contains an unsupported common parameter value."
+            }
+            continue
+        }
+        $shapeReason = "Blocked: recursive Remove-Item contains an unsupported parameter."
+    }
+    if (-not $hasRecurse) {
+        return [pscustomobject]@{ Matched = $false; Reason = $null }
+    }
+    if ($literalPathCount -ne 1 -or
+        ($null -eq $literalPath -and $null -eq $literalPathVariable)) {
+        $shapeReason = "Blocked: recursive Remove-Item requires exactly one literal path or local variable -LiteralPath target."
+    }
+    if ($shapeReason) {
+        return [pscustomobject]@{ Matched = $true; Reason = $shapeReason }
+    }
+    if ($null -ne $literalPathVariable) {
+        $commandContainer = Get-PowerShellStatementContainer -Node $commandAst
+        $matchingAssignments = @($ast.FindAll({
+            param($node)
+            if ($node -isnot [System.Management.Automation.Language.AssignmentStatementAst] -or
+                $node.Operator -ne [System.Management.Automation.Language.TokenKind]::Equals -or
+                $node.Left -isnot [System.Management.Automation.Language.VariableExpressionAst] -or
+                $node.Extent.EndOffset -gt $commandAst.Extent.StartOffset) {
+                return $false
+            }
+            return [string]$node.Left.VariablePath.UserPath -ceq $literalPathVariable
+        }, $true))
+        if ($matchingAssignments.Count -ne 1) {
+            return [pscustomobject]@{
+                Matched = $true
+                Reason = "Blocked: recursive Remove-Item local variable target requires one same-command literal assignment."
+            }
+        }
+        $assignment = $matchingAssignments[0]
+        $variableReferences = @($ast.FindAll({
+            param($node)
+            return $node -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                [string]$node.VariablePath.UserPath -ceq $literalPathVariable
+        }, $true))
+        if ($variableReferences.Count -ne 2 -or
+            @($variableReferences | Where-Object {
+                [object]::ReferenceEquals($_, $assignment.Left)
+            }).Count -ne 1 -or
+            @($variableReferences | Where-Object {
+                [object]::ReferenceEquals($_, $literalPathVariableExpression)
+            }).Count -ne 1) {
+            return [pscustomobject]@{
+                Matched = $true
+                Reason = "Blocked: recursive Remove-Item local variable target has additional references or writes."
+            }
+        }
+        $assignmentContainer = Get-PowerShellStatementContainer -Node $assignment
+        if ($null -eq $commandContainer -or $null -eq $assignmentContainer -or
+            -not [object]::ReferenceEquals($commandContainer, $assignmentContainer)) {
+            return [pscustomobject]@{
+                Matched = $true
+                Reason = "Blocked: recursive Remove-Item local variable assignment is outside the command statement block."
+            }
+        }
+        $assignmentRight = $assignment.Right
+        if ($assignmentRight -isnot [System.Management.Automation.Language.CommandExpressionAst] -or
+            @($assignmentRight.Redirections).Count -ne 0) {
+            return [pscustomobject]@{
+                Matched = $true
+                Reason = "Blocked: recursive Remove-Item local variable target is not assigned one literal path."
+            }
+        }
+        $assignedPath = Get-StaticPowerShellStringValue -Expression $assignmentRight.Expression
+        if (-not $assignedPath.Static) {
+            return [pscustomobject]@{
+                Matched = $true
+                Reason = "Blocked: recursive Remove-Item local variable target is not assigned one literal path."
+            }
+        }
+        $literalPath = [string]$assignedPath.Value
+    }
+    return [pscustomobject]@{
+        Matched = $true
+        Reason = Get-RecursiveRemoveItemPathReason `
+            -Path $literalPath -ProtectedRoots $ProtectedRoots
+    }
+}
+
 function Test-DangerousCommand {
     param(
         [string]$Command,
         [int]$InspectionDepth = 0,
         [ValidateSet("Generic", "Cmd", "PowerShell")]
         [string]$CommandLanguage = "Generic",
+        [string[]]$ProtectedRemovalRoots = @(),
         [switch]$SkipPowerShellAst
     )
     if (-not $Command) { return $null }
@@ -760,13 +1155,29 @@ function Test-DangerousCommand {
         return "Blocked: command guard cannot safely inspect executable shell backtick escapes. Use a literal command without backtick escapes."
     }
     if ($CommandLanguage -ne "Cmd" -and -not $SkipPowerShellAst) {
+        $fullRemoveItemDecision = Get-RecursiveRemoveItemDecision `
+            -Command $Command -ProtectedRoots $ProtectedRemovalRoots
+        if ($fullRemoveItemDecision.Matched) {
+            if ($fullRemoveItemDecision.Reason) {
+                return [string]$fullRemoveItemDecision.Reason
+            }
+            return $null
+        }
         $powerShellCommands = Get-PowerShellCommandTexts -Command $Command
         if ($powerShellCommands.Parsed) {
             foreach ($powerShellCommand in @($powerShellCommands.Commands)) {
+                $removeItemDecision = Get-RecursiveRemoveItemDecision `
+                    -Command ([string]$powerShellCommand) `
+                    -ProtectedRoots $ProtectedRemovalRoots
+                if ($removeItemDecision.Matched) {
+                    if ($removeItemDecision.Reason) { return [string]$removeItemDecision.Reason }
+                    continue
+                }
                 $powerShellReason = Test-DangerousCommand `
                     -Command ([string]$powerShellCommand) `
                     -InspectionDepth ($InspectionDepth + 1) `
                     -CommandLanguage $CommandLanguage `
+                    -ProtectedRemovalRoots $ProtectedRemovalRoots `
                     -SkipPowerShellAst
                 if ($powerShellReason) { return $powerShellReason }
             }
@@ -1003,7 +1414,8 @@ function Test-DangerousCommand {
             $nestedReason = Test-DangerousCommand `
                 -Command $nestedCommand `
                 -InspectionDepth ($currentDepth + 1) `
-                -CommandLanguage $nestedCommandLanguage
+                -CommandLanguage $nestedCommandLanguage `
+                -ProtectedRemovalRoots $ProtectedRemovalRoots
             if ($nestedReason) { return $nestedReason }
         }
         $gitCommand = Get-GitCommandInfo -Tokens ([string[]]$tokens)
@@ -1125,7 +1537,7 @@ function Get-Sha256Hex {
 
 function Write-GuardAuditRecord {
     param(
-        [ValidateSet("command-guard", "file-guard")]
+        [ValidateSet("command-guard", "file-guard", "unified-guard")]
         [string]$GuardName,
         [string]$Reason,
         [string]$ToolName,

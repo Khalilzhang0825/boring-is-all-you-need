@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [ValidateSet("Unified", "Command", "File")]
-    [string]$GuardMode = "Command"
+    [string]$GuardMode = "Command",
+    [ValidateSet("Enforce", "Audit")]
+    [string]$EnforcementMode = "Enforce"
 )
 
 Set-StrictMode -Version Latest
@@ -14,6 +16,7 @@ $guardLabel = switch ($GuardMode) {
 }
 
 function Write-LocalGuardDeny {
+    if ($EnforcementMode -eq "Audit") { return }
     @{
         hookSpecificOutput = @{
             hookEventName = "PreToolUse"
@@ -27,6 +30,7 @@ function Write-LocalGuardDeny {
 
 try {
     . (Join-Path $PSScriptRoot 'agent-hook-utils.ps1')
+    $script:SteadyAgentGuardEnforcementMode = $EnforcementMode
     if ($GuardMode -ne "Command") {
         . (Join-Path (Split-Path -Parent $PSScriptRoot) 'protected-path-policy.ps1')
     }
@@ -37,7 +41,9 @@ try {
 
 # Unified PreToolUse guard. The managed runtime invokes this process once for
 # shell tools, file-edit tools, and mixed parallel wrappers. Compatibility
-# callers may select one legacy guard surface with -GuardMode.
+# callers may select one legacy guard surface with -GuardMode. Audit mode logs
+# recognized risks but never returns a deny decision; authorization remains in
+# the agent/user working contract.
 
 try {
     $inputResult = Read-BoundedHookInput
@@ -129,8 +135,19 @@ try {
             exit 0
         }
 
+        try {
+            $protectedRemovalRoots = @(Get-HookWorkingDirectories -Event $event)
+        }
+        catch {
+            Write-HookDeny -HookEventName "PreToolUse" -Reason (
+                "Blocked: {0} could not safely inspect the matched working directory." -f $guardLabel
+            )
+            exit 0
+        }
+
         foreach ($candidate in $commands) {
-            $reason = Test-DangerousCommand -Command $candidate
+            $reason = Test-DangerousCommand `
+                -Command $candidate -ProtectedRemovalRoots $protectedRemovalRoots
             if (-not $reason) { continue }
             try {
                 Write-GuardAuditRecord `
@@ -140,7 +157,7 @@ try {
                     -RawInput $candidate
             } catch { }
             Write-HookDeny -HookEventName "PreToolUse" -Reason $reason
-            exit 0
+            if ($EnforcementMode -eq "Enforce") { exit 0 }
         }
     }
 
@@ -183,7 +200,7 @@ try {
                     -RawInput $path
             } catch { }
             Write-HookDeny -HookEventName "PreToolUse" -Reason $reason
-            exit 0
+            if ($EnforcementMode -eq "Enforce") { exit 0 }
         }
     }
 

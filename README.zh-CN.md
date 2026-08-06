@@ -75,6 +75,10 @@ Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked�
 
 普通的浅层检查可能漏掉 batch payload 深处的破坏性叶子。统一 `PreToolUse` guard 会递归遍历 command 与 file 两类叶子，包括嵌套 parallel 调用；相关请求无法可靠解析时会阻断，不会猜测为安全。审计日志也不会原样保存可能敏感的命令，只记录固定原因、规范化工具名与输入 SHA-256。
 
+删除授权与运行时路径校验仍由 agent 与用户决定，Hook 不再假装能从命令文本推断聊天授权。在强制模式下，规范 PowerShell `Remove-Item` 可对唯一 `-LiteralPath` 目标递归删除；目标既可写成嵌套的本机绝对字面量，也可使用一个在同一段顶层命令文本中仅赋值一次、右值为同类字面量且只被 `Remove-Item` 引用的变量。字面量目标不得删除事件明确声明的绝对工作目录、受保护根或其祖先，也不得穿过 reparse point。外部变量、重复或复合写入、条件赋值、跨作用域变量、系统变量、相对路径、表达式、数组、多目标、通配式、别名和其他歧义形式仍会被拦截。
+
+如果用户明确接受风险，并要求授权只由 agent 与用户的工作合同负责，同一个统一 Hook 可使用 `-EnforcementMode Audit`。仅审计模式会尽力记录识别到的风险，但永远不返回 deny，因此已授权的删除、目录改名、Git 发布和文件编辑操作不会被二次否决。
+
 ## 本地验证快照
 
 工作流逻辑候选 `b4f56905b1bdf5841a723b96982b56df090383d6` 于 2026-08-05 在 Windows PowerShell 5.1 上取得以下本地发行证据。聚合入口是在 clean full-history clone 中运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；随后使用 `tools\validate-release-archive.ps1` 检查精确解压的 `git archive`。品牌化发行候选在 push 前必须重新运行同一组门禁，tag workflow 还会在创建 draft release 前再运行一次。

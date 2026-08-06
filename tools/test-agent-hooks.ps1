@@ -138,6 +138,9 @@ function Get-ManagedPreToolUseBlocks {
             if ($line -match '-GuardMode ([A-Za-z]+)') {
                 $current.Arguments = @("-GuardMode", [string]$Matches[1])
             }
+            if ($line -match '-EnforcementMode ([A-Za-z]+)') {
+                $current.Arguments += @("-EnforcementMode", [string]$Matches[1])
+            }
         }
     }
     if ($null -ne $current) { $blocks.Add([pscustomobject]$current) }
@@ -697,6 +700,94 @@ try {
     Assert-Deny "command guard denies recursive del alias" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture -Recurse:$true -Force' } })
     Assert-Deny "command guard denies explicitly enabled recursive Remove-Item" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture\authorized-delete-target -Recurse -Force' } })
+    Assert-NoDecision "command guard allows recursive Remove-Item for an explicit nested literal target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath ''C:\fixture\authorized delete target'' -Recurse -Force -ErrorAction SilentlyContinue' } })
+    Assert-NoDecision "command guard allows a quoted explicit recursive Remove-Item target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Microsoft.PowerShell.Management\Remove-Item -LiteralPath C:\fixture\authorized-delete-target -Recurse:$true' } })
+    Assert-NoDecision "command guard allows module-qualified recursive Remove-Item for an explicit target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'powershell.exe -NoProfile -Command "Remove-Item -LiteralPath C:\fixture\authorized-delete-target -Recurse -Force"' } })
+    Assert-NoDecision "command guard allows an explicit recursive Remove-Item behind PowerShell" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture\authorized-delete-target -Recurse'; workdir = 'C:\fixture\authorized-delete-target' } })
+    Assert-Deny "command guard denies recursive removal of the active working directory" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath .\authorized-delete-target -Recurse -Force' } })
+    Assert-Deny "command guard denies a relative recursive Remove-Item target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath $targetPath -Recurse -Force' } })
+    Assert-Deny "command guard denies an external local variable recursive Remove-Item target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = ''C:\fixture\authorized-delete-target''; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-NoDecision "command guard allows one same-command safe literal variable assignment" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = "C:\fixture\authorized-delete-target"; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-NoDecision "command guard allows a double-quoted same-command safe literal assignment" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = C:\fixture\authorized-delete-target; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a bare assignment that PowerShell parses as a command" $result
+    $protectedRootLiteral = ([string]$env:USERPROFILE).Replace("'", "''")
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = ('$auditRoot = ''' + $protectedRootLiteral + '''; Remove-Item -LiteralPath $auditRoot -Recurse -Force') }
+    })
+    Assert-Deny "command guard rechecks a local variable assignment against protected roots" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = $HOME; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a dynamic local variable assignment" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = ''C:\fixture\one''; $auditRoot = ''C:\fixture\two''; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a reassigned local variable target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = ''C:\fixture\authorized-delete-target''; $auditRoot += ''\..\..''; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a compound-written local variable target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = '$auditRoot = ''C:\fixture\authorized-delete-target''; [void][int]::TryParse(''1'', [ref]$auditRoot); Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a referenced local variable target" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'if ($approved) { $auditRoot = ''C:\fixture\authorized-delete-target'' }; Remove-Item -LiteralPath $auditRoot -Recurse -Force' } })
+    Assert-Deny "command guard denies a conditional local variable assignment" $result
+    foreach ($protectedVariableTarget in @('$HOME', '$USERPROFILE', '$PWD', '$env:TEMP')) {
+        $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+            tool_name = "PowerShell"
+            tool_input = @{ command = ('Remove-Item -LiteralPath ' + $protectedVariableTarget + ' -Recurse -Force') }
+        })
+        Assert-Deny ("command guard denies protected variable recursive target: " + $protectedVariableTarget) $result
+    }
+    foreach ($dynamicVariableTarget in @('$targetPaths[0]', '$script:targetPath', '$(Get-TargetPath)', '@($targetPath)')) {
+        $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+            tool_name = "PowerShell"
+            tool_input = @{ command = ('Remove-Item -LiteralPath ' + $dynamicVariableTarget + ' -Recurse -Force') }
+        })
+        Assert-Deny ("command guard denies expression recursive target: " + $dynamicVariableTarget) $result
+    }
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -Path C:\fixture\authorized-delete-target -Recurse -Force' } })
+    Assert-Deny "command guard requires LiteralPath for recursive Remove-Item" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture\one -LiteralPath C:\fixture\two -Recurse -Force' } })
+    Assert-Deny "command guard denies multiple recursive Remove-Item targets" $result
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\ -Recurse -Force' } })
+    Assert-Deny "command guard denies recursive removal of a filesystem root" $result
+    $result = Invoke-Hook `
+        "agent-hook-command-guard.ps1" `
+        (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath $targetPath -Recurse -Force' } }) `
+        @("-GuardMode", "Unified", "-EnforcementMode", "Audit")
+    Assert-NoDecision "audit-only unified guard never denies an authorized recursive deletion" $result
+    $result = Invoke-Hook `
+        "agent-hook-command-guard.ps1" `
+        (New-Event @{ tool_name = "apply_patch"; tool_input = @{ path = "fixture/.env" } }) `
+        @("-GuardMode", "Unified", "-EnforcementMode", "Audit")
+    Assert-NoDecision "audit-only unified guard never denies an authorized protected-file edit" $result
+    $auditLineCountBefore = if (Test-Path -LiteralPath $auditPath) {
+        @([IO.File]::ReadAllLines($auditPath, [Text.Encoding]::UTF8)).Count
+    }
+    else { 0 }
+    $result = Invoke-Hook `
+        "agent-hook-command-guard.ps1" `
+        (New-Event @{
+            tool_name = "multi_tool_use.parallel"
+            tool_input = @{ tool_uses = @(
+                @{ recipient_name = "functions.shell_command"; parameters = @{ command = "git reset --hard HEAD" } },
+                @{ recipient_name = "apply_patch"; parameters = @{ path = "fixture/.env" } }
+            ) }
+        }) `
+        @("-GuardMode", "Unified", "-EnforcementMode", "Audit")
+    Assert-NoDecision "audit-only unified guard never denies a mixed authorized payload" $result
+    $newAuditLines = if (Test-Path -LiteralPath $auditPath) {
+        @([IO.File]::ReadAllLines($auditPath, [Text.Encoding]::UTF8) | Select-Object -Skip $auditLineCountBefore)
+    }
+    else { @() }
+    Assert-True "audit-only unified guard records every recognized mixed-payload risk" (
+        @($newAuditLines | Where-Object { $_ -match '\[unified-guard\]' }).Count -eq 2
+    ) ($newAuditLines -join "`n")
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture -Recurse:$enabled -Force' } })
     Assert-Deny "command guard fails closed for dynamic recursive Remove-Item" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'rm -LiteralPath C:\fixture -Recurse' } })
