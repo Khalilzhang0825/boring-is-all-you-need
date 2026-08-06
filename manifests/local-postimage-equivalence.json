@@ -419,7 +419,7 @@
       "payload": "07-agent-config-audit.ps1",
       "localSha256": "FB23C4BAD3CCA2BEF53FABF02B6F52C4E5B19204E3F8CB4F98D677DD30D90E54",
       "publicSource": "tools/diagnose-install.ps1",
-      "publicSha256": "AD9D02C1C6C7F0ABB9AE4F2F169E5706C93870E373896F90AED528F429D288DC",
+      "publicSha256": "32A5855F108779754AB47781E6A67780E8ACC4D70848242843445858AB0A8702",
       "installedDestination": "tools/diagnose-install.ps1",
       "mode": "behavior-superset",
       "evidence": "portable installed-state audit plus Caveman, review/skill, owning-task-after-receipt timing, rollout-file-confirmed catalog, explicit manual Live boundary, Git identity, managed matrix, and Hook smoke checks",

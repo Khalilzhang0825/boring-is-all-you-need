@@ -103,7 +103,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "2.0.1"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "E58FD1CBD774D992BB5567285328779D016F0A66F17AECBDFB9A14D0D7C37D6E"
+$expectedPackageManifestSha256 = "011900686E2599FB2B2A10A687B03E41472E563BAC09133114AECF6AF880B808"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData

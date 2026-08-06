@@ -276,10 +276,11 @@ function Get-ReceiptIntegritySha256 {
         )
         $lines.Add($name + "=" + $encoded) | Out-Null
     }
-    $directories = if ($Receipt.PSObject.Properties.Name -contains "created_directories") {
-        @($Receipt.created_directories)
-    }
-    else { @() }
+    $directories = @(
+        if ($Receipt.PSObject.Properties.Name -contains "created_directories") {
+            $Receipt.created_directories
+        }
+    )
     $lines.Add("created_directories.count=" + $directories.Count) | Out-Null
     for ($index = 0; $index -lt $directories.Count; $index++) {
         foreach ($name in @("path", "volume_serial", "file_id")) {
@@ -292,10 +293,11 @@ function Get-ReceiptIntegritySha256 {
                 Out-Null
         }
     }
-    $entries = if ($Receipt.PSObject.Properties.Name -contains "entries") {
-        @($Receipt.entries)
-    }
-    else { @() }
+    $entries = @(
+        if ($Receipt.PSObject.Properties.Name -contains "entries") {
+            $Receipt.entries
+        }
+    )
     $lines.Add("entries.count=" + $entries.Count) | Out-Null
     for ($entryIndex = 0; $entryIndex -lt $entries.Count; $entryIndex++) {
         foreach ($name in @(

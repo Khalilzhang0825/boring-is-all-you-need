@@ -252,6 +252,18 @@ function Test-MigrationRuntimeRefactorContract {
         (Join-Path $PSScriptRoot "diagnose-install.ps1"),
         [Text.Encoding]::UTF8
     )
+    $diagnoseFunctions = Get-ScriptFunctionMap -Path (Join-Path $PSScriptRoot "diagnose-install.ps1")
+    $emptyCollectionReceiptHash = & {
+        . ([ScriptBlock]::Create($diagnoseFunctions["ConvertTo-ReceiptIntegrityValue"]))
+        . ([ScriptBlock]::Create($diagnoseFunctions["Get-ReceiptIntegritySha256"]))
+        Get-ReceiptIntegritySha256 -Receipt ([pscustomobject]@{
+            created_directories = @()
+            entries = @()
+        })
+    }
+    Assert-True "diagnosis hashes empty receipt collections under PowerShell 5.1" (
+        $emptyCollectionReceiptHash -match '^[0-9A-F]{64}$'
+    ) $emptyCollectionReceiptHash
     Assert-True "strict diagnosis pins every trusted parent directory through execution" (
         $diagnoseSource -match "SteadyAgent[.]DiagnosePinnedDirectory" -and
         $diagnoseSource -match "DirectoryPins" -and
@@ -4239,6 +4251,7 @@ exit 0
         "rollback fails closed when the machine-wide mutex is unavailable",
         "production migration permits elevated install and rollback",
         "elevated CI probes both production mutex ACL paths",
+        "diagnosis hashes empty receipt collections under PowerShell 5.1",
         "production migration exposes no protected recovery capsule entry point",
         "simulated elevated install apply succeeds",
         "simulated elevated install apply writes the managed surface",
@@ -4273,6 +4286,7 @@ exit 0
     )
     Write-SemanticCheck -Id "diagnose.strict-installed-contract" -Cases @(
         "strict catalog fixture builds as rollout-file-confirmed",
+        "diagnosis hashes empty receipt collections under PowerShell 5.1",
         "strict diagnosis keeps rollout timestamps below Live evidence",
         "strict diagnosis accepts a task started after receipt completion",
         "strict diagnosis rejects a task started before receipt completion",
