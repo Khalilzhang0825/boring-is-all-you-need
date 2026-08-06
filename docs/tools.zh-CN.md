@@ -26,11 +26,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\
 .\tools\validate-release-archive.ps1
 ```
 
-`install.ps1` 默认 dry-run。Apply 必须在非提权会话中运行；当前 token 无法更新任一目标时 fail closed，不请求 UAC，也不修改 ACL。已加载的 installer 会在 staging 前验证规范化的 52 项源资产 `package-assets.sha256` 摘要。自定义根路径只用于隔离测试：必须同时设置 `STEADYAGENT_TEST_MODE=1`，并把 `STEADYAGENT_TEST_ROOT` 指向系统临时目录下现有、basename 严格为 `steadyagent-v2-migration-<32 位小写十六进制>` 的隔离根。发行包源目录、目标、Codex、managed 配置、备份、显式 Git 配置及实际调用工具路径均须位于该测试根中，并在适用处保持两两分离。
+`install.ps1` 默认 dry-run。Apply 同时支持普通和提权会话；当前 token 无法更新任一目标时 fail closed，不请求 UAC，也不修改 ACL 或接管 owner。已加载的 installer 会在 staging 前验证规范化的 52 项源资产 `package-assets.sha256` 摘要。自定义根路径只用于隔离测试：必须同时设置 `STEADYAGENT_TEST_MODE=1`，并把 `STEADYAGENT_TEST_ROOT` 指向系统临时目录下现有、basename 严格为 `steadyagent-v2-migration-<32 位小写十六进制>` 的隔离根。发行包源目录、目标、Codex、managed 配置、备份、显式 Git 配置及实际调用工具路径均须位于该测试根中，并在适用处保持两两分离。
 
 成功 Apply 会先输出 `Backup and rollback receipt:`，再输出精确的 `$SteadyAgentRoot`、`$ReceiptPath` 赋值。应保存并原样粘贴这些赋值，不得自行拼接备份路径。如果事务已经进入 `applied`，但成功输出丢失，可从同一个已验证解压发行包重新运行不带 `-Apply` 的 `tools\install.ps1`；already-installed 路径会解析唯一且完整性有效的 active receipt pointer，以零写入重新输出这些赋值。中断的 `applying` 事务不存在 active applied pointer，必须使用此前已输出的恢复收据。
 
-`rollback.ps1` 默认 dry-run，并拒绝提权运行。它既能恢复 `applied` 收据，也能恢复 durable `applying` 收据记录的精确混合状态。这里的精确指 managed 文件字节内容/存在性与记录的 Git 值/config 字节；ACL、owner、属性、时间戳和 alternate data streams 不会被捕获或恢复。若强制中止过早、安装后副本尚不存在，只有同一已验证发行包中且脚本哈希等于收据预期 rollback 字节的脚本才会被接受。收据哈希证明完整性，不证明身份；生产回滚目标绑定到 active 的非提权安装合同。
+`rollback.ps1` 默认 dry-run，同时支持普通和提权运行。它既能恢复 `applied` 收据，也能恢复 durable `applying` 收据记录的精确混合状态。这里的精确指 managed 文件字节内容/存在性与记录的 Git 值/config 字节；ACL、owner、属性、时间戳和 alternate data streams 不会被捕获或恢复。若强制中止过早、安装后副本尚不存在，只有同一已验证发行包中且脚本哈希等于收据预期 rollback 字节的脚本才会被接受。收据哈希证明完整性，不证明身份；生产回滚目标绑定到 active 安装合同。
 
 rollback 在首次受控写入前把进入态 durable 记录到
 `rollback-journal.json`。退出码 3 或 `rollback_incomplete` 表示必须人工

@@ -164,17 +164,29 @@ try {
     $readmeZh = [IO.File]::ReadAllText((Join-Path $root "README.zh-CN.md"), [Text.Encoding]::UTF8)
     $releaseNotes = [IO.File]::ReadAllText((Join-Path $root "RELEASE_NOTES.md"), [Text.Encoding]::UTF8)
     $securityPolicy = [IO.File]::ReadAllText((Join-Path $root "SECURITY.md"), [Text.Encoding]::UTF8)
-    Check "English README declares v2.0.0" ($readme -match "v2[.]0[.]0")
-    Check "Chinese README declares v2.0.0" ($readmeZh -match "v2[.]0[.]0")
+    Check "English README declares v2.0.1" ($readme -match "v2[.]0[.]1")
+    Check "Chinese README declares v2.0.1" ($readmeZh -match "v2[.]0[.]1")
     Check "English README documents dry-run and explicit replacement" ($readme -match "dry-run" -and $readme -match "ReplaceExistingWorkflow")
     Check "Chinese README documents dry-run and explicit replacement" ($readmeZh -match "dry-run" -and $readmeZh -match "ReplaceExistingWorkflow")
-    Check "READMEs require the non-elevated migration contract" (
-        $readme -match "refuses elevated Apply and rollback" -and
+    Check "READMEs document ordinary and elevated migration compatibility" (
+        $readme -match "both ordinary and elevated PowerShell are supported" -and
         $readme -match '52-source `package-assets[.]sha256`' -and
-        $readme -match "administrator-locked" -and
-        $readmeZh -match "拒绝提权 Apply 与 rollback" -and
+        $readme -match "never trigger UAC, change ACLs, or take ownership" -and
+        $readmeZh -match "同时支持普通和提权 token" -and
         $readmeZh -match '52 项源资产 `package-assets[.]sha256`' -and
-        $readmeZh -match "管理员锁定"
+        $readmeZh -match "不会主动触发 UAC、修改 ACL 或接管 owner"
+    )
+    $currentContractText = @(
+        $readme,
+        $readmeZh,
+        @(Get-ChildItem -LiteralPath (Join-Path $root "docs") -Filter "*.md" -File | ForEach-Object {
+            [IO.File]::ReadAllText($_.FullName, [Text.Encoding]::UTF8)
+        }),
+        [IO.File]::ReadAllText((Join-Path $root "rules\safety-boundaries.md"), [Text.Encoding]::UTF8)
+    ) -join "`n"
+    Check "current public contract contains no elevated-token refusal" (
+        $currentContractText -notmatch '(?i)refuse(?:s|d)? (?:an )?elevated|must run (?:from|in) (?:a )?non-elevated|do not elevate|never elevate' -and
+        $currentContractText -notmatch '拒绝管理员 token|不要提权|只允许当前非提权|必须在非提权|同一非提权|管理员锁定的.*(?:不受支持|unsupported)'
     )
     Check "English README scopes dry-run writes and discloses temporary staging" (
         $readme -match "zero target, config, backup, receipt, or state writes" -and
@@ -211,9 +223,10 @@ try {
         $readmeZh -match "迁移 tombstone" -and
         $readmeZh -notmatch "账户被封|擦门牌"
     )
-    Check "release notes contain exact v2.0.0 heading" ($releaseNotes -match "(?m)^## v2[.]0[.]0$")
-    Check "release notes use the non-elevated V1 replacement command" (
+    Check "release notes contain exact v2.0.1 heading" ($releaseNotes -match "(?m)^## v2[.]0[.]1$")
+    Check "release notes use the elevated-compatible V1 replacement command" (
         $releaseNotes -match 'install[.]ps1 -Apply -ReplaceExistingWorkflow' -and
+        $releaseNotes -match 'ordinary or administrator PowerShell' -and
         $releaseNotes -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery'
     )
     Check "security policy targets V2 replacement syntax" (
@@ -232,8 +245,8 @@ try {
     $gettingStarted = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.md"), [Text.Encoding]::UTF8)
     $gettingStartedZh = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.zh-CN.md"), [Text.Encoding]::UTF8)
     $attestationDocs = @($readme, $readmeZh, $gettingStarted, $gettingStartedZh, $runbook, $runbookZh)
-    Check "publication runbook targets v2.0.0" ($runbook -match "Tag: v2[.]0[.]0" -and $runbook -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
-    Check "Chinese publication runbook targets v2.0.0" ($runbookZh -match "Tag: v2[.]0[.]0" -and $runbookZh -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
+    Check "publication runbook targets v2.0.1" ($runbook -match "Tag: v2[.]0[.]1" -and $runbook -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
+    Check "Chinese publication runbook targets v2.0.1" ($runbookZh -match "Tag: v2[.]0[.]1" -and $runbookZh -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
     Check "release checklist targets V2" ($checklist -match "Boring Is All You Need v2" -and $checklist -notmatch "SteadyAgent v1")
     Check "Chinese release checklist targets V2" ($checklistZh -match "Boring Is All You Need v2" -and $checklistZh -notmatch "SteadyAgent v1")
     Check "release checklists require private reporting and Codex Live verification" (
@@ -256,7 +269,7 @@ try {
             $_ -match [regex]::Escape('$ReviewedSha') -and
             $_ -match [regex]::Escape('--source-digest $ReviewedSha') -and
             $_ -match '\$ReviewedSha\s*=\s*\[string\]\$Provenance[.]reviewedCommit' -and
-            $_ -match 'boring-is-all-you-need-v2[.]0[.]0[.]provenance[.]json' -and
+            $_ -match 'boring-is-all-you-need-v2[.]0[.]1[.]provenance[.]json' -and
             $_ -notmatch '<recorded reviewed commit>|<记录的已审查 commit>'
         }).Count -eq 6 -and
         $runbook -match 'validate-release-archive[.]ps1' -and
@@ -267,8 +280,8 @@ try {
     Check "all copyable release verification blocks fail closed on gh errors before extraction" (
         @($attestationDocs | Where-Object {
             $_ -match '(?m)^gh attestation verify --help \| Out-Null\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-            $_ -match '(?m)^gh release download v2[.]0[.]0[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-            $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]0[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw [^\r\n]+\}\r?\nExpand-Archive'
+            $_ -match '(?m)^gh release download v2[.]0[.]1[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
+            $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]1[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw [^\r\n]+\}\r?\nExpand-Archive'
         }).Count -eq $attestationDocs.Count
     )
     Check "public receipt examples contain no angle-bracket receipt or backup placeholders" (
@@ -443,15 +456,11 @@ try {
         $installerText -match [regex]::Escape('. $migrationRuntimeBlock') -and
         $rollbackText -match [regex]::Escape('. $migrationRuntimeBlock')
     )
-    Check "production install and rollback reject elevated execution" (
-        $installerText -match 'must run from a non-elevated PowerShell session' -and
-        $rollbackText -match 'Rollback requires a non-elevated PowerShell process' -and
-        $installerText -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
-        $rollbackText -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
-        $installerText -match 'GITHUB_ACTIONS' -and $rollbackText -match 'GITHUB_ACTIONS' -and
-        $installerText -match 'RUNNER_OS' -and $rollbackText -match 'RUNNER_OS' -and
-        $installerText -match '\$TestAsElevated -or \(\$isProcessElevated -and -not \$allowElevatedFixture\)' -and
-        $rollbackText -match '\$TestAsElevated -or \(\$isProcessElevated -and -not \$allowElevatedFixture\)' -and
+    Check "production install and rollback permit elevated execution" (
+        $installerText -notmatch 'must run from a non-elevated PowerShell session' -and
+        $rollbackText -notmatch 'Rollback requires a non-elevated PowerShell process' -and
+        $installerText -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $rollbackText -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
         $installerText -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery|RecoveryRoot|TestRecoverySddl' -and
         $rollbackText -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery|TestRecoverySddl'
     )
@@ -508,8 +517,8 @@ try {
         $rollbackText -notmatch 'Assert-ProtectedRecoveryPath|protected recovery capsule'
     )
     $safetyText = [IO.File]::ReadAllText((Join-Path $root "rules\safety-boundaries.md"), [Text.Encoding]::UTF8)
-    Check "public safety contract requires non-elevated migration" (
-        $safetyText -match 'must run with the current non-elevated user token' -and
+    Check "public safety contract permits ordinary and elevated migration" (
+        $safetyText -match 'support both ordinary and elevated user tokens' -and
         $safetyText -match 'never request UAC, change ACLs, or take ownership' -and
         $safetyText -match 'integrity, not identity or authorization'
     )
@@ -661,9 +670,9 @@ try {
     $releaseWorkflow = [IO.File]::ReadAllText((Join-Path $root ".github\workflows\release.yml"), [Text.Encoding]::UTF8)
     Check "GitHub Actions runs on Windows" ($workflow -match "windows-latest")
     Check "GitHub Actions runs release readiness" ($workflow -match "validate-release-readiness[.]ps1")
-    Check "GitHub Actions limits elevated execution to strict isolated fixtures" (
-        $workflow -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE:\s*["'']?1["'']?' -and
-        $releaseWorkflow -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE:\s*["'']?1["'']?'
+    Check "GitHub Actions needs no elevated-only fixture bypass" (
+        $workflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $releaseWorkflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
     Check "GitHub Actions release gate has a bounded timeout" ($workflow -match "timeout-minutes:\s*\d+")
     Check "GitHub Actions fetches history and supplies a release base" (
@@ -673,7 +682,7 @@ try {
         $workflow -match '(?m)^\s*FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:\s*["'']?true["'']?\s*$'
     )
     Check "release workflow is exact-tag and draft-only" (
-        $releaseWorkflow -match '(?m)^\s+- v2[.]0[.]0\s*$' -and
+        $releaseWorkflow -match '(?m)^\s+- v2[.]0[.]1\s*$' -and
         $releaseWorkflow -match 'gh api --method POST "repos/\$env:GH_REPO/releases"' -and
         $releaseWorkflow -match 'draft\s*=\s*\$true' -and
         $releaseWorkflow -match 'exact draft already exists' -and
@@ -715,9 +724,9 @@ try {
         $releaseWorkflow -match 'validate-release-archive[.]ps1' -and
         $releaseWorkflow -match 'git archive' -and
         $releaseWorkflow -match 'refs/remotes/origin/main' -and
-        $releaseWorkflow -match 'subject-path:\s*dist/boring-is-all-you-need-v2[.]0[.]0[.]zip' -and
-        $releaseWorkflow -match '[.]\\dist\\boring-is-all-you-need-v2[.]0[.]0[.]zip' -and
-        $releaseWorkflow -match 'boring-is-all-you-need-v2[.]0[.]0[.]provenance[.]json' -and
+        $releaseWorkflow -match 'subject-path:\s*dist/boring-is-all-you-need-v2[.]0[.]1[.]zip' -and
+        $releaseWorkflow -match '[.]\\dist\\boring-is-all-you-need-v2[.]0[.]1[.]zip' -and
+        $releaseWorkflow -match 'boring-is-all-you-need-v2[.]0[.]1[.]provenance[.]json' -and
         $releaseWorkflow -match 'releaseBodySha256' -and
         $releaseWorkflow -match 'RELEASE_BODY[.]md'
     )

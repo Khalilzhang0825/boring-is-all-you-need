@@ -2,7 +2,7 @@
 
 V2 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
 
-> 请在 Codex Desktop 外部的普通 PowerShell 中安装，不要选择“以管理员身份运行”。如果当前 Codex 任务使用 `[windows] sandbox = "elevated"`，请离开该任务终端，从 Windows 开始菜单正常打开 PowerShell。
+> 安装同时支持普通和管理员 PowerShell，也支持使用 `[windows] sandbox = "elevated"` 的 Codex 任务。脚本只使用当前已有 token，不会主动请求 UAC、修改 ACL 或接管 owner。
 
 ## Dry-run
 
@@ -10,7 +10,7 @@ V2 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
 
 ## 授权事务
 
-`-Apply` 授权全新安装；`-Apply -ReplaceExistingWorkflow` 额外授权替换已有差异和 `core.hooksPath`。两条命令都必须在普通、非管理员 PowerShell 中运行；提权 Apply 会在迁移写入前被拒绝。
+`-Apply` 授权全新安装；`-Apply -ReplaceExistingWorkflow` 额外授权替换已有差异和 `core.hooksPath`。两条命令同时支持普通和管理员 PowerShell。
 
 安装后的全局 Hook 会先运行 Boring Is All You Need guard，再链接执行仓库自身的可执行 `.git/hooks/pre-commit`。不同的原全局 `core.hooksPath` 仍属于显式替换冲突，只能通过审阅后的迁移收据恢复。
 
@@ -20,7 +20,7 @@ V2 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
 
 ## 收据恢复与回滚
 
-使用安装后的 rollback 工具与安装时输出的收据；审阅完整恢复/删除计划后再加 `-Apply`。若强制中止发生在该副本安装前，请使用同一个已验证解压发行包中的 `tools\rollback.ps1`。不要提权运行 rollback。只有每个目标与 `core.hooksPath` 都精确处于原态或安装后态时，`applying` 混合状态才可恢复；任何第三种状态、收据漂移或快照漂移都会以零写入 fail closed。
+使用安装后的 rollback 工具与安装时输出的收据；审阅完整恢复/删除计划后再加 `-Apply`。若强制中止发生在该副本安装前，请使用同一个已验证解压发行包中的 `tools\rollback.ps1`。rollback 同时支持普通和管理员 PowerShell。只有每个目标与 `core.hooksPath` 都精确处于原态或安装后态时，`applying` 混合状态才可恢复；任何第三种状态、收据漂移或快照漂移都会以零写入 fail closed。
 
 这里的精确目标态仅指 managed 文件字节内容与存在性，以及记录的 Git 值/config 字节；snapshot 合同不覆盖 ACL、owner、文件属性、时间戳或 alternate data streams。
 
@@ -30,7 +30,7 @@ journal、目标和 Git 状态，不得编辑或盲目重试。
 
 ## Managed 配置
 
-默认 active 目标为 `%ProgramData%\OpenAI\Codex\requirements.toml`。此版本只在当前非提权用户 token 可更新它时支持自动迁移；管理员锁定的安装会明确报告 unsupported。测试 fixture 可使用隔离自定义路径。
+默认 active 目标为 `%ProgramData%\OpenAI\Codex\requirements.toml`。普通或管理员 token 均受支持，但当前 token 必须已经能够更新该目标；脚本不会主动提权。测试 fixture 可使用隔离自定义路径。
 
 ## Live 验收
 

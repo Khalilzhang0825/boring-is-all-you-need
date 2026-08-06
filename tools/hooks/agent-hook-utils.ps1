@@ -1032,6 +1032,13 @@ function Test-DangerousCommand {
                     }).Count -gt 0) {
                         return "Blocked: force push is not allowed without explicit user approval."
                     }
+                    if (@($gitArguments | Where-Object {
+                        $_ -match "(?i)^--(?:delete|prune)(?:=.*)?$" -or
+                        $_ -match "(?i)^-[A-Za-z]*d[A-Za-z]*$" -or
+                        $_ -match "^:[^:]+$"
+                    }).Count -gt 0) {
+                        return "Blocked: remote ref deletion or pruning is not allowed without explicit user approval."
+                    }
                 }
                 "add" {
                     if (@($gitArguments | Where-Object {

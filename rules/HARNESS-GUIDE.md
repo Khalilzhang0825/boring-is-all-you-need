@@ -96,8 +96,8 @@ validation, and forbidden actions to `PROJECT_STATE.md` or
 from that state file and repository facts.
 
 Installer and rollback operations are dry-run by default. Apply only after
-reviewing the preview, and always use an ordinary non-elevated PowerShell
-session. Both tools reject elevated execution before migration writes; they
+reviewing the preview, and use either ordinary or administrator PowerShell.
+Both tools accept elevated execution without requesting UAC; they
 never request UAC, change ACLs, or take ownership. Before its first target or
 Git write, Apply durably writes and reads back original snapshots plus an
 `applying` receipt. After a hard interruption, rollback accepts only exact

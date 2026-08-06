@@ -100,10 +100,10 @@ foreach ($migrationRuntimeCommand in @(
         throw "Migration runtime did not load its frozen primitive set; no migration writes were made."
     }
 }
-$version = "2.0.0"
+$version = "2.0.1"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "7E0D7E4FD30811947B8A4B772B2089960AFE3B4D69C4E4B89AE5371C34FA6143"
+$expectedPackageManifestSha256 = "E58FD1CBD774D992BB5567285328779D016F0A66F17AECBDFB9A14D0D7C37D6E"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -494,7 +494,7 @@ function Get-OperationProjection {
     return @($projection)
 }
 
-# Intentionally local: install supports the elevated ACL shape while rollback is always non-elevated.
+# Intentionally local: install validates the production mutex ACL shape before migration writes.
 function Assert-SteadyAgentMigrationMutexSecurity {
     param(
         [Threading.Mutex]$Mutex,
@@ -558,7 +558,7 @@ function Assert-SteadyAgentMigrationMutexSecurity {
     }
 }
 
-# Intentionally local: install constructs either elevated or non-elevated production mutex ACLs.
+# Intentionally local: install constructs the production mutex ACL for the active token shape.
 function New-SteadyAgentMigrationMutex {
     param([AllowNull()][string]$TestRoot)
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
@@ -850,22 +850,6 @@ if ($isTestMode) {
 }
 if ($TestAsElevated -and -not $isTestMode) {
     throw "TestAsElevated is available only in the isolated migration test."
-}
-$allowElevatedFixture = (
-    $isTestMode -and
-    $env:STEADYAGENT_ALLOW_ELEVATED_FIXTURE -eq "1" -and
-    $env:GITHUB_ACTIONS -eq "true" -and
-    $env:RUNNER_OS -eq "Windows"
-)
-$isProcessElevated = Test-IsProcessElevated
-if ($TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)) {
-    throw (
-        "Boring Is All You Need install planning and apply must run from a non-elevated PowerShell session. " +
-        "Close this administrator session. Open PowerShell normally from the Windows Start menu outside Codex Desktop; " +
-        "do not use Run as administrator. If the current Codex task uses " +
-        '[windows] sandbox = "elevated", do not run the installer from that task terminal. ' +
-        "Re-run the reviewed command from the extracted release directory."
-    )
 }
 if (-not $isTestMode) {
     if (-not $targetFull.Equals($defaultTargetFull, [StringComparison]::OrdinalIgnoreCase)) {
@@ -1194,7 +1178,7 @@ try {
             -not $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
             $conflicts += ("Git core.hooksPath=" + $gitHooksBefore)
         }
-        Write-Host "DRY-RUN Boring Is All You Need v2.0.0 migration"
+        Write-Host "DRY-RUN Boring Is All You Need v2.0.1 migration"
         Write-Host (
             (
                 "Plan: {0} operations; {1} existing conflict(s); " +
@@ -1293,7 +1277,7 @@ try {
         else {
             Resolve-ActiveAppliedReceipt -TargetRoot $targetFull
         }
-        Write-Host "[OK] Boring Is All You Need v2.0.0 is already installed; no target/config/backup/receipt/state writes."
+        Write-Host "[OK] Boring Is All You Need v2.0.1 is already installed; no target/config/backup/receipt/state writes."
         Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $activeReceiptPath
         exit 0
     }

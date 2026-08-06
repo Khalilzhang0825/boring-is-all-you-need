@@ -11,31 +11,31 @@ The release workflow uses separate least-privilege build/validation, attestation
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.0 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
+gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.1 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    [string]$Provenance.releaseTag -cne "v2.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.0 `
+  --source-ref refs/tags/v2.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
-Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
+Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
 ```
 
 Stop if the GitHub CLI does not expose `attestation verify`, the provenance fields do not bind the reviewed commit and archive digest, attestation verification fails, or the checksum differs.
@@ -50,7 +50,7 @@ This quick integrity-only archive gate does not require `.git`. It checks the re
 
 ## 3. Preview
 
-> **Required shell:** open an ordinary PowerShell window outside Codex Desktop. Do not use **Run as administrator**. A Codex task configured with `[windows] sandbox = "elevated"` is not a supported installation terminal; use PowerShell opened normally from the Windows Start menu.
+> **Supported shell:** use either ordinary or administrator PowerShell. A Codex task configured with `[windows] sandbox = "elevated"` is also supported. The active token must already be able to update every destination.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
@@ -72,7 +72,7 @@ Replace an existing workflow:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-Use an ordinary, non-elevated PowerShell window. Apply and rollback refuse an elevated token. If the current user cannot update the default `%ProgramData%\OpenAI\Codex\requirements.toml`, this release reports the machine as unsupported instead of requesting elevation or changing ACLs.
+Use ordinary or administrator PowerShell. Apply and rollback accept an elevated token but do not request UAC, change ACLs, or take ownership. The active token must be able to update the default `%ProgramData%\OpenAI\Codex\requirements.toml`.
 
 ## 5. Restart and diagnose
 
@@ -92,7 +92,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\
 
 ## 6. Roll back if needed
 
-Use the installed rollback tool with the receipt printed before the installation's first target write. Preview first, then apply from the same non-elevated user session:
+Use the installed rollback tool with the receipt printed before the installation's first target write. Preview first, then apply from the same PowerShell session:
 
 ```powershell
 $ReceiptPath = Read-Host "Paste the exact path printed after 'Recovery receipt:' by install.ps1"
@@ -102,7 +102,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tool
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-Do not elevate rollback. After an early hard stop, the installed copy might not exist; use `tools\rollback.ps1` from the same verified extracted package. Exact original/post-install mixed states are recoverable. A third target state, snapshot drift, receipt drift, or unknown Git Hook state stops before writing.
+Rollback supports both ordinary and administrator PowerShell. After an early hard stop, the installed copy might not exist; use `tools\rollback.ps1` from the same verified extracted package. Exact original/post-install mixed states are recoverable. A third target state, snapshot drift, receipt drift, or unknown Git Hook state stops before writing.
 
 Rollback publishes `rollback-journal.json` before its first controlled write.
 If it exits 3 or reports `rollback_incomplete`, preserve every receipt, backup,

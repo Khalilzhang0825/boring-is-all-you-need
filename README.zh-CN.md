@@ -6,7 +6,7 @@
 
 **让 Agent 的工作变得无聊：用证据交付，而不是凭感觉相信 AI。**
 
-Boring Is All You Need `v2.0.0` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
+Boring Is All You Need `v2.0.1` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
 
 这里的“无聊”就是功能：Agent 不应临场发明权限、静默扩大范围、凭一句“测试通过”宣布完成，或把工作流留在半迁移状态。本项目把这些决定固化成确定性脚本、收据、哈希、回滚路径与发行门禁。
 
@@ -31,7 +31,7 @@ Boring Is All You Need `v2.0.0` 是面向 Windows 的本地优先 Codex Desktop 
 | 优势 | 为什么有实际价值 |
 | --- | --- |
 | **足够轻量** | 日常热路径只有 3 个 Hook block；一次匹配事件只启动一个统一 guard 进程；SessionStart 有 800 字符硬上限；重型等价与发行测试不会在普通对话中运行。 |
-| **默认安全** | 安装和回滚先预览再写入；拒绝管理员 token；递归检查嵌套 command/file 输入；相关 payload 无法理解时 fail closed；破坏性或外部操作仍需明确授权。 |
+| **默认安全** | 安装和回滚先预览再写入；支持普通与管理员 token；递归检查嵌套 command/file 输入；相关 payload 无法理解时 fail closed；破坏性或外部操作仍需明确授权。 |
 | **不打扰已有工作** | 保护无关与 untracked 文件；不会把用户已经 staged 的内容混进 checkpoint；只提交显式路径；已有可执行仓库级 pre-commit Hook 会被链接执行，而不是静默覆盖。 |
 | **可恢复** | 迁移快照、durable receipt、原子替换、rollback journal 和前后态哈希，让半安装或强制中止变成可分类、可续跑、可对账的问题，而不是凭记忆猜怎么恢复。 |
 | **证据闭环** | “已实现”“测试通过”“已 push”“重启后 Live”是不同状态。Harness 要求先有复现或 red check，再给最小 green check，并用 Git/runtime 证据支撑对应结论。 |
@@ -94,9 +94,9 @@ Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked�
 
 这些是本地 committed-state 结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
-GitHub-hosted Windows runner 使用管理员 token。测试 workflow 因此只提供一个 CI fixture 例外：必须同时满足 `STEADYAGENT_TEST_MODE=1`、严格隔离的系统临时目录测试根有效，并存在 GitHub 的 `GITHUB_ACTIONS`/`RUNNER_OS` 信号。生产安装与 rollback 仍会在 managed write 前拒绝提权进程。
+GitHub-hosted Windows runner 使用管理员 token。安装、rollback 与 CI fixture 现在都允许在提权 token 下运行；测试路径覆盖仍必须同时满足 `STEADYAGENT_TEST_MODE=1` 与严格隔离的系统临时目录测试根。
 
-## 2.0.0 的核心变化
+## 2.0.1 的核心变化
 
 - 唯一支持宿主为 Codex Desktop。
 - 常驻 runtime 精简为 3 个 managed hook block：一个 `SessionStart`、一个统一的 `PreToolUse`、一个 `PreCompact`。
@@ -108,7 +108,7 @@ GitHub-hosted Windows runner 使用管理员 token。测试 workflow 因此只�
 - checkpoint CLI 保留维护者工作流中由人明确批准的 `-All` 初始 checkpoint 能力；Codex command guard 仍会阻止 agent 批量暂存。
 - 全新安装及 V1→V2 迁移均采用事务：预览、冲突检查、备份、原子应用、验证、收据和失败回滚。
 - 已加载的 installer 会锚定规范化的 52 项源资产 `package-assets.sha256`，并且只安装一次性读取且哈希匹配的字节。
-- Apply 与 rollback 会明确拒绝提权 token；全部迁移 I/O 都使用当前用户的普通 token，避免把同用户路径竞态升级成管理员写入。
+- Apply 与 rollback 同时支持普通和提权 token；脚本不会主动请求 UAC、修改 ACL 或接管 owner，只使用启动它们时已有的 token。
 - 版本化 V1 资产清单会在明确授权替换时移除旧 Codex 发行面，并可通过同一收据完整恢复。
 - 冻结的 23 项等价清单把维护者已审查的本机 Codex-active 能力逐一映射到可移植公开源与安装目标。本机 Hook smoke 项另行冻结了 65 条保留断言和 8 条明确排除的 Claude 或已移除事件断言；这是范围明确的等价，不表示 V2 会重新发布被排除的 V1 能力面。
 - 包内包含线程绑定的 skill 索引与检索，但不会发布维护者的 runtime catalog、线程 ID 或私人路径。
@@ -128,38 +128,38 @@ V1 历史版本仍保留在 Git 历史中。V2 归档只保留证明替换与范
 
 ## 运行前验证发行包
 
-正式发行输入是 GitHub Release 附带的 `boring-is-all-you-need-v2.0.0.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.0` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
+正式发行输入是 GitHub Release 附带的 `boring-is-all-you-need-v2.0.1.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.1` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
 
 同时下载 archive、checksum 与机器可读 provenance 三个资产，解压或运行 `install.ps1` 前直接运行以下可复制验证：
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
+gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.1 release assets。" }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    [string]$Provenance.releaseTag -cne "v2.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.0 `
+  --source-ref refs/tags/v2.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
-Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
+Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -169,7 +169,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 
 ## 安全的一键迁移
 
-> **安装环境：** 请在 Codex Desktop 外部新开一个普通 PowerShell 窗口运行下列命令，不要选择“以管理员身份运行”。如果 Codex 任务配置了 `[windows] sandbox = "elevated"`，不要在该任务终端中安装；请从 Windows 开始菜单正常打开 PowerShell，再进入已解压的发行包目录重跑审阅后的命令。
+> **安装环境：** 下列命令同时支持普通 PowerShell 和管理员 PowerShell，也支持配置了 `[windows] sandbox = "elevated"` 的 Codex 任务。脚本不会主动请求 UAC、修改 ACL 或接管 owner；当前 token 必须已经能够更新全部目标。
 
 安装器默认只做 dry-run：
 
@@ -191,7 +191,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -App
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-请始终在普通、非管理员 PowerShell 中运行。Boring Is All You Need 会在任何迁移写入前拒绝提权 Apply 与 rollback。默认 managed 配置只有在当前用户 token 可更新时才受支持；若 `%ProgramData%\OpenAI\Codex\requirements.toml` 被管理员锁定，安装器会明确报告 unsupported，不会触发 UAC、修改 ACL 或接管 owner。`managed` 表示 Codex 的配置机制，不表示能抵抗同用户恶意软件。
+可以在普通或管理员 PowerShell 中运行。Boring Is All You Need 不再拒绝提权 Apply 与 rollback，但仍不会主动触发 UAC、修改 ACL 或接管 owner；当前 token 必须已经能够更新 `%ProgramData%\OpenAI\Codex\requirements.toml` 与其他计划目标。`managed` 表示 Codex 的配置机制，不表示能抵抗同用户恶意软件。
 
 安装器会：
 
@@ -217,11 +217,11 @@ $ReceiptPath = Read-Host "粘贴 install.ps1 在 'Recovery receipt:' 后输出�
 if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "安装器输出的恢复收据路径无效。" }
 $ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
-# 审阅预览后，在同一非提权用户会话中运行：
+# 审阅预览后，在普通或管理员 PowerShell 中运行：
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-不要提权运行 rollback。若进程在安装后的 rollback 副本出现前被强制中止，请改用同一个已验证解压发行包中的 `tools\rollback.ps1`；`applying` 收据会绑定该脚本应安装字节的精确哈希。回滚器在写入前把每个目标和 active Git Hook 路径分类为精确原态或精确安装后态；任何第三种状态、收据漂移或快照漂移都会以零写入停止，合法混合状态会事务式恢复 managed 文件的字节内容与存在性，以及记录的 `core.hooksPath` 值和 fixture Git-config 字节。迁移不会捕获或恢复 ACL、owner、文件属性、时间戳或 alternate data streams。
+rollback 可以在普通或管理员 PowerShell 中运行。若进程在安装后的 rollback 副本出现前被强制中止，请改用同一个已验证解压发行包中的 `tools\rollback.ps1`；`applying` 收据会绑定该脚本应安装字节的精确哈希。回滚器在写入前把每个目标和 active Git Hook 路径分类为精确原态或精确安装后态；任何第三种状态、收据漂移或快照漂移都会以零写入停止，合法混合状态会事务式恢复 managed 文件的字节内容与存在性，以及记录的 `core.hooksPath` 值和 fixture Git-config 字节。迁移不会捕获或恢复 ACL、owner、文件属性、时间戳或 alternate data streams。
 
 rollback 会在首次文件或 Git 变更前发布 durable
 `rollback-journal.json`，因此强制中止后仍能确定性续跑或补偿。若退出码为 3

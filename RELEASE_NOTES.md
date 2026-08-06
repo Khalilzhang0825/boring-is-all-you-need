@@ -1,8 +1,16 @@
 # Release Notes
 
-## v2.0.0
+## v2.0.1
 
-> **Important installation requirement:** run `install.ps1` from an ordinary PowerShell window opened outside Codex Desktop. Do not use **Run as administrator**. If a Codex task uses `[windows] sandbox = "elevated"`, do not install from that task terminal; open PowerShell normally from the Windows Start menu. Elevated production installation remains intentionally unsupported.
+Boring Is All You Need v2.0.1 is a compatibility release for Windows users who run Codex or PowerShell with an administrator token.
+
+- permits `install.ps1` and `rollback.ps1` from ordinary or administrator PowerShell, including Codex tasks using `[windows] sandbox = "elevated"`;
+- keeps dry-run, package hashes, durable receipts, atomic writes, conflict detection, exact-state rollback, and strict fixture isolation unchanged;
+- never requests UAC, changes ACLs, or takes ownership; the active token must already be able to update every destination;
+- removes the GitHub Actions elevated-only fixture bypass because elevated execution is now a supported production path;
+- documents the administrator-compatible commands before the first install command and adds transaction-level elevated compatibility regression coverage.
+
+## v2.0.0
 
 Boring Is All You Need v2.0.0 is the in-place successor to legacy SteadyAgent v1. The existing GitHub repository is renamed rather than replaced, so Stars, Issues, tags, and V1 history remain attached to the same project while the default branch moves to the new Codex-only workflow.
 

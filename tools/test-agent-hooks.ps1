@@ -366,7 +366,7 @@ try {
         [Text.Encoding]::UTF8
     )
     Assert-True "diagnosis is Codex-only" (
-        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]0 Codex diagnosis' -and
+        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]1 Codex diagnosis' -and
         $diagnoseText -notmatch '[.]claude'
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')
@@ -537,6 +537,22 @@ try {
     Assert-Deny "command guard denies mirror push" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = "git push --force-unknown origin HEAD" } })
     Assert-Deny "command guard fails closed on unknown force-like push option" $result
+    $remoteDeletionPushCases = @(
+        "git push --delete origin main",
+        "git push origin --delete main",
+        "git push origin -d main",
+        "git push -vd origin main",
+        "git push origin -dv main",
+        "git push --prune origin",
+        "git push origin --prune",
+        "git push origin :refs/heads/main"
+    )
+    foreach ($remoteDeletionPush in $remoteDeletionPushCases) {
+        $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = $remoteDeletionPush } })
+        Assert-Deny ("command guard denies remote deletion push: " + $remoteDeletionPush) $result
+    }
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = "git push origin main" } })
+    Assert-NoDecision "command guard allows ordinary push" $result
     $normalizedDangerCases = @(
         '"C:\Program Files\Git\cmd\git.exe" reset --hard HEAD',
         "/usr/bin/rm -rf build",

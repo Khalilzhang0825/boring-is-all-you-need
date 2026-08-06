@@ -2,7 +2,7 @@
 
 `install.ps1` is both the asset installer and the Codex managed-Hook activator in V2.
 
-> Run installation from an ordinary PowerShell window outside Codex Desktop. Do not use **Run as administrator**. If the current Codex task uses `[windows] sandbox = "elevated"`, leave that task terminal and open PowerShell normally from the Windows Start menu.
+> Installation supports both ordinary and administrator PowerShell, including a Codex task using `[windows] sandbox = "elevated"`. The scripts use the current token as-is and do not request UAC, change ACLs, or take ownership.
 
 ## Dry-run
 
@@ -10,7 +10,7 @@ Run without `-Apply`. Review every destination and conflict. Dry-run makes zero 
 
 ## Authorized transaction
 
-`-Apply` permits a fresh install. `-Apply -ReplaceExistingWorkflow` additionally permits replacement of differing existing targets and `core.hooksPath`. Both commands must run from an ordinary, non-elevated PowerShell session; elevated Apply is rejected before migration writes.
+`-Apply` permits a fresh install. `-Apply -ReplaceExistingWorkflow` additionally permits replacement of differing existing targets and `core.hooksPath`. Both commands support ordinary and elevated PowerShell sessions.
 
 The installed global Hook runs the Boring Is All You Need guard first and then chains an executable repository-local `.git/hooks/pre-commit`. A different pre-existing global `core.hooksPath` remains an explicit replacement conflict and is restored only through the reviewed migration receipt.
 
@@ -20,7 +20,7 @@ During `-ReplaceExistingWorkflow`, the versioned `manifests/v1-codex-owned-files
 
 ## Receipt recovery and rollback
 
-Run the installed rollback executable with the receipt printed by the installation, and add `-Apply` only after reviewing its dry-run plan. If a hard stop occurred before that copy was installed, use `tools\rollback.ps1` from the same verified extracted release package. Never elevate rollback. It accepts `applying` mixed state only when every target and `core.hooksPath` is exactly original or exactly post-install; any third state, receipt drift, or snapshot drift fails closed with zero writes.
+Run the installed rollback executable with the receipt printed by the installation, and add `-Apply` only after reviewing its dry-run plan. If a hard stop occurred before that copy was installed, use `tools\rollback.ps1` from the same verified extracted release package. Rollback supports both ordinary and administrator PowerShell. It accepts `applying` mixed state only when every target and `core.hooksPath` is exactly original or exactly post-install; any third state, receipt drift, or snapshot drift fails closed with zero writes.
 
 Here, exact target state means managed-file byte content and existence plus the recorded Git value/config bytes. ACLs, owners, file attributes, timestamps, and alternate data streams are outside the snapshot contract.
 
@@ -31,7 +31,7 @@ do not edit them or retry blindly.
 
 ## Managed configuration
 
-The default active target is `%ProgramData%\OpenAI\Codex\requirements.toml`. This release supports it only when the current non-elevated user token can update it; administrator-locked installations are reported as unsupported. Tests may use isolated custom paths under fixture mode.
+The default active target is `%ProgramData%\OpenAI\Codex\requirements.toml`. The active ordinary or elevated token must be able to update it. Tests may use isolated custom paths under fixture mode.
 
 ## Live acceptance
 

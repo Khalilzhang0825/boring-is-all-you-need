@@ -169,6 +169,40 @@ function Get-ScriptFunctionMap {
     return $map
 }
 
+function Invoke-ProductionMutexAclProbe {
+    param([string]$ScriptPath)
+    $runtimeFunctions = Get-ScriptFunctionMap -Path (Join-Path $PSScriptRoot "migration-runtime.ps1")
+    $scriptFunctions = Get-ScriptFunctionMap -Path $ScriptPath
+    if (-not $runtimeFunctions.ContainsKey("Test-IsProcessElevated") -or
+        -not $runtimeFunctions.ContainsKey("Get-Sha256Text") -or
+        -not $scriptFunctions.ContainsKey("Assert-SteadyAgentMigrationMutexSecurity") -or
+        -not $scriptFunctions.ContainsKey("New-SteadyAgentMigrationMutex")) {
+        throw "Production mutex probe could not locate the reviewed function definitions."
+    }
+    . ([ScriptBlock]::Create($runtimeFunctions["Test-IsProcessElevated"]))
+    . ([ScriptBlock]::Create($runtimeFunctions["Get-Sha256Text"]))
+    . ([ScriptBlock]::Create($scriptFunctions["Assert-SteadyAgentMigrationMutexSecurity"]))
+    . ([ScriptBlock]::Create($scriptFunctions["New-SteadyAgentMigrationMutex"]))
+    $mutex = New-SteadyAgentMigrationMutex -TestRoot $null
+    $acquired = $false
+    try {
+        $acquired = $mutex.WaitOne(0)
+        if (-not $acquired) {
+            throw "Production mutex probe could not acquire the machine-wide mutex."
+        }
+    }
+    finally {
+        if ($acquired) { $mutex.ReleaseMutex() }
+        if ($null -ne $mutex) { $mutex.Dispose() }
+    }
+}
+
+function Test-ActualProcessElevation {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
 function Test-MigrationRuntimeRefactorContract {
     $runtimePath = Join-Path $PSScriptRoot "migration-runtime.ps1"
     $installPath = Join-Path $PSScriptRoot "install.ps1"
@@ -1177,7 +1211,7 @@ try {
     $dryCase = Join-Path $fixtureRoot "dry"
     $dry = Invoke-Installer -CaseRoot $dryCase
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
-    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]0 migration") $dry.Output
+    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]1 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
     Assert-True "dry-run reports zero target config state writes rather than zero filesystem writes" (
         $dry.Output -match "0 target/config/backup/receipt/state writes" -and
@@ -1211,18 +1245,41 @@ try {
         -CaseRoot $simulatedElevatedInstallCase `
         -Apply `
         -TestAsElevated
-    Assert-True "simulated elevated install apply fails closed" (
-        $simulatedElevatedInstall.ExitCode -ne 0 -and
-        $simulatedElevatedInstall.Output -match "non-elevated PowerShell session" -and
-        $simulatedElevatedInstall.Output -match "outside Codex Desktop" -and
-        $simulatedElevatedInstall.Output -match '\[windows\] sandbox = "elevated"' -and
-        $simulatedElevatedInstall.Output -match "Run as administrator"
+    Assert-True "simulated elevated install apply succeeds" (
+        $simulatedElevatedInstall.ExitCode -eq 0
     ) $simulatedElevatedInstall.Output
-    Assert-True "simulated elevated install apply performs zero case writes" (
+    $simulatedElevatedInstallAfter = Get-ManagedSurfaceFingerprint `
+        -Roots @($simulatedElevatedInstallCase) `
+        -Files @()
+    Assert-True "simulated elevated install apply writes the managed surface" (
+        $simulatedElevatedInstallAfter -ne $simulatedElevatedInstallBefore
+    ) $simulatedElevatedInstall.Output
+    $simulatedElevatedRollbackDryRun = Invoke-ReceiptRollback `
+        -InstallResult $simulatedElevatedInstall `
+        -DryRun `
+        -TestAsElevated
+    Assert-True "simulated elevated rollback dry-run succeeds" (
+        $simulatedElevatedRollbackDryRun.ExitCode -eq 0
+    ) $simulatedElevatedRollbackDryRun.Output
+    Assert-True "simulated elevated rollback dry-run performs zero case writes" (
         (Get-ManagedSurfaceFingerprint `
             -Roots @($simulatedElevatedInstallCase) `
-            -Files @()) -eq $simulatedElevatedInstallBefore
-    ) $simulatedElevatedInstall.Output
+            -Files @()) -eq $simulatedElevatedInstallAfter
+    ) $simulatedElevatedRollbackDryRun.Output
+    $simulatedElevatedRollbackApply = Invoke-ReceiptRollback `
+        -InstallResult $simulatedElevatedInstall `
+        -TestAsElevated
+    Assert-True "simulated elevated rollback apply succeeds" (
+        $simulatedElevatedRollbackApply.ExitCode -eq 0
+    ) $simulatedElevatedRollbackApply.Output
+    Assert-True "simulated elevated rollback restores all managed destinations" (
+        (Get-Content -Raw -LiteralPath (Join-Path $simulatedElevatedInstallCase "sentinel.txt")) -eq
+            "must-not-change" -and
+        -not (Test-Path -LiteralPath $simulatedElevatedInstall.TargetRoot) -and
+        -not (Test-Path -LiteralPath $simulatedElevatedInstall.CodexHome) -and
+        -not (Test-Path -LiteralPath $simulatedElevatedInstall.ManagedPath) -and
+        -not (Test-Path -LiteralPath $simulatedElevatedInstall.GitConfigPath)
+    ) $simulatedElevatedRollbackApply.Output
 
     $snapshotFailureCase = Join-Path $fixtureRoot "pre-receipt-snapshot-failure"
     $snapshotFailureCodex = Join-Path $snapshotFailureCase "codex"
@@ -1770,7 +1827,7 @@ try {
     $midCrashDryRun = Invoke-ReceiptRollback -InstallResult $midCrash -DryRun
     Assert-True "applying receipt rollback dry-run succeeds" (
         $midCrashDryRun.ExitCode -eq 0 -and
-        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]0 rollback"
+        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]1 rollback"
     ) $midCrashDryRun.Output
     Assert-True "applying receipt rollback dry-run performs zero writes" (
         (Get-ManagedSurfaceFingerprint `
@@ -2135,16 +2192,31 @@ try {
         $installerSource -match "AreAccessRulesProtected" -and
         $rollbackSource -match "AreAccessRulesProtected"
     )
-    Assert-True "production migration rejects elevation outside the exact GitHub fixture contract" (
-        $installerSource -match "non-elevated PowerShell session" -and
-        $installerSource -match [regex]::Escape('$TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)') -and
-        $installerSource -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
-        $installerSource -match 'GITHUB_ACTIONS' -and $installerSource -match 'RUNNER_OS' -and
-        $rollbackSource -match "non-elevated PowerShell process" -and
-        $rollbackSource -match [regex]::Escape('$TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)') -and
-        $rollbackSource -match 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
-        $rollbackSource -match 'GITHUB_ACTIONS' -and $rollbackSource -match 'RUNNER_OS'
+    Assert-True "production migration permits elevated install and rollback" (
+        $installerSource -notmatch "non-elevated PowerShell session" -and
+        $installerSource -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
+        $rollbackSource -notmatch "non-elevated PowerShell process" -and
+        $rollbackSource -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
+    $elevatedCiProbePassed = $true
+    $elevatedCiProbeDetail = "Skipped outside GitHub Actions; windows-latest runs this against its actual token."
+    if ($env:GITHUB_ACTIONS -eq "true" -and $env:RUNNER_OS -eq "Windows") {
+        try {
+            if (-not (Test-ActualProcessElevation)) {
+                throw "GitHub Actions Windows process is not actually elevated."
+            }
+            Invoke-ProductionMutexAclProbe -ScriptPath $installer
+            Invoke-ProductionMutexAclProbe -ScriptPath (Join-Path $PSScriptRoot "rollback.ps1")
+            $elevatedCiProbeDetail = "Both production mutex ACL paths succeeded under the actual elevated CI token."
+        }
+        catch {
+            $elevatedCiProbePassed = $false
+            $elevatedCiProbeDetail = $_.Exception.Message
+        }
+    }
+    Assert-True "elevated CI probes both production mutex ACL paths" `
+        $elevatedCiProbePassed `
+        $elevatedCiProbeDetail
     Assert-True "production migration exposes no protected recovery capsule entry point" (
         $installerSource -notmatch "AcknowledgeTrustedElevationSession|RequireProtectedRecovery|RecoveryRoot|TestRecoverySddl|InjectProtectedReceipt|SteadyAgent\\recovery|Protected recovery receipt|recovery capsule" -and
         $rollbackSource -notmatch "AcknowledgeTrustedElevationSession|RequireProtectedRecovery|RecoveryRoot|TestRecoverySddl|InjectProtectedReceipt|SteadyAgent\\recovery|Protected recovery receipt|recovery capsule"
@@ -2474,32 +2546,6 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
         (Get-ManagedSurfaceFingerprint -Roots @($freshCase) -Files @()) -eq
             $freshBeforeOutsideRollback
     ) $outsideRollbackTool.Output
-    $simulatedElevatedRollbackBefore = Get-ManagedSurfaceFingerprint `
-        -Roots @($freshCase) `
-        -Files @()
-    $simulatedElevatedRollbackApply = Invoke-ReceiptRollback `
-        -InstallResult $fresh `
-        -TestAsElevated
-    Assert-True "simulated elevated rollback apply fails closed" (
-        $simulatedElevatedRollbackApply.ExitCode -ne 0 -and
-        $simulatedElevatedRollbackApply.Output -match "non-elevated PowerShell process"
-    ) $simulatedElevatedRollbackApply.Output
-    Assert-True "simulated elevated rollback apply performs zero case writes" (
-        (Get-ManagedSurfaceFingerprint -Roots @($freshCase) -Files @()) -eq
-            $simulatedElevatedRollbackBefore
-    ) $simulatedElevatedRollbackApply.Output
-    $simulatedElevatedRollbackDryRun = Invoke-ReceiptRollback `
-        -InstallResult $fresh `
-        -DryRun `
-        -TestAsElevated
-    Assert-True "simulated elevated rollback dry-run fails closed" (
-        $simulatedElevatedRollbackDryRun.ExitCode -ne 0 -and
-        $simulatedElevatedRollbackDryRun.Output -match "non-elevated PowerShell process"
-    ) $simulatedElevatedRollbackDryRun.Output
-    Assert-True "simulated elevated rollback dry-run performs zero case writes" (
-        (Get-ManagedSurfaceFingerprint -Roots @($freshCase) -Files @()) -eq
-            $simulatedElevatedRollbackBefore
-    ) $simulatedElevatedRollbackDryRun.Output
     if (Test-Path -LiteralPath $fresh.ManagedPath) {
         $managed = [IO.File]::ReadAllText($fresh.ManagedPath, [Text.Encoding]::UTF8)
         $blockCount = ([regex]::Matches($managed, '(?m)^\[\[hooks[.][A-Za-z]+[.]hooks\]\]$')).Count
@@ -2948,7 +2994,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 param([string]`$ReceiptPath, [string]`$GitConfigPath)
 [IO.File]::WriteAllText('$escapedRollbackSentinel', 'executed', [Text.Encoding]::UTF8)
 Write-Host 'STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0'
-Write-Host 'DRY-RUN Boring Is All You Need v2.0.0 rollback: 80 files; 0 writes.'
+Write-Host 'DRY-RUN Boring Is All You Need v2.0.1 rollback: 80 files; 0 writes.'
 exit 0
 "@
     [IO.File]::WriteAllText(
@@ -4191,16 +4237,17 @@ exit 0
         "migration mutex excludes unrelated authenticated users",
         "unavailable machine-wide migration mutex fails closed",
         "rollback fails closed when the machine-wide mutex is unavailable",
-        "production migration rejects elevation outside the exact GitHub fixture contract",
+        "production migration permits elevated install and rollback",
+        "elevated CI probes both production mutex ACL paths",
         "production migration exposes no protected recovery capsule entry point",
-        "simulated elevated install apply fails closed",
-        "simulated elevated install apply performs zero case writes",
+        "simulated elevated install apply succeeds",
+        "simulated elevated install apply writes the managed surface",
+        "simulated elevated rollback dry-run succeeds",
+        "simulated elevated rollback dry-run performs zero case writes",
+        "simulated elevated rollback apply succeeds",
+        "simulated elevated rollback restores all managed destinations",
         "pre-receipt snapshot failure exits before target writes",
         "pre-receipt snapshot failure removes its orphan backup",
-        "simulated elevated rollback apply fails closed",
-        "simulated elevated rollback apply performs zero case writes",
-        "simulated elevated rollback dry-run fails closed",
-        "simulated elevated rollback dry-run performs zero case writes",
         "test rollback requires its tool inside STEADYAGENT_TEST_ROOT",
         "non-elevated custom fixture uses its reviewed backup receipt",
         "second Apply reports already installed",

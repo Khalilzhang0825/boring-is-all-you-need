@@ -6,7 +6,7 @@
 
 **Make agent work boring. Ship with evidence, not vibes.**
 
-Boring Is All You Need `v2.0.0` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
+Boring Is All You Need `v2.0.1` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
 
 “Boring” is the feature. An agent should not improvise permissions, silently broaden scope, declare success from vibes, or leave a half-applied workflow behind. This project turns those decisions into deterministic scripts, receipts, hashes, rollback paths, and release gates.
 
@@ -31,7 +31,7 @@ This is not a bigger prompt that asks Codex to “be careful.” It is a small e
 | Advantage | Why it is practical |
 | --- | --- |
 | **Lightweight by design** | The live path contains only three Hook blocks. A matched tool event starts one unified guard process, SessionStart stays below an 800-character ceiling, and heavyweight equivalence/release tests never run during ordinary prompts. |
-| **Safe by default** | Install and rollback preview before writing, elevated execution is refused, nested command/file inputs are inspected, relevant unknown payloads fail closed, and destructive or external actions still require authority. |
+| **Safe by default** | Install and rollback preview before writing, both ordinary and elevated PowerShell are supported, nested command/file inputs are inspected, relevant unknown payloads fail closed, and destructive or external actions still require authority. |
 | **Non-invasive** | The workflow preserves unrelated and untracked files, refuses to absorb an existing staged index into a checkpoint, commits explicit paths, and chains an existing executable repository-local pre-commit Hook. |
 | **Recoverable** | Migration snapshots, a durable receipt, atomic replacement, a rollback journal, and exact before/after hashes turn a partial install or hard stop into a classified recovery problem instead of guesswork. |
 | **Evidence-driven** | “Implemented,” “tests passed,” “pushed,” and “Live after restart” are separate states. The harness asks for a reproduction or red check, the narrowest green check, and concrete Git/runtime evidence before claiming the corresponding result. |
@@ -95,9 +95,9 @@ The daily runtime remains deliberately small: one unified `PreToolUse` PowerShel
 
 These are local committed-state results, not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
 
-GitHub-hosted Windows runners execute with an administrator token. The test workflows therefore expose one CI-only fixture allowance, accepted only when `STEADYAGENT_TEST_MODE=1`, the strict isolated system-temp test root is valid, and GitHub's `GITHUB_ACTIONS`/`RUNNER_OS` signals are present. Production install and rollback invocations still refuse elevation before managed writes.
+GitHub-hosted Windows runners execute with an administrator token. Install, rollback, and CI fixtures therefore exercise the same supported elevated-token path; isolated custom fixture roots still require `STEADYAGENT_TEST_MODE=1` and a strict system-temp test root.
 
-## What changed in 2.0.0
+## What changed in 2.0.1
 
 - Codex Desktop is the only supported host.
 - The runtime is reduced to exactly three managed hook blocks: one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact`.
@@ -109,7 +109,7 @@ GitHub-hosted Windows runners execute with an administrator token. The test work
 - The checkpoint CLI retains the maintainer workflow's deliberate `-All` option for a human-approved initial checkpoint; the Codex command guard still blocks agents from blanket staging.
 - Installation and V1 migration are transactional: preview, conflict detection, backup, atomic apply, verification, receipt, and rollback.
 - The loaded installer anchors a canonical 52-source `package-assets.sha256` manifest and installs only the once-read bytes that match it.
-- Apply and rollback deliberately refuse an elevated token. All migration I/O runs with the current user's ordinary token, so the installer never turns a same-user path race into an administrator write.
+- Apply and rollback support either an ordinary or elevated token. They use only the token that launched them and never request UAC, change ACLs, or take ownership.
 - A versioned V1-owned-file manifest removes the old Codex release surface during authorized replacement and restores it from the same receipt if rolled back.
 - A frozen 23-item equivalence manifest maps every Codex-active capability in the maintainer's reviewed local postimage to a portable public source and installed destination. The local Hook smoke item separately freezes 65 retained assertions and eight explicit Claude or removed-event exclusions; it is scoped equivalence, not a claim that V2 republishes the excluded V1 surfaces.
 - Thread-bound skill indexing and search are included without publishing the maintainer's runtime catalog, session IDs, or private paths.
@@ -129,38 +129,38 @@ The public product and repository are Boring Is All You Need. The installed root
 
 ## Verify the release before running it
 
-The supported release input is the `boring-is-all-you-need-v2.0.0.zip` asset attached to the GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v2.0.0` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
+The supported release input is the `boring-is-all-you-need-v2.0.1.zip` asset attached to the GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v2.0.1` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
 
 Download the archive, checksum, and machine-readable provenance assets, then run this copyable verification before extracting or running `install.ps1`:
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.0 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
+gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.1 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    [string]$Provenance.releaseTag -cne "v2.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.0 `
+  --source-ref refs/tags/v2.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
-Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
+Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -170,7 +170,7 @@ This requires a current [GitHub CLI](https://cli.github.com/), an authenticated 
 
 ## Safety first
 
-> **Installation environment:** run the commands below from a new ordinary PowerShell window opened outside Codex Desktop. Do not use **Run as administrator**. If a Codex task uses `[windows] sandbox = "elevated"`, do not run the installer from that task's terminal; open PowerShell normally from the Windows Start menu and rerun the reviewed command from the extracted release directory.
+> **Installation environment:** the commands below support both ordinary and administrator PowerShell, including Codex tasks configured with `[windows] sandbox = "elevated"`. The scripts do not request UAC, change ACLs, or take ownership; the active token must already be able to update every destination.
 
 The installer is dry-run by default:
 
@@ -192,7 +192,7 @@ To replace an existing legacy SteadyAgent v1 or custom Codex workflow:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-Run these commands from an ordinary, non-elevated PowerShell window. Boring Is All You Need refuses elevated Apply and rollback before any migration write. The default managed configuration is supported only when the current user token can update it; a machine with an administrator-locked `%ProgramData%\OpenAI\Codex\requirements.toml` is reported as unsupported instead of triggering UAC, changing ACLs, or taking ownership. `managed` describes the Codex configuration mechanism, not protection against malicious software running as the same user.
+Run these commands from either ordinary or administrator PowerShell. Boring Is All You Need no longer rejects an elevated Apply or rollback. The scripts still never trigger UAC, change ACLs, or take ownership, so the active token must already be able to update `%ProgramData%\OpenAI\Codex\requirements.toml` and the other planned destinations. `managed` describes the Codex configuration mechanism, not protection against malicious software running as the same user.
 
 The installer:
 
@@ -218,11 +218,11 @@ $ReceiptPath = Read-Host "Paste the exact path printed after 'Recovery receipt:'
 if ([string]::IsNullOrWhiteSpace($ReceiptPath) -or -not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) { throw "The printed recovery receipt path is invalid." }
 $ReceiptPath = [IO.Path]::GetFullPath($ReceiptPath)
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
-# After reviewing the preview, run from the same non-elevated user session:
+# After reviewing the preview, run from the same PowerShell session:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-Do not elevate rollback. If the process was hard-stopped before the installed rollback copy existed, run `tools\rollback.ps1` from the same verified extracted release package instead; the `applying` receipt binds that script's exact installed hash. Rollback classifies every target and the active Git Hook path as exact original or exact post-install state before writing. Any third state, receipt drift, or snapshot drift stops with zero writes; a valid mixed state transactionally restores managed-file byte content and existence plus the recorded `core.hooksPath` value and fixture Git-config bytes. The migration does not capture or restore ACLs, owners, file attributes, timestamps, or alternate data streams.
+Rollback may run from either an ordinary or administrator PowerShell session. If the process was hard-stopped before the installed rollback copy existed, run `tools\rollback.ps1` from the same verified extracted release package instead; the `applying` receipt binds that script's exact installed hash. Rollback classifies every target and the active Git Hook path as exact original or exact post-install state before writing. Any third state, receipt drift, or snapshot drift stops with zero writes; a valid mixed state transactionally restores managed-file byte content and existence plus the recorded `core.hooksPath` value and fixture Git-config bytes. The migration does not capture or restore ACLs, owners, file attributes, timestamps, or alternate data streams.
 
 Rollback publishes a durable `rollback-journal.json` before its first file or
 Git change, so a hard stop can resume or compensate deterministically. If it

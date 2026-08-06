@@ -119,19 +119,6 @@ if (($InjectTargetMutationPath -or $InjectSnapshotMutationPath -or $InjectMutexF
 
 
 $testMode = $env:STEADYAGENT_TEST_MODE -eq "1"
-$allowElevatedFixture = (
-    $testMode -and
-    $env:STEADYAGENT_ALLOW_ELEVATED_FIXTURE -eq "1" -and
-    $env:GITHUB_ACTIONS -eq "true" -and
-    $env:RUNNER_OS -eq "Windows"
-)
-$isProcessElevated = Test-IsProcessElevated
-if ($TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)) {
-    throw (
-        "Rollback requires a non-elevated PowerShell process. " +
-        "No receipt, snapshot, or target content was read and no writes were made."
-    )
-}
 
 
 
@@ -336,7 +323,7 @@ function Get-ReceiptOperationProjection {
 
 
 
-# Intentionally local: rollback accepts only the non-elevated transaction-rights ACL shape.
+# Intentionally local: rollback validates the transaction-rights ACL shape before recovery writes.
 function Assert-SteadyAgentMigrationMutexSecurity {
     param(
         [Threading.Mutex]$Mutex,
@@ -397,7 +384,7 @@ function Assert-SteadyAgentMigrationMutexSecurity {
     }
 }
 
-# Intentionally local: rollback always grants the non-elevated caller transaction rights.
+# Intentionally local: rollback grants the active caller transaction rights.
 function New-SteadyAgentMigrationMutex {
     param([AllowNull()][string]$TestRoot)
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
@@ -647,7 +634,7 @@ $extraReceiptProperties = @($actualReceiptProperties | Where-Object {
 if ($missingReceiptProperties.Count -gt 0 -or $extraReceiptProperties.Count -gt 0) {
     throw "Receipt schema properties do not match the frozen V2 contract."
 }
-if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "2.0.0") {
+if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "2.0.1") {
     throw "Unsupported migration receipt."
 }
 $receiptStatus = [string]$receipt.status
@@ -1211,7 +1198,7 @@ if (-not $Apply) {
         @($dryRunClassification.PendingPaths).Count -eq 0) {
         Write-Host "STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0"
     }
-    Write-Host ("DRY-RUN Boring Is All You Need v2.0.0 rollback: {0} files; 0 writes." -f $validated.Count)
+    Write-Host ("DRY-RUN Boring Is All You Need v2.0.1 rollback: {0} files; 0 writes." -f $validated.Count)
     foreach ($pendingPath in @($dryRunClassification.PendingPaths)) {
         Write-Host ("PENDING BOUND RECOVERY " + $pendingPath)
     }
@@ -1894,7 +1881,7 @@ try {
             -ExpectedCurrentSHA256 $ownedActivePointer.SHA256 | Out-Null
         $activePointerReleasedDurably = $true
     }
-    Write-Host ("[OK] Boring Is All You Need v2.0.0 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
+    Write-Host ("[OK] Boring Is All You Need v2.0.1 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
     exit 0
 }
 catch {

@@ -11,31 +11,31 @@ Release workflow 将 build/validation、attestation 与 draft 创建拆为三个
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.0.provenance.json | ConvertFrom-Json
+gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.1 release assets。" }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.0" -or
+    [string]$Provenance.releaseTag -cne "v2.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.0 `
+  --source-ref refs/tags/v2.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\boring-is-all-you-need-v2.0.0.zip .\boring-is-all-you-need-v2.0.0-release
-Set-Location .\boring-is-all-you-need-v2.0.0-release\boring-is-all-you-need-v2.0.0
+Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
+Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
 ```
 
 若 GitHub CLI 不提供 `attestation verify`、provenance 字段未绑定 reviewed commit 与 archive digest、来源验证失败或 checksum 不同，立即停止。
@@ -50,7 +50,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 
 ## 3. 预览
 
-> **运行环境：** 请在 Codex Desktop 外部打开普通 PowerShell，不要选择“以管理员身份运行”。配置了 `[windows] sandbox = "elevated"` 的 Codex 任务终端不支持安装；请从 Windows 开始菜单正常打开 PowerShell。
+> **运行环境：** 可以使用普通或管理员 PowerShell，也支持配置了 `[windows] sandbox = "elevated"` 的 Codex 任务。当前 token 必须已经能够更新全部目标。
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
@@ -72,7 +72,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -App
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-请使用普通、非管理员 PowerShell。Apply 与 rollback 会拒绝提权 token。若当前用户无法更新默认 `%ProgramData%\OpenAI\Codex\requirements.toml`，此版本会明确报告机器 unsupported，不会请求提权或修改 ACL。
+可以使用普通或管理员 PowerShell。Apply 与 rollback 接受提权 token，但不会主动请求 UAC、修改 ACL 或接管 owner。当前 token 必须能够更新默认 `%ProgramData%\OpenAI\Codex\requirements.toml`。
 
 ## 5. 重启并诊断
 
@@ -92,7 +92,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\
 
 ## 6. 必要时回滚
 
-使用安装后的 rollback 工具，以及安装器在首次目标写入前输出的收据。先预览，再在同一非提权用户会话中 Apply：
+使用安装后的 rollback 工具，以及安装器在首次目标写入前输出的收据。先预览，再在普通或管理员 PowerShell 中 Apply：
 
 ```powershell
 $ReceiptPath = Read-Host "粘贴 install.ps1 在 'Recovery receipt:' 后输出的精确路径"
@@ -102,7 +102,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tool
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$HOME\.steadyagent\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 ```
 
-不要提权运行 rollback。若安装过程很早就被强制中止，安装后副本可能尚不存在；请使用同一个已验证解压包中的 `tools\rollback.ps1`。精确原态/安装后态组成的混合状态可以恢复；第三种目标状态、快照漂移、收据漂移或未知 Git Hook 状态会在写入前停止。
+rollback 可以在普通或管理员 PowerShell 中运行。若安装过程很早就被强制中止，安装后副本可能尚不存在；请使用同一个已验证解压包中的 `tools\rollback.ps1`。精确原态/安装后态组成的混合状态可以恢复；第三种目标状态、快照漂移、收据漂移或未知 Git Hook 状态会在写入前停止。
 
 rollback 会在首次受控写入前发布 `rollback-journal.json`。若退出码为 3 或
 报告 `rollback_incomplete`，保留全部收据、备份、journal、目标和 Git
