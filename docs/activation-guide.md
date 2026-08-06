@@ -2,6 +2,8 @@
 
 `install.ps1` is both the asset installer and the Codex managed-Hook activator in V2.
 
+> Run installation from an ordinary PowerShell window outside Codex Desktop. Do not use **Run as administrator**. If the current Codex task uses `[windows] sandbox = "elevated"`, leave that task terminal and open PowerShell normally from the Windows Start menu.
+
 ## Dry-run
 
 Run without `-Apply`. Review every destination and conflict. Dry-run makes zero target, config, backup, receipt, or state writes. It renders into an ephemeral system-temp staging directory that is removed on normal exit; an interrupted process can leave only that staging directory behind.

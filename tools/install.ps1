@@ -103,7 +103,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "2.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "CCF2A93C93929C1A111476F225CE86EF885B69E491C0F31B881A88074C6CB914"
+$expectedPackageManifestSha256 = "7E0D7E4FD30811947B8A4B772B2089960AFE3B4D69C4E4B89AE5371C34FA6143"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -861,7 +861,10 @@ $isProcessElevated = Test-IsProcessElevated
 if ($TestAsElevated -or ($isProcessElevated -and -not $allowElevatedFixture)) {
     throw (
         "Boring Is All You Need install planning and apply must run from a non-elevated PowerShell session. " +
-        "Close this administrator session and re-run the reviewed command without elevation."
+        "Close this administrator session. Open PowerShell normally from the Windows Start menu outside Codex Desktop; " +
+        "do not use Run as administrator. If the current Codex task uses " +
+        '[windows] sandbox = "elevated", do not run the installer from that task terminal. ' +
+        "Re-run the reviewed command from the extracted release directory."
     )
 }
 if (-not $isTestMode) {

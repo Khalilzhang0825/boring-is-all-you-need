@@ -541,6 +541,34 @@ Assert-True "ordinary-user archive verification selects the quick integrity-only
         $_ -match '(?i)(full|完整).*(gate|suite|门|套件)'
     }).Count -eq $ordinaryUserDocs.Count
 )
+Assert-True "ordinary-user docs warn before install commands about elevated Codex terminals" (
+    @($ordinaryUserDocs | Where-Object {
+        $warningIndex = $_.IndexOf('[windows] sandbox = "elevated"', [StringComparison]::Ordinal)
+        $installIndex = $_.IndexOf(
+            'powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1',
+            [StringComparison]::Ordinal
+        )
+        $warningIndex -ge 0 -and $installIndex -ge 0 -and $warningIndex -lt $installIndex
+    }).Count -eq $ordinaryUserDocs.Count
+)
+$releaseNotesText = [IO.File]::ReadAllText(
+    (Join-Path $root "RELEASE_NOTES.md"),
+    [Text.Encoding]::UTF8
+)
+Assert-True "release notes lead with the non-elevated external PowerShell requirement" (
+    $releaseNotesText.IndexOf('[windows] sandbox = "elevated"', [StringComparison]::Ordinal) -gt 0 -and
+    $releaseNotesText.IndexOf('[windows] sandbox = "elevated"', [StringComparison]::Ordinal) -lt
+        $releaseNotesText.IndexOf('- replaces', [StringComparison]::Ordinal)
+)
+$installerText = [IO.File]::ReadAllText(
+    (Join-Path $root "tools\install.ps1"),
+    [Text.Encoding]::UTF8
+)
+Assert-True "elevated installer refusal names the external recovery path" (
+    $installerText -match 'outside Codex Desktop' -and
+    $installerText -match '\[windows\] sandbox = "elevated"' -and
+    $installerText -match 'Do not use Run as administrator'
+)
 Assert-True "archive validator exposes a bounded integrity-only mode without weakening the default" (
     $archiveValidatorText -match '(?m)^\s*\[switch\]\$IntegrityOnly\s*$' -and
     $archiveValidatorText -match 'MODE integrity-only' -and

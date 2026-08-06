@@ -2,6 +2,8 @@
 
 ## v2.0.0
 
+> **Important installation requirement:** run `install.ps1` from an ordinary PowerShell window opened outside Codex Desktop. Do not use **Run as administrator**. If a Codex task uses `[windows] sandbox = "elevated"`, do not install from that task terminal; open PowerShell normally from the Windows Start menu. Elevated production installation remains intentionally unsupported.
+
 Boring Is All You Need v2.0.0 is the in-place successor to legacy SteadyAgent v1. The existing GitHub repository is renamed rather than replaced, so Stars, Issues, tags, and V1 history remain attached to the same project while the default branch moves to the new Codex-only workflow.
 
 - replaces the dual-host V1 package with a Codex Desktop workflow migration;

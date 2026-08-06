@@ -2,6 +2,8 @@
 
 V2 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
 
+> 请在 Codex Desktop 外部的普通 PowerShell 中安装，不要选择“以管理员身份运行”。如果当前 Codex 任务使用 `[windows] sandbox = "elevated"`，请离开该任务终端，从 Windows 开始菜单正常打开 PowerShell。
+
 ## Dry-run
 
 不带 `-Apply` 运行，检查全部目标和冲突。Dry-run 不写入目标、配置、备份、收据或状态；它只在系统临时目录中渲染 staging，正常退出时会删除，进程被中断时最多留下该 staging 目录。

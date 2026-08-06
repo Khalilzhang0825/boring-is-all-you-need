@@ -50,6 +50,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 
 ## 3. 预览
 
+> **运行环境：** 请在 Codex Desktop 外部打开普通 PowerShell，不要选择“以管理员身份运行”。配置了 `[windows] sandbox = "elevated"` 的 Codex 任务终端不支持安装；请从 Windows 开始菜单正常打开 PowerShell。
+
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```

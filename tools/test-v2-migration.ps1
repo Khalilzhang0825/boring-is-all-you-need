@@ -1213,7 +1213,10 @@ try {
         -TestAsElevated
     Assert-True "simulated elevated install apply fails closed" (
         $simulatedElevatedInstall.ExitCode -ne 0 -and
-        $simulatedElevatedInstall.Output -match "non-elevated PowerShell session"
+        $simulatedElevatedInstall.Output -match "non-elevated PowerShell session" -and
+        $simulatedElevatedInstall.Output -match "outside Codex Desktop" -and
+        $simulatedElevatedInstall.Output -match '\[windows\] sandbox = "elevated"' -and
+        $simulatedElevatedInstall.Output -match "Run as administrator"
     ) $simulatedElevatedInstall.Output
     Assert-True "simulated elevated install apply performs zero case writes" (
         (Get-ManagedSurfaceFingerprint `

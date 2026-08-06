@@ -169,6 +169,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release
 
 ## 安全的一键迁移
 
+> **安装环境：** 请在 Codex Desktop 外部新开一个普通 PowerShell 窗口运行下列命令，不要选择“以管理员身份运行”。如果 Codex 任务配置了 `[windows] sandbox = "elevated"`，不要在该任务终端中安装；请从 Windows 开始菜单正常打开 PowerShell，再进入已解压的发行包目录重跑审阅后的命令。
+
 安装器默认只做 dry-run：
 
 ```powershell

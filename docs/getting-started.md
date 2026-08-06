@@ -50,6 +50,8 @@ This quick integrity-only archive gate does not require `.git`. It checks the re
 
 ## 3. Preview
 
+> **Required shell:** open an ordinary PowerShell window outside Codex Desktop. Do not use **Run as administrator**. A Codex task configured with `[windows] sandbox = "elevated"` is not a supported installation terminal; use PowerShell opened normally from the Windows Start menu.
+
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```

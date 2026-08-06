@@ -170,6 +170,8 @@ This requires a current [GitHub CLI](https://cli.github.com/), an authenticated 
 
 ## Safety first
 
+> **Installation environment:** run the commands below from a new ordinary PowerShell window opened outside Codex Desktop. Do not use **Run as administrator**. If a Codex task uses `[windows] sandbox = "elevated"`, do not run the installer from that task's terminal; open PowerShell normally from the Windows Start menu and rerun the reviewed command from the extracted release directory.
+
 The installer is dry-run by default:
 
 ```powershell
