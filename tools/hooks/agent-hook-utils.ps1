@@ -937,6 +937,36 @@ function Get-RecursiveRemoveItemPathReason {
         }
     }
 
+    $protectedSubtrees = @(
+        $env:ProgramData,
+        $env:ProgramFiles,
+        ${env:ProgramFiles(x86)},
+        $env:SystemRoot
+    )
+    if ($env:USERPROFILE) {
+        $protectedSubtrees += @(
+            (Join-Path $env:USERPROFILE ".codex"),
+            (Join-Path $env:USERPROFILE ".steadyagent"),
+            (Join-Path $env:USERPROFILE ".ssh")
+        )
+    }
+    foreach ($candidate in @($protectedSubtrees | Select-Object -Unique)) {
+        try {
+            if ([string]::IsNullOrWhiteSpace([string]$candidate) -or
+                -not [IO.Path]::IsPathRooted([string]$candidate)) { continue }
+            $protectedFull = [IO.Path]::GetFullPath([string]$candidate).TrimEnd([char[]]@([char]92, [char]47))
+        }
+        catch {
+            continue
+        }
+        if ($trimmedTarget.StartsWith(
+                $protectedFull + [IO.Path]::DirectorySeparatorChar,
+                [StringComparison]::OrdinalIgnoreCase
+            )) {
+            return "Blocked: recursive Remove-Item target is inside a protected system or workflow subtree."
+        }
+    }
+
     $cursor = $fullPath
     while (-not [string]::IsNullOrWhiteSpace($cursor)) {
         if (Test-Path -LiteralPath $cursor) {

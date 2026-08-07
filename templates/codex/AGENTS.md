@@ -31,4 +31,4 @@ Maintain `PROJECT_STATE.md` or `.agent/state.md` for multi-stage work. Before co
 
 ## Host boundary
 
-Boring Is All You Need targets Codex Desktop. Managed hooks provide one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact` reminder. The unified guard checks shell and file-edit leaves in the same parallel wrapper with one PowerShell process. Hooks reduce mistakes but are not a complete security sandbox. Do not change the user's model or reasoning settings.
+Boring Is All You Need targets Codex Desktop. Managed hooks provide one `SessionStart`, one audit-only unified `PreToolUse` inspection, and one `PreCompact` reminder. The unified Hook checks shell and file-edit leaves in the same parallel wrapper with one PowerShell process, records recognized risks best-effort, and never returns a deny decision. Authorization remains in this working contract. Hooks are not a security sandbox. Do not change the user's model or reasoning settings.

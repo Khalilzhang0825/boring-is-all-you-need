@@ -37,7 +37,7 @@ Before its first controlled write, rollback durably records its entering state i
 reconciliation; preserve all receipt, backup, journal, target, and Git evidence
 and do not blindly retry.
 
-`git-checkpoint.ps1` requires an empty real index and either explicit repository-relative `-Files` or a deliberate human-operated `-All`. Both modes stage into an isolated index and quarantined object directory, run the protected-path, staged-blob-size, and pre-commit gates, recheck exact scope and staged objects, and only then publish the required objects, commit, and complete index through compare-and-swap. A blocked pre-publication transaction removes its quarantine without writing candidate objects into the repository object store. The Codex command guard blocks agents from invoking blanket `-All`; it remains available for a human-approved initial checkpoint outside that tool path.
+`git-checkpoint.ps1` requires an empty real index and either explicit repository-relative `-Files` or a deliberate human-operated `-All`. Both modes stage into an isolated index and quarantined object directory, run the protected-path, staged-blob-size, and pre-commit gates, recheck exact scope and staged objects, and only then publish the required objects, commit, and complete index through compare-and-swap. A blocked pre-publication transaction removes its quarantine without writing candidate objects into the repository object store. The standard managed Audit Hook does not authorize blanket `-All`; agents still require an explicit file scope unless a human has deliberately approved the initial all-scope checkpoint.
 
 Checkpoint fault injections require `STEADYAGENT_TEST_MODE=1` plus an existing
 system-temp `STEADYAGENT_TEST_ROOT` named

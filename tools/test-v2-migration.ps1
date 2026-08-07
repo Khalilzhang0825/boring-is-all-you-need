@@ -1223,7 +1223,7 @@ try {
     $dryCase = Join-Path $fixtureRoot "dry"
     $dry = Invoke-Installer -CaseRoot $dryCase
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
-    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]1 migration") $dry.Output
+    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]2 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
     Assert-True "dry-run reports zero target config state writes rather than zero filesystem writes" (
         $dry.Output -match "0 target/config/backup/receipt/state writes" -and
@@ -1839,7 +1839,7 @@ try {
     $midCrashDryRun = Invoke-ReceiptRollback -InstallResult $midCrash -DryRun
     Assert-True "applying receipt rollback dry-run succeeds" (
         $midCrashDryRun.ExitCode -eq 0 -and
-        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]1 rollback"
+        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]2 rollback"
     ) $midCrashDryRun.Output
     Assert-True "applying receipt rollback dry-run performs zero writes" (
         (Get-ManagedSurfaceFingerprint `
@@ -3006,7 +3006,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 param([string]`$ReceiptPath, [string]`$GitConfigPath)
 [IO.File]::WriteAllText('$escapedRollbackSentinel', 'executed', [Text.Encoding]::UTF8)
 Write-Host 'STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0'
-Write-Host 'DRY-RUN Boring Is All You Need v2.0.1 rollback: 80 files; 0 writes.'
+Write-Host 'DRY-RUN Boring Is All You Need v2.0.2 rollback: 80 files; 0 writes.'
 exit 0
 "@
     [IO.File]::WriteAllText(

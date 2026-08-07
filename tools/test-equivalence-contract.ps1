@@ -382,7 +382,7 @@ Check-Policy "policy.safety-authority-live-boundary" (
     $safety -match [regex]::Escape("Never run destructive Git or broad deletion commands by default.") -and
     $safety -match [regex]::Escape("Explicit authorization is required before push, publish, deploy, dependency installation, migration, bulk rename/delete, or external writes.") -and
     $safety -match "not an adversarial sandbox" -and
-    $safety -match "Unknown matched payloads and unknown nested parallel wrappers fail closed" -and
+    $safety -match "Unknown matched payloads and unknown nested parallel wrappers pass without a deny decision in the standard managed Audit mode" -and
     $safety -match "never raw commands, patches, file content, or complete target paths"
 )
 Check-Policy "policy.guide-runtime-recovery-evidence" (

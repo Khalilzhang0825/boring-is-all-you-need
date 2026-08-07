@@ -100,10 +100,10 @@ foreach ($migrationRuntimeCommand in @(
         throw "Migration runtime did not load its frozen primitive set; no migration writes were made."
     }
 }
-$version = "2.0.1"
+$version = "2.0.2"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "DEE6576D6B2C4016E89F9520C23AA1078346CDD416B6DAD7722D6DFAEEA7CFEB"
+$expectedPackageManifestSha256 = "9BD2762CF0AC01B091C3436F0548F7B25574E05EF049425E579775780CED736A"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -1178,7 +1178,7 @@ try {
             -not $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
             $conflicts += ("Git core.hooksPath=" + $gitHooksBefore)
         }
-        Write-Host "DRY-RUN Boring Is All You Need v2.0.1 migration"
+        Write-Host "DRY-RUN Boring Is All You Need v2.0.2 migration"
         Write-Host (
             (
                 "Plan: {0} operations; {1} existing conflict(s); " +
@@ -1277,7 +1277,7 @@ try {
         else {
             Resolve-ActiveAppliedReceipt -TargetRoot $targetFull
         }
-        Write-Host "[OK] Boring Is All You Need v2.0.1 is already installed; no target/config/backup/receipt/state writes."
+        Write-Host "[OK] Boring Is All You Need v2.0.2 is already installed; no target/config/backup/receipt/state writes."
         Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $activeReceiptPath
         exit 0
     }

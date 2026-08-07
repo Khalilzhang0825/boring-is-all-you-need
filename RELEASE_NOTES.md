@@ -1,5 +1,16 @@
 # Release Notes
 
+## v2.0.2
+
+Boring Is All You Need v2.0.2 removes the managed Hook as a second authorization veto while preserving the transactional installer, scoped checkpoint, and release-integrity gates.
+
+- changes the standard managed unified `PreToolUse` invocation to `-EnforcementMode Audit`, so recognized command and file risks are logged best-effort but never return a deny decision;
+- keeps explicit authorization, exact-target verification, scoped checkpointing, protected staged-file checks, and destructive remote-history approval in the agent/user working contract and dedicated write gates;
+- prevents authorized recursive deletion, normal directory rename, ordinary `git push`, and file edits from being rejected by a second Hook policy, including patch payloads whose path cannot be extracted;
+- retains `-EnforcementMode Enforce` as an explicit maintainer opt-in, improves that mode's recursive `Remove-Item` parser for a single absolute literal or a same-command, single-assignment literal variable, and protects system/workflow subtrees without blanket-blocking ordinary Temp children;
+- validates Audit behavior for shell, protected-file, mixed parallel, and incomplete relevant payloads while retaining the direct Enforce regression suite;
+- preserves ordinary and administrator-token installation and rollback support without requesting UAC, changing ACLs, or taking ownership.
+
 ## v2.0.1
 
 Boring Is All You Need v2.0.1 is a compatibility release for Windows users who run Codex or PowerShell with an administrator token.

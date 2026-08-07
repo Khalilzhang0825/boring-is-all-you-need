@@ -634,7 +634,7 @@ $extraReceiptProperties = @($actualReceiptProperties | Where-Object {
 if ($missingReceiptProperties.Count -gt 0 -or $extraReceiptProperties.Count -gt 0) {
     throw "Receipt schema properties do not match the frozen V2 contract."
 }
-if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "2.0.1") {
+if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "2.0.2") {
     throw "Unsupported migration receipt."
 }
 $receiptStatus = [string]$receipt.status
@@ -1198,7 +1198,7 @@ if (-not $Apply) {
         @($dryRunClassification.PendingPaths).Count -eq 0) {
         Write-Host "STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0"
     }
-    Write-Host ("DRY-RUN Boring Is All You Need v2.0.1 rollback: {0} files; 0 writes." -f $validated.Count)
+    Write-Host ("DRY-RUN Boring Is All You Need v2.0.2 rollback: {0} files; 0 writes." -f $validated.Count)
     foreach ($pendingPath in @($dryRunClassification.PendingPaths)) {
         Write-Host ("PENDING BOUND RECOVERY " + $pendingPath)
     }
@@ -1881,7 +1881,7 @@ try {
             -ExpectedCurrentSHA256 $ownedActivePointer.SHA256 | Out-Null
         $activePointerReleasedDurably = $true
     }
-    Write-Host ("[OK] Boring Is All You Need v2.0.1 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
+    Write-Host ("[OK] Boring Is All You Need v2.0.2 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
     exit 0
 }
 catch {

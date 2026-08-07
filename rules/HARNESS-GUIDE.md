@@ -7,12 +7,12 @@ managed configuration.
 ## Runtime layers
 
 1. `%ProgramData%\OpenAI\Codex\requirements.toml` registers exactly three managed
-   Hook blocks: one `SessionStart`, one unified `PreToolUse`, and one `PreCompact`.
+   Hook blocks: one `SessionStart`, one audit-only unified `PreToolUse`, and one `PreCompact`.
 2. `AGENTS.md` provides the short always-on operating contract.
 3. `rules\` contains progressive workflow, verification, review, context,
    safety, and skill-routing rules.
-4. `tools\hooks\` contains deterministic command and file guards, state
-   injection, and compaction reminders.
+4. `tools\hooks\` contains audit-only managed command and file inspection with
+   optional enforcement, state injection, and compaction reminders.
 5. `tools\git-checkpoint.ps1` creates scoped local checkpoint commits through an
    isolated index and explicit file list.
 6. `tools\git-hooks\` provides staged secret and oversized-blob checks.

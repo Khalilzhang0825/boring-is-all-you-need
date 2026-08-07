@@ -6,7 +6,7 @@
 
 **让 Agent 的工作变得无聊：用证据交付，而不是凭感觉相信 AI。**
 
-Boring Is All You Need `v2.0.1` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
+Boring Is All You Need `v2.0.2` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
 
 这里的“无聊”就是功能：Agent 不应临场发明权限、静默扩大范围、凭一句“测试通过”宣布完成，或把工作流留在半迁移状态。本项目把这些决定固化成确定性脚本、收据、哈希、回滚路径与发行门禁。
 
@@ -26,12 +26,12 @@ Boring Is All You Need `v2.0.1` 是面向 Windows 的本地优先 Codex Desktop 
 
 ## 安装后能带来什么实质变化
 
-它不是一段更长的提示词，也不是只要求 Codex“认真一点”。它是在 Codex 原有工作外侧增加一层小而确定的执行约束。
+它不是一段更长的提示词，也不是只要求 Codex“认真一点”。它是在 Codex 原有工作外侧增加一层小而确定的执行与证据闭环。
 
 | 优势 | 为什么有实际价值 |
 | --- | --- |
 | **足够轻量** | 日常热路径只有 3 个 Hook block；一次匹配事件只启动一个统一 guard 进程；SessionStart 有 800 字符硬上限；重型等价与发行测试不会在普通对话中运行。 |
-| **默认安全** | 安装和回滚先预览再写入；支持普通与管理员 token；递归检查嵌套 command/file 输入；相关 payload 无法理解时 fail closed；破坏性或外部操作仍需明确授权。 |
+| **由用户授权，不被二次否决** | 安装和回滚先预览再写入；支持普通与管理员 token；递归检查嵌套 command/file 输入并尽力审计，但 Hook 不返回 deny；破坏性或外部操作仍须在工作合同中明确授权。 |
 | **不打扰已有工作** | 保护无关与 untracked 文件；不会把用户已经 staged 的内容混进 checkpoint；只提交显式路径；已有可执行仓库级 pre-commit Hook 会被链接执行，而不是静默覆盖。 |
 | **可恢复** | 迁移快照、durable receipt、原子替换、rollback journal 和前后态哈希，让半安装或强制中止变成可分类、可续跑、可对账的问题，而不是凭记忆猜怎么恢复。 |
 | **证据闭环** | “已实现”“测试通过”“已 push”“重启后 Live”是不同状态。Harness 要求先有复现或 red check，再给最小 green check，并用 Git/runtime 证据支撑对应结论。 |
@@ -73,43 +73,43 @@ Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked�
 
 ### 例 3：危险命令藏在 parallel 嵌套调用里
 
-普通的浅层检查可能漏掉 batch payload 深处的破坏性叶子。统一 `PreToolUse` guard 会递归遍历 command 与 file 两类叶子，包括嵌套 parallel 调用；相关请求无法可靠解析时会阻断，不会猜测为安全。审计日志也不会原样保存可能敏感的命令，只记录固定原因、规范化工具名与输入 SHA-256。
+普通的浅层检查可能漏掉 batch payload 深处的风险叶子。统一 `PreToolUse` Hook 会递归遍历 command 与 file 两类叶子，包括嵌套 parallel 调用。标准 managed 安装使用 Audit 模式：识别到的风险会尽力记录，但即使相关 payload malformed 或未知，也不会返回 deny。审计日志不保存可能敏感的原始命令，只记录固定原因、规范化工具名与输入 SHA-256。
 
-删除授权与运行时路径校验仍由 agent 与用户决定，Hook 不再假装能从命令文本推断聊天授权。在强制模式下，规范 PowerShell `Remove-Item` 可对唯一 `-LiteralPath` 目标递归删除；目标既可写成嵌套的本机绝对字面量，也可使用一个在同一段顶层命令文本中仅赋值一次、右值为同类字面量且只被 `Remove-Item` 引用的变量。字面量目标不得删除事件明确声明的绝对工作目录、受保护根或其祖先，也不得穿过 reparse point。外部变量、重复或复合写入、条件赋值、跨作用域变量、系统变量、相对路径、表达式、数组、多目标、通配式、别名和其他歧义形式仍会被拦截。
+删除授权与运行时路径校验仍由 agent 与用户决定，Hook 不再假装能从命令文本推断聊天授权。因此，在标准 managed runtime 中，已授权的递归删除、普通目录改名、常规 `git push` 和文件编辑不会再被第二层 Hook 策略拒绝。
 
-如果用户明确接受风险，并要求授权只由 agent 与用户的工作合同负责，同一个统一 Hook 可使用 `-EnforcementMode Audit`。仅审计模式会尽力记录识别到的风险，但永远不返回 deny，因此已授权的删除、目录改名、Git 发布和文件编辑操作不会被二次否决。
+需要确定性命令拦截的维护者仍可显式选择 `-EnforcementMode Enforce`。该可选模式下，规范 PowerShell `Remove-Item` 可对唯一且已验证的 `-LiteralPath` 递归删除；严格字面量与同一命令内单次赋值变量形式可以通过，歧义或受保护目标仍 fail closed。
 
 ## 本地验证快照
 
-工作流逻辑候选 `b4f56905b1bdf5841a723b96982b56df090383d6` 于 2026-08-05 在 Windows PowerShell 5.1 上取得以下本地发行证据。聚合入口是在 clean full-history clone 中运行 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；随后使用 `tools\validate-release-archive.ps1` 检查精确解压的 `git archive`。品牌化发行候选在 push 前必须重新运行同一组门禁，tag workflow 还会在创建 draft release 前再运行一次。
+v2.0.2 发行候选于 2026-08-07 在 Windows PowerShell 5.1 上取得以下本地发行证据。聚合入口为 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；候选在 push 前必须从干净 committed tree 重跑同一门禁，精确 tag workflow 还会在创建 draft release 前再次运行，并验证解压后的 `git archive`。
 
 | 门禁 | 结果 |
 | --- | ---: |
-| 干净克隆完整 release readiness | `147/0` |
+| 完整 release readiness | `149/0` |
 | 安装后本机 postimage 等价性 | `430/0` |
 | 事务式迁移与回滚 | `304/0` |
 | 可崩溃恢复的 Git checkpoint | `333/0` |
-| Managed Hook 行为 | `244/0` |
+| Managed Hook 行为 | `294/0` |
 | Runtime skill catalog | `69/0` |
-| Release workflow 状态机 | `40/0` |
+| Release workflow 状态机 | `43/0` |
 | 精确无 Git release archive | `33/0` |
 
-日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。品牌化候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 555.6 ms、最大值 631.6 ms，包含 Windows PowerShell 5.1 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
+日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。v2.0.2 候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 759.5 ms、最大值 850.6 ms，包含 Windows PowerShell 5.1 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
 
 这些是本地 committed-state 结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
 GitHub-hosted Windows runner 使用管理员 token。安装、rollback 与 CI fixture 现在都允许在提权 token 下运行；测试路径覆盖仍必须同时满足 `STEADYAGENT_TEST_MODE=1` 与严格隔离的系统临时目录测试根。
 
-## 2.0.1 的核心变化
+## 2.0.2 的核心变化
 
 - 唯一支持宿主为 Codex Desktop。
-- 常驻 runtime 精简为 3 个 managed hook block：一个 `SessionStart`、一个统一的 `PreToolUse`、一个 `PreCompact`。
+- 常驻 runtime 精简为 3 个 managed hook block：一个 `SessionStart`、一个仅审计的统一 `PreToolUse`、一个 `PreCompact`。
 - 不安装 `UserPromptSubmit`、`PermissionRequest` 或 `PostToolUse`。
 - 文件数量本身不再触发独立审查。
-- 统一的 Command/File Guard 会在一个 PowerShell 进程内同时递归检查嵌套 parallel 中的两类叶子；相关 payload 无法理解时 fail closed。
+- 统一的 Command/File Hook 会在一个 PowerShell 进程内同时递归检查嵌套 parallel 中的两类叶子；标准 managed Audit 模式永远不返回 deny。
 - Guard 日志只记录固定原因、规范化工具名和输入 SHA-256。
 - Git checkpoint 使用隔离 index 与对象隔离区、显式文件、暂存对象与范围复核，以及单写者锁。
-- checkpoint CLI 保留维护者工作流中由人明确批准的 `-All` 初始 checkpoint 能力；Codex command guard 仍会阻止 agent 批量暂存。
+- checkpoint CLI 保留维护者工作流中由人明确批准的 `-All` 初始 checkpoint 能力；标准 managed 审计 Hook 不授予该权限，agent 仍须遵循工作合同中的显式范围。
 - 全新安装及 V1→V2 迁移均采用事务：预览、冲突检查、备份、原子应用、验证、收据和失败回滚。
 - 已加载的 installer 会锚定规范化的 52 项源资产 `package-assets.sha256`，并且只安装一次性读取且哈希匹配的字节。
 - Apply 与 rollback 同时支持普通和提权 token；脚本不会主动请求 UAC、修改 ACL 或接管 owner，只使用启动它们时已有的 token。
@@ -132,38 +132,38 @@ V1 历史版本仍保留在 Git 历史中。V2 归档只保留证明替换与范
 
 ## 运行前验证发行包
 
-正式发行输入是 GitHub Release 附带的 `boring-is-all-you-need-v2.0.1.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.1` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
+正式发行输入是 GitHub Release 附带的 `boring-is-all-you-need-v2.0.2.zip`。三个最小权限 GitHub Actions job 会从精确的 `v2.0.2` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
 
 同时下载 archive、checksum 与机器可读 provenance 三个资产，解压或运行 `install.ps1` 前直接运行以下可复制验证：
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
-if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.1 release assets。" }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
+gh release download v2.0.2 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.2.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v2.0.2 release assets。" }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.2.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.2.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.2.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.1" -or
+    [string]$Provenance.releaseTag -cne "v2.0.2" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.2.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.2" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.2.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.1 `
+  --source-ref refs/tags/v2.0.2 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
-Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
+Expand-Archive .\boring-is-all-you-need-v2.0.2.zip .\boring-is-all-you-need-v2.0.2-release
+Set-Location .\boring-is-all-you-need-v2.0.2-release\boring-is-all-you-need-v2.0.2
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -300,7 +300,7 @@ Boring Is All You Need 要求 Codex：
 | --- | --- |
 | `templates/codex/AGENTS.md` | Codex 常驻短合同。 |
 | `rules/` | 渐进式 workflow、verification、review、skill、context 和 safety 规则。 |
-| `tools/hooks/` | Fail-closed Guard、状态注入和 PreCompact 提醒。 |
+| `tools/hooks/` | 标准 managed 仅审计、可选强制的命令/文件检查，以及状态注入和 PreCompact 提醒。 |
 | `tools/git-checkpoint.ps1` | 限定范围、可恢复的本地提交。 |
 | `tools/git-hooks/` | 全局 pre-commit 防线。 |
 | `tools/skill-*.ps1` | 可移植的 runtime skill catalog 发布和检索。 |

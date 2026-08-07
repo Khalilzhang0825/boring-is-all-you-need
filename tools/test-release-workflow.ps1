@@ -11,7 +11,7 @@ $script:ExactReleaseBody = (
     "# Reviewed release notes`n`n- exact body`n`n" +
     "## Verified provenance`n`n" +
     "Reviewed commit: $script:FixtureReviewedCommit`n" +
-    "Source ref: refs/tags/v2.0.1`n"
+    "Source ref: refs/tags/v2.0.2`n"
 )
 
 function Assert-True {
@@ -87,11 +87,11 @@ function New-ReleaseFixture {
         [bool]$TagObservationFailure = $false,
         [bool]$IdObservationFailureAfterDelete = $false,
         [bool]$ReplaceAfterDelete = $false,
-        [string]$ReleaseName = "Boring Is All You Need v2.0.1",
+        [string]$ReleaseName = "Boring Is All You Need v2.0.2",
         [string[]]$AssetNames = @(
-            "boring-is-all-you-need-v2.0.1.provenance.json",
-            "boring-is-all-you-need-v2.0.1.zip",
-            "boring-is-all-you-need-v2.0.1.zip.sha256"
+            "boring-is-all-you-need-v2.0.2.provenance.json",
+            "boring-is-all-you-need-v2.0.2.zip",
+            "boring-is-all-you-need-v2.0.2.zip.sha256"
         )
     )
 
@@ -103,7 +103,7 @@ function New-ReleaseFixture {
     $remote = New-Item -ItemType Directory -Path (Join-Path $fixture "remote")
     $mockBin = New-Item -ItemType Directory -Path (Join-Path $fixture "mock-bin")
 
-    $archiveName = "boring-is-all-you-need-v2.0.1.zip"
+    $archiveName = "boring-is-all-you-need-v2.0.2.zip"
     $archivePath = Join-Path $dist.FullName $archiveName
     [IO.File]::WriteAllBytes($archivePath, [Text.Encoding]::UTF8.GetBytes("reviewed archive bytes"))
     $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -113,23 +113,23 @@ function New-ReleaseFixture {
     $releaseBodyPath = Join-Path $dist.FullName "RELEASE_BODY.md"
     Write-Utf8NoBom -Path $releaseBodyPath -Text $releaseBodyText
     $releaseBodyHash = (Get-FileHash -LiteralPath $releaseBodyPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $provenancePath = Join-Path $dist.FullName "boring-is-all-you-need-v2.0.1.provenance.json"
+    $provenancePath = Join-Path $dist.FullName "boring-is-all-you-need-v2.0.2.provenance.json"
     $provenance = [ordered]@{
         schemaVersion = 1
-        releaseTag = "v2.0.1"
+        releaseTag = "v2.0.2"
         reviewedCommit = $script:FixtureReviewedCommit
         archiveName = $archiveName
         archiveSha256 = $archiveHash
         releaseBodySha256 = $releaseBodyHash
         sourceRepository = "fixture/boring-is-all-you-need"
-        sourceRef = "refs/tags/v2.0.1"
+        sourceRef = "refs/tags/v2.0.2"
         signerWorkflow = "fixture/boring-is-all-you-need/.github/workflows/release.yml"
     } | ConvertTo-Json -Depth 4
     Write-Utf8NoBom -Path $provenancePath -Text ($provenance + "`n")
 
     $remoteArchive = Join-Path $remote.FullName $archiveName
     $remoteSidecar = $remoteArchive + ".sha256"
-    $remoteProvenance = Join-Path $remote.FullName "boring-is-all-you-need-v2.0.1.provenance.json"
+    $remoteProvenance = Join-Path $remote.FullName "boring-is-all-you-need-v2.0.2.provenance.json"
     [IO.File]::Copy($archivePath, $remoteArchive)
     [IO.File]::Copy($sidecarPath, $remoteSidecar)
     [IO.File]::Copy($provenancePath, $remoteProvenance)
@@ -145,7 +145,7 @@ function New-ReleaseFixture {
     $statePath = Join-Path $fixture "state.json"
     $logPath = Join-Path $fixture "gh.log"
     $releaseState = [ordered]@{
-        tagName = "v2.0.1"
+        tagName = "v2.0.2"
         name = $ReleaseName
         body = $ExistingBody
         isDraft = $IsDraft
@@ -192,8 +192,8 @@ function Save-State {
 }
 function Set-CreatedRelease {
     $state.release = [pscustomobject]@{
-        tagName = "v2.0.1"
-        name = "Boring Is All You Need v2.0.1"
+        tagName = "v2.0.2"
+        name = "Boring Is All You Need v2.0.2"
         body = [string]$state.expectedBody
         isDraft = $true
         isPrerelease = $false
@@ -215,8 +215,8 @@ if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "view") {
     if ([bool]$state.replaceAfterDelete -and [bool]$state.created -and
         $null -eq $state.release -and -not [bool]$state.replacementApplied) {
         $state.release = [pscustomobject]@{
-            tagName = "v2.0.1"
-            name = "Boring Is All You Need v2.0.1"
+            tagName = "v2.0.2"
+            name = "Boring Is All You Need v2.0.2"
             body = [string]$state.expectedBody
             isDraft = $true
             isPrerelease = $false
@@ -252,9 +252,9 @@ if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "create") {
 }
 if ($args.Count -ge 2 -and $args[0] -eq "release" -and $args[1] -eq "upload") {
     $state.release.assets = @(
-        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.1.provenance.json" },
-        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.1.zip" },
-        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.1.zip.sha256" }
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.2.provenance.json" },
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.2.zip" },
+        [pscustomobject]@{ name = "boring-is-all-you-need-v2.0.2.zip.sha256" }
     )
     if ([bool]$state.publishAfterUpload) {
         $state.release.isDraft = $false
@@ -361,7 +361,7 @@ function Invoke-DraftStepFixture {
         $env:MOCK_GH_SCRIPT = $Fixture.MockScript
         $env:MOCK_GH_STATE = $Fixture.State
         $env:MOCK_GH_LOG = $Fixture.Log
-        $env:RELEASE_TAG = "v2.0.1"
+        $env:RELEASE_TAG = "v2.0.2"
         $env:EXPECTED_RELEASE_SHA = "1111111111111111111111111111111111111111"
         $env:EXPECTED_RELEASE_SHA256 = $Fixture.ArchiveHash
         $env:GH_TOKEN = "fixture"
@@ -421,10 +421,10 @@ Assert-True "GitHub workflows force the reviewed Node24 runtime contract" (
 )
 Assert-True "release workflow binds the new repository, title, archive, and prefix" (
     $releaseWorkflowText -match 'Khalilzhang0825/boring-is-all-you-need' -and
-    $releaseWorkflowText -match 'Boring Is All You Need v2[.]0[.]1' -and
-    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]1[.]zip' -and
+    $releaseWorkflowText -match 'Boring Is All You Need v2[.]0[.]2' -and
+    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]2[.]zip' -and
     $releaseWorkflowText -match '--prefix=boring-is-all-you-need-\$env:RELEASE_TAG/' -and
-    $releaseWorkflowText -notmatch 'Khalilzhang0825/steadyagent|steadyagent-v2[.]0[.]1|SteadyAgent v2[.]0[.]1'
+    $releaseWorkflowText -notmatch 'Khalilzhang0825/steadyagent|steadyagent-v2[.]0[.]2|SteadyAgent v2[.]0[.]2'
 )
 $publicVerificationText = @(
     "README.md",
@@ -437,7 +437,7 @@ $publicVerificationText = @(
     [IO.File]::ReadAllText((Join-Path $root $_), [Text.Encoding]::UTF8)
 }
 Assert-True "release workflow publishes reviewed-commit provenance and a bound release body" (
-    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]1[.]provenance[.]json' -and
+    $releaseWorkflowText -match 'boring-is-all-you-need-v2[.]0[.]2[.]provenance[.]json' -and
     $releaseWorkflowText -match 'reviewedCommit' -and
     $releaseWorkflowText -match 'RELEASE_BODY[.]md' -and
     $releaseWorkflowText -match 'releaseBodySha256' -and
@@ -452,8 +452,8 @@ Assert-True "public verification derives ReviewedSha from the provenance asset w
 Assert-True "copyable release verification fails closed after every gh native command" (
     @($publicVerificationText | Where-Object {
         $_ -match '(?m)^gh attestation verify --help \| Out-Null\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-        $_ -match '(?m)^gh release download v2[.]0[.]1[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-        $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]1[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw '
+        $_ -match '(?m)^gh release download v2[.]0[.]2[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
+        $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]2[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw '
     }).Count -eq $publicVerificationText.Count
 )
 Assert-True "copyable release verification cannot extract before attestation success" (
@@ -506,7 +506,7 @@ Assert-True "final publication revalidates and publishes the captured exact draf
         $_ -match '\$PostPublishTagSha' -and
         $_ -match '\$PostPublishMainSha' -and
         $_ -match '-not \[bool\]\$state[.]immutable' -and
-        $_ -match 'boring-is-all-you-need-v2[.]0[.]1[.]provenance[.]json\|boring-is-all-you-need-v2[.]0[.]1[.]zip\|boring-is-all-you-need-v2[.]0[.]1[.]zip[.]sha256' -and
+        $_ -match 'boring-is-all-you-need-v2[.]0[.]2[.]provenance[.]json\|boring-is-all-you-need-v2[.]0[.]2[.]zip\|boring-is-all-you-need-v2[.]0[.]2[.]zip[.]sha256' -and
         $_ -notmatch 'gh release edit'
     }).Count -eq $publicationRunbooks.Count
 )
@@ -703,7 +703,7 @@ exit 0
     $titleCaseDrift = New-ReleaseFixture `
         -Name "title-case-drift" `
         -ExistingBody $script:ExactReleaseBody `
-        -ReleaseName "boring is all you need v2.0.1"
+        -ReleaseName "boring is all you need v2.0.2"
     $fixtures.Add($titleCaseDrift.Root) | Out-Null
     $titleCaseDriftResult = Invoke-DraftStepFixture -Fixture $titleCaseDrift
     Assert-True "existing draft with title case drift is rejected" (
@@ -755,7 +755,7 @@ exit 0
     $partial = New-ReleaseFixture `
         -Name "partial" `
         -ExistingBody $script:ExactReleaseBody `
-        -AssetNames @("boring-is-all-you-need-v2.0.1.zip")
+        -AssetNames @("boring-is-all-you-need-v2.0.2.zip")
     $fixtures.Add($partial.Root) | Out-Null
     $partialResult = Invoke-DraftStepFixture -Fixture $partial
     Assert-True "partial existing draft is rejected for manual recovery" (

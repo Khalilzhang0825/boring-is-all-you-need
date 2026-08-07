@@ -36,7 +36,7 @@ rollback 在首次受控写入前把进入态 durable 记录到
 `rollback-journal.json`。退出码 3 或 `rollback_incomplete` 表示必须人工
 对账；保留收据、备份、journal、目标和 Git 证据，不得盲目重试。
 
-`git-checkpoint.ps1` 要求真实 index 为空，并选择仓库相对显式 `-Files` 或由人主动执行的 `-All`。两种模式都先写入隔离 index 与对象隔离区，经过受保护路径、暂存 blob 大小和 pre-commit 门，再次复核精确范围与暂存对象；全部通过后才发布必要对象、commit，并以 compare-and-swap 完成 index。发布前被阻止的事务会删除隔离区，不把候选对象写入仓库对象库。Codex command guard 会阻止 agent 调用批量 `-All`；该能力只保留给工具路径外由人批准的初始 checkpoint。
+`git-checkpoint.ps1` 要求真实 index 为空，并选择仓库相对显式 `-Files` 或由人主动执行的 `-All`。两种模式都先写入隔离 index 与对象隔离区，经过受保护路径、暂存 blob 大小和 pre-commit 门，再次复核精确范围与暂存对象；全部通过后才发布必要对象、commit，并以 compare-and-swap 完成 index。发布前被阻止的事务会删除隔离区，不把候选对象写入仓库对象库。标准 managed Audit Hook 不授予批量 `-All` 权限；除非人明确批准初始全范围 checkpoint，agent 仍须使用显式文件范围。
 
 checkpoint fault injection 必须同时具备 `STEADYAGENT_TEST_MODE=1` 和系统
 临时目录下现有、basename 为

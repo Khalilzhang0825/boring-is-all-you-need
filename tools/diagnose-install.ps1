@@ -406,7 +406,7 @@ function Invoke-ReceiptBoundByteVerification {
         }
         $targetFull = [IO.Path]::GetFullPath($ExpectedTargetRoot)
         if ([int]$receipt.schema_version -ne 2 -or
-            [string]$receipt.steadyagent_version -ne "2.0.1" -or
+            [string]$receipt.steadyagent_version -ne "2.0.2" -or
             [string]$receipt.status -ne "applied" -or
             -not [string]$receipt.completed_utc -or
             $null -ne $receipt.failure -or
@@ -534,7 +534,7 @@ function Invoke-ReceiptBoundByteVerification {
         $passed = (
             $process.ExitCode -eq 0 -and
             $stdout -match '(?m)^STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0\r?$' -and
-            $stdout -match 'DRY-RUN Boring Is All You Need v2[.]0[.]1 rollback: 80 files; 0 writes[.]' -and
+            $stdout -match 'DRY-RUN Boring Is All You Need v2[.]0[.]2 rollback: 80 files; 0 writes[.]' -and
             $stdout -notmatch '(?m)^PENDING BOUND RECOVERY '
         )
         return [pscustomobject]@{
@@ -613,7 +613,7 @@ $targetFull = [IO.Path]::GetFullPath($TargetRoot)
 $codexFull = [IO.Path]::GetFullPath($CodexHome)
 $managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
 
-Write-Host "Boring Is All You Need v2.0.1 Codex diagnosis"
+Write-Host "Boring Is All You Need v2.0.2 Codex diagnosis"
 Write-Host ("TargetRoot: " + $targetFull)
 Write-Host ("CodexHome: " + $codexFull)
 Write-Host ("ManagedConfigPath: " + $managedFull)

@@ -11,31 +11,31 @@ The release workflow uses separate least-privilege build/validation, attestation
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.1 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
+gh release download v2.0.2 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.2.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.2 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.2.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.2.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.2.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.1" -or
+    [string]$Provenance.releaseTag -cne "v2.0.2" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.2.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.2" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.2.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.1 `
+  --source-ref refs/tags/v2.0.2 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
-Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
+Expand-Archive .\boring-is-all-you-need-v2.0.2.zip .\boring-is-all-you-need-v2.0.2-release
+Set-Location .\boring-is-all-you-need-v2.0.2-release\boring-is-all-you-need-v2.0.2
 ```
 
 Stop if the GitHub CLI does not expose `attestation verify`, the provenance fields do not bind the reviewed commit and archive digest, attestation verification fails, or the checksum differs.

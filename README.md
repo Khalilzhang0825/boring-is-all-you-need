@@ -6,7 +6,7 @@
 
 **Make agent work boring. Ship with evidence, not vibes.**
 
-Boring Is All You Need `v2.0.1` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
+Boring Is All You Need `v2.0.2` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
 
 “Boring” is the feature. An agent should not improvise permissions, silently broaden scope, declare success from vibes, or leave a half-applied workflow behind. This project turns those decisions into deterministic scripts, receipts, hashes, rollback paths, and release gates.
 
@@ -26,12 +26,12 @@ Boring Is All You Need `v2.0.1` is a local-first Codex Desktop harness for Windo
 
 ## What you gain in real work
 
-This is not a bigger prompt that asks Codex to “be careful.” It is a small enforcement layer around the work Codex already does.
+This is not a bigger prompt that asks Codex to “be careful.” It is a small execution and evidence layer around the work Codex already does.
 
 | Advantage | Why it is practical |
 | --- | --- |
 | **Lightweight by design** | The live path contains only three Hook blocks. A matched tool event starts one unified guard process, SessionStart stays below an 800-character ceiling, and heavyweight equivalence/release tests never run during ordinary prompts. |
-| **Safe by default** | Install and rollback preview before writing, both ordinary and elevated PowerShell are supported, nested command/file inputs are inspected, relevant unknown payloads fail closed, and destructive or external actions still require authority. |
+| **Authorized by the user, not vetoed twice** | Install and rollback preview before writing; both ordinary and elevated PowerShell are supported; nested command/file inputs are inspected and logged best-effort without a Hook deny; destructive or external actions still require explicit authority in the working contract. |
 | **Non-invasive** | The workflow preserves unrelated and untracked files, refuses to absorb an existing staged index into a checkpoint, commits explicit paths, and chains an existing executable repository-local pre-commit Hook. |
 | **Recoverable** | Migration snapshots, a durable receipt, atomic replacement, a rollback journal, and exact before/after hashes turn a partial install or hard stop into a classified recovery problem instead of guesswork. |
 | **Evidence-driven** | “Implemented,” “tests passed,” “pushed,” and “Live after restart” are separate states. The harness asks for a reproduction or red check, the narrowest green check, and concrete Git/runtime evidence before claiming the corresponding result. |
@@ -74,43 +74,43 @@ The useful difference is not verbosity. It is that scope, evidence, residual ris
 
 ### Example: a risky command hidden inside a parallel tool call
 
-Without a recursive guard, a destructive leaf can be missed when it is nested in a batch payload. The unified `PreToolUse` guard walks both command and file leaves, including nested parallel calls. A relevant request it cannot understand is blocked rather than guessed safe; the audit record keeps only a fixed reason, normalized tool name, and input SHA-256 instead of the raw potentially sensitive command.
+Without recursive inspection, a risky leaf can be missed when it is nested in a batch payload. The unified `PreToolUse` Hook walks both command and file leaves, including nested parallel calls. The standard managed installation runs it in Audit mode: recognized risks are recorded best-effort, but even malformed or unknown relevant payloads do not produce a deny decision. The audit record keeps only a fixed reason, normalized tool name, and input SHA-256 instead of the raw potentially sensitive command.
 
-Deletion authorization and runtime path verification remain agent/user decisions rather than claims inferred by the Hook. In enforcement mode, canonical PowerShell `Remove-Item` may recurse with exactly one `-LiteralPath` target expressed as either a nested absolute local literal or a variable assigned once in the same top-level command text from that same kind of literal and referenced only by `Remove-Item`. Literal targets may not remove an event-declared absolute working directory, a protected root or its ancestor, or a path crossing a reparse point. External, reassigned, compound-written, conditional, scoped, protected/system, relative, expression, array, multi-target, wildcard-style, alias, and ambiguous forms remain blocked.
+Deletion authorization and runtime path verification remain agent/user decisions rather than claims inferred by the Hook. This means an authorized recursive delete, normal directory rename, ordinary `git push`, or file edit is not rejected by a second Hook policy in the standard managed runtime.
 
-For a user who explicitly accepts the risk and wants authorization handled only by the agent/user working contract, the same unified Hook supports `-EnforcementMode Audit`. Audit mode makes a best-effort attempt to record recognized risks but never returns a deny decision, so authorized deletion, rename, Git publication, and file-edit operations are not vetoed a second time.
+Maintainers who want deterministic command blocking can explicitly opt into `-EnforcementMode Enforce`. In that optional mode, canonical PowerShell `Remove-Item` may recurse with exactly one verified `-LiteralPath`; strict literal and same-command single-assignment variable forms are accepted, while ambiguous or protected targets fail closed.
 
 ## Local validation snapshot
 
-The workflow-logic candidate at `b4f56905b1bdf5841a723b96982b56df090383d6` passed the following local release evidence on Windows PowerShell 5.1 on 2026-08-05. The aggregate entrypoint was `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1` from a clean full-history clone; the exact extracted `git archive` was then checked with `tools\validate-release-archive.ps1`. The branded release candidate must rerun the same gates before push, and the tag workflow reruns them again before it can create a draft release.
+The v2.0.2 release candidate passed the following local release evidence on Windows PowerShell 5.1 on 2026-08-07. The aggregate entrypoint was `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`; the candidate must rerun the same gate from a clean committed tree before push, and the exact-tag workflow reruns it plus the extracted `git archive` validation before it can create a draft release.
 
 | Gate | Result |
 | --- | ---: |
-| Complete clean-clone release readiness | `147/0` |
+| Complete release readiness | `149/0` |
 | Installed local-postimage equivalence | `430/0` |
 | Transactional migration and rollback | `304/0` |
 | Crash-recoverable Git checkpoint | `333/0` |
-| Managed Hook behavior | `244/0` |
+| Managed Hook behavior | `294/0` |
 | Runtime skill catalog | `69/0` |
-| Release workflow state machine | `40/0` |
+| Release workflow state machine | `43/0` |
 | Exact no-Git release archive | `33/0` |
 
-The daily runtime remains deliberately small: one unified `PreToolUse` PowerShell process per matched event and a SessionStart payload around 610 characters with an enforced 800-character ceiling. On the branded candidate, `tools\test-agent-hooks.ps1` measured five end-to-end cold starts at a 555.6 ms median and 631.6 ms maximum on the maintainer's machine, including Windows PowerShell 5.1 process startup; this is not a cross-machine latency guarantee. Heavy equivalence and archive suites run only in maintainer/CI release gates, not during ordinary prompts.
+The daily runtime remains deliberately small: one unified `PreToolUse` PowerShell process per matched event and a SessionStart payload around 610 characters with an enforced 800-character ceiling. On the v2.0.2 candidate, `tools\test-agent-hooks.ps1` measured five end-to-end cold starts at a 759.5 ms median and 850.6 ms maximum on the maintainer's machine, including Windows PowerShell 5.1 process startup; this is not a cross-machine latency guarantee. Heavy equivalence and archive suites run only in maintainer/CI release gates, not during ordinary prompts.
 
 These are local committed-state results, not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
 
 GitHub-hosted Windows runners execute with an administrator token. Install, rollback, and CI fixtures therefore exercise the same supported elevated-token path; isolated custom fixture roots still require `STEADYAGENT_TEST_MODE=1` and a strict system-temp test root.
 
-## What changed in 2.0.1
+## What changed in 2.0.2
 
 - Codex Desktop is the only supported host.
-- The runtime is reduced to exactly three managed hook blocks: one `SessionStart`, one unified `PreToolUse` guard, and one `PreCompact`.
+- The runtime is reduced to exactly three managed hook blocks: one `SessionStart`, one audit-only unified `PreToolUse` inspection, and one `PreCompact`.
 - `UserPromptSubmit`, `PermissionRequest`, and `PostToolUse` are not installed.
 - File count alone no longer triggers independent review.
-- One unified command/file guard recursively inspects both kinds of leaf in nested parallel calls, starts one PowerShell process per matched event, and fails closed when a relevant payload cannot be understood.
+- One unified command/file Hook recursively inspects both kinds of leaf in nested parallel calls, starts one PowerShell process per matched event, and never returns a deny decision in the standard managed Audit mode.
 - Guard logs contain only a fixed reason, normalized tool name, and input SHA-256.
 - Git checkpointing uses an isolated index and object quarantine, explicit files, staged-object and scope revalidation, and a single-writer lock.
-- The checkpoint CLI retains the maintainer workflow's deliberate `-All` option for a human-approved initial checkpoint; the Codex command guard still blocks agents from blanket staging.
+- The checkpoint CLI retains the maintainer workflow's deliberate `-All` option for a human-approved initial checkpoint; the standard managed audit Hook does not grant that authority, so agents still require the working contract's explicit scope.
 - Installation and V1 migration are transactional: preview, conflict detection, backup, atomic apply, verification, receipt, and rollback.
 - The loaded installer anchors a canonical 52-source `package-assets.sha256` manifest and installs only the once-read bytes that match it.
 - Apply and rollback support either an ordinary or elevated token. They use only the token that launched them and never request UAC, change ACLs, or take ownership.
@@ -133,38 +133,38 @@ The public product and repository are Boring Is All You Need. The installed root
 
 ## Verify the release before running it
 
-The supported release input is the `boring-is-all-you-need-v2.0.1.zip` asset attached to the GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v2.0.1` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
+The supported release input is the `boring-is-all-you-need-v2.0.2.zip` asset attached to the GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v2.0.2` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
 
 Download the archive, checksum, and machine-readable provenance assets, then run this copyable verification before extracting or running `install.ps1`:
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.1.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.1 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.1.provenance.json | ConvertFrom-Json
+gh release download v2.0.2 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.2.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.2 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.2.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.1.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.2.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.2.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.1" -or
+    [string]$Provenance.releaseTag -cne "v2.0.2" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.1.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.2.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.1" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.2" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.1.zip `
+gh attestation verify .\boring-is-all-you-need-v2.0.2.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.1 `
+  --source-ref refs/tags/v2.0.2 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v2.0.1.zip .\boring-is-all-you-need-v2.0.1-release
-Set-Location .\boring-is-all-you-need-v2.0.1-release\boring-is-all-you-need-v2.0.1
+Expand-Archive .\boring-is-all-you-need-v2.0.2.zip .\boring-is-all-you-need-v2.0.2-release
+Set-Location .\boring-is-all-you-need-v2.0.2-release\boring-is-all-you-need-v2.0.2
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -303,7 +303,7 @@ Boring Is All You Need instructs Codex to:
 | --- | --- |
 | `templates/codex/AGENTS.md` | Short always-on Codex contract. |
 | `rules/` | Progressive workflow, verification, review, skill, context, and safety rules. |
-| `tools/hooks/` | Fail-closed command/file guards, SessionStart state injection, and PreCompact reminder. |
+| `tools/hooks/` | Audit-only managed command/file inspection with optional enforcement, SessionStart state injection, and PreCompact reminder. |
 | `tools/git-checkpoint.ps1` | Scoped and recoverable local commits. |
 | `tools/git-hooks/` | Global pre-commit defense. |
 | `tools/skill-*.ps1` | Portable runtime skill catalog publication and search. |

@@ -268,6 +268,9 @@ try {
     Assert-True "managed template retains one unified PreToolUse guard" (
         ([regex]::Matches($managedTemplateText, '(?m)^\[\[hooks[.]PreToolUse\]\]$')).Count -eq 1
     )
+    Assert-True "managed template runs the unified PreToolUse guard in audit-only mode" (
+        $managedTemplateText -match '-GuardMode Unified -EnforcementMode Audit'
+    )
     Assert-True "managed template retains PreCompact" ($managedTemplateText -match '(?m)^\[\[hooks[.]PreCompact\]\]$')
     Assert-True "managed template routes context to the Codex-only runtime" (
         $managedTemplateText -match 'agent-hook-context[.]ps1' -and
@@ -290,7 +293,7 @@ try {
         [pscustomobject]@{
             Name = "file"
             Event = New-Event @{ tool_name = "apply_patch"; tool_input = @{ path = "fixture/.env" } }
-            Deny = $true
+            Deny = $false
         },
         [pscustomobject]@{
             Name = "mixed parallel"
@@ -301,7 +304,7 @@ try {
                     @{ recipient_name = "apply_patch"; parameters = @{ path = "fixture/.env" } }
                 ) }
             }
-            Deny = $true
+            Deny = $false
         },
         [pscustomobject]@{
             Name = "mixed parallel shell danger"
@@ -312,7 +315,7 @@ try {
                     @{ recipient_name = "apply_patch"; parameters = @{ path = "docs/safe.md" } }
                 ) }
             }
-            Deny = $true
+            Deny = $false
         },
         [pscustomobject]@{
             Name = "incomplete mixed parallel"
@@ -323,7 +326,7 @@ try {
                     @{ recipient_name = "apply_patch"; parameters = @{} }
                 ) }
             }
-            Deny = $true
+            Deny = $false
         }
     )
     $managedHookDurations = New-Object Collections.Generic.List[double]
@@ -369,7 +372,7 @@ try {
         [Text.Encoding]::UTF8
     )
     Assert-True "diagnosis is Codex-only" (
-        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]1 Codex diagnosis' -and
+        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]2 Codex diagnosis' -and
         $diagnoseText -notmatch '[.]claude'
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')
@@ -710,6 +713,18 @@ try {
     Assert-NoDecision "command guard allows an explicit recursive Remove-Item behind PowerShell" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath C:\fixture\authorized-delete-target -Recurse'; workdir = 'C:\fixture\authorized-delete-target' } })
     Assert-Deny "command guard denies recursive removal of the active working directory" $result
+    $systemSubtreeTarget = Join-Path $env:SystemRoot "System32"
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = ("Remove-Item -LiteralPath '" + $systemSubtreeTarget.Replace("'", "''") + "' -Recurse -Force") }
+    })
+    Assert-Deny "command guard denies recursive removal inside a protected system subtree" $result
+    $tempChildTarget = Join-Path ([IO.Path]::GetTempPath()) "steadyagent-authorized-delete-target"
+    $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{
+        tool_name = "PowerShell"
+        tool_input = @{ command = ("Remove-Item -LiteralPath '" + $tempChildTarget.Replace("'", "''") + "' -Recurse -Force") }
+    })
+    Assert-NoDecision "command guard still allows an explicit child below the temp root" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath .\authorized-delete-target -Recurse -Force' } })
     Assert-Deny "command guard denies a relative recursive Remove-Item target" $result
     $result = Invoke-Hook "agent-hook-command-guard.ps1" (New-Event @{ tool_name = "PowerShell"; tool_input = @{ command = 'Remove-Item -LiteralPath $targetPath -Recurse -Force' } })
