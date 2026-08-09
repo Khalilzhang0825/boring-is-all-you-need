@@ -338,7 +338,11 @@ function Assert-SteadyAgentMigrationMutexSecurity {
         [Security.Principal.WellKnownSidType]::LocalSystemSid,
         $null
     )
-    $security = $Mutex.GetAccessControl()
+    $security = [Security.AccessControl.MutexSecurity]::new(
+        "Global\SteadyAgentV2Migration",
+        [Security.AccessControl.AccessControlSections]::Access -bor
+            [Security.AccessControl.AccessControlSections]::Owner
+    )
     $owner = $security.GetOwner([Security.Principal.SecurityIdentifier])
     if (-not $owner.Equals($CurrentUser) -and
         -not $owner.Equals($administrators) -and
@@ -427,7 +431,7 @@ function New-SteadyAgentMigrationMutex {
             )))
         }
         $createdNew = $false
-        $mutex = New-Object Threading.Mutex(
+        $mutex = [Threading.MutexAcl]::Create(
             $false,
             "Global\SteadyAgentV2Migration",
             [ref]$createdNew,

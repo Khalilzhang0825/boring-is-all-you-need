@@ -107,7 +107,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "3.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "38CA32C7D61888FD6A383848D56D374AC7A80F570F8915A68DA35983CF1EEC6E"
+$expectedPackageManifestSha256 = "DE8870859222AB74333056A2EE8CE172C68AE8CA17651BBA1ACDD39B3B35AC9E"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -513,7 +513,11 @@ function Assert-SteadyAgentMigrationMutexSecurity {
         [Security.Principal.WellKnownSidType]::LocalSystemSid,
         $null
     )
-    $security = $Mutex.GetAccessControl()
+    $security = [Security.AccessControl.MutexSecurity]::new(
+        "Global\SteadyAgentV2Migration",
+        [Security.AccessControl.AccessControlSections]::Access -bor
+            [Security.AccessControl.AccessControlSections]::Owner
+    )
     $owner = $security.GetOwner([Security.Principal.SecurityIdentifier])
     if (-not $owner.Equals($CurrentUser) -and
         -not $owner.Equals($administrators) -and
@@ -607,7 +611,7 @@ function New-SteadyAgentMigrationMutex {
             )))
         }
         $createdNew = $false
-        $mutex = New-Object Threading.Mutex(
+        $mutex = [Threading.MutexAcl]::Create(
             $false,
             "Global\SteadyAgentV2Migration",
             [ref]$createdNew,

@@ -2588,6 +2588,19 @@ try {
         $rollbackSource -notmatch "non-elevated PowerShell process" -and
         $rollbackSource -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
+    $currentTokenProbePassed = $true
+    $currentTokenProbeDetail = "Both production mutex ACL paths succeeded under the current Windows token."
+    try {
+        Invoke-ProductionMutexAclProbe -ScriptPath $installer
+        Invoke-ProductionMutexAclProbe -ScriptPath (Join-Path $PSScriptRoot "rollback.ps1")
+    }
+    catch {
+        $currentTokenProbePassed = $false
+        $currentTokenProbeDetail = $_.Exception.Message
+    }
+    Assert-True "current token probes both production mutex ACL paths" `
+        $currentTokenProbePassed `
+        $currentTokenProbeDetail
     $elevatedCiProbePassed = $true
     $elevatedCiProbeDetail = "Skipped outside GitHub Actions; windows-latest runs this against its actual token."
     if ($env:GITHUB_ACTIONS -eq "true" -and $env:RUNNER_OS -eq "Windows") {
