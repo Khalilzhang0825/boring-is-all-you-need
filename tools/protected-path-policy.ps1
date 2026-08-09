@@ -1,3 +1,4 @@
+#requires -Version 7.5
 Set-StrictMode -Version Latest
 
 if (-not ("SteadyAgent.BoundPath" -as [type])) {

@@ -20,6 +20,13 @@ jobs:
       run:
         shell: pwsh
     steps:
+      - name: Verify PowerShell 7 runtime
+        run: |
+          if ($PSVersionTable.PSEdition -cne "Core" -or
+              $PSVersionTable.PSVersion -lt [version]"7.5") {
+            throw "PowerShell Core 7.5 or newer is required."
+          }
+
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
@@ -29,4 +36,4 @@ jobs:
       - name: Release readiness gate
         env:
           STEADYAGENT_RELEASE_BASE_REF: f80c05c4b79e069ee3a35db3c09a8f870bca0b59
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -BaseRef "$env:STEADYAGENT_RELEASE_BASE_REF"
+        run: pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -BaseRef "$env:STEADYAGENT_RELEASE_BASE_REF"

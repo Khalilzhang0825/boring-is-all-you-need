@@ -1,5 +1,16 @@
 # Release Notes
 
+## v3.0.0
+
+Boring Is All You Need v3.0.0 moves every owned Windows runtime entrypoint to PowerShell 7 and deliberately ends Windows PowerShell 5.1 support.
+
+- requires PowerShell 7.5 or newer and rejects 5.1 through a release-wide `#requires` contract;
+- launches managed Hooks, Git Hooks, installers, rollback, diagnosis, tests, and CI through `pwsh.exe` only;
+- preserves timestamp strings during JSON deserialization so receipt and journal integrity hashes remain stable under PowerShell 7;
+- fixes PowerShell 7 overload binding for the V1 removal manifest and process-environment deletion for isolated Git identity checks;
+- standardizes PowerShell sources on strict UTF-8 without BOM and keeps extensionless shell Hook entrypoints LF/BOM-free;
+- retains the `.steadyagent` installation root, receipt schema, transactional migration, rollback, and legacy-install detection so existing installations can upgrade in place.
+
 ## v2.0.2
 
 Boring Is All You Need v2.0.2 removes the managed Hook as a second authorization veto while preserving the transactional installer, scoped checkpoint, and release-integrity gates.

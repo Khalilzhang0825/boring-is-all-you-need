@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -11,7 +12,7 @@ function Run-Gate {
     param([string]$Name, [string]$Path, [string]$Expected)
     Write-Host ("RUN " + $Name)
     $outputLines = New-Object Collections.Generic.List[string]
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Path | ForEach-Object {
+    & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $Path | ForEach-Object {
         $line = [string]$_
         $outputLines.Add($line) | Out-Null
         Write-Host $line

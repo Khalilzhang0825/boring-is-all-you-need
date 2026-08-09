@@ -109,13 +109,13 @@ Expected agent flow:
 1. Run the release gate:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
 2. If the tree intentionally has work in progress, use:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
 ```
 
 3. Explain failures as concrete missing files, broken links, stale release wording, hook smoke test failures, or naming residue.

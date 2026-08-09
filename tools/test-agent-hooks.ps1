@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -56,7 +57,7 @@ function New-Event {
 function Invoke-Hook {
     param([string]$Name, [string]$InputText, [string[]]$Arguments = @())
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell.exe"
+    $psi.FileName = "pwsh.exe"
     $hookPath = if ([IO.Path]::IsPathRooted($Name)) { $Name } else { Join-Path $hooks $Name }
     $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"" + $hookPath + "`""
     foreach ($argument in $Arguments) {
@@ -154,7 +155,7 @@ function Invoke-ManagedPreToolUse {
         [Collections.Generic.List[string]]$Ledger
     )
 
-    $event = $InputText | ConvertFrom-Json
+    $event = $InputText | ConvertFrom-Json -DateKind String
     $toolName = [string]$event.tool_name
     $results = New-Object Collections.Generic.List[object]
     foreach ($block in $Blocks) {
@@ -227,7 +228,7 @@ function Assert-Deny {
     param([string]$Name, [object]$Result)
     $ok = $false
     try {
-        $json = $Result.Output | ConvertFrom-Json
+        $json = $Result.Output | ConvertFrom-Json -DateKind String
         $hook = $json.hookSpecificOutput
         $ok = ($Result.ExitCode -eq 0 -and -not $Result.Error -and
             $hook.hookEventName -eq "PreToolUse" -and
@@ -372,7 +373,7 @@ try {
         [Text.Encoding]::UTF8
     )
     Assert-True "diagnosis is Codex-only" (
-        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]2 Codex diagnosis' -and
+        $diagnoseText -match 'Boring Is All You Need v3[.]0[.]0 Codex diagnosis' -and
         $diagnoseText -notmatch '[.]claude'
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')
@@ -385,12 +386,12 @@ try {
     Assert-True "startup reports Caveman lite exactly once" (
         ([regex]::Matches($result.Output, [regex]::Escape("Caveman startup status report: ON, mode lite"))).Count -eq 1
     )
-    Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 5.1 encoding")
+    Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 7 encoding")
     Assert-True "fresh install without review marker suppresses due notice" (
         $result.Output -notmatch "HARNESS-REVIEW DUE"
     )
     Assert-True "startup does not inject stale state" ($result.Output -notmatch "TASK STATE")
-    $startupObject = $result.Output | ConvertFrom-Json
+    $startupObject = $result.Output | ConvertFrom-Json -DateKind String
     $startupContext = [string]$startupObject.hookSpecificOutput.additionalContext
     $duplicatedHostContractFragments = @(
         "Read the closest AGENTS.md plus project state before editing.",
@@ -435,7 +436,7 @@ try {
     $result = Invoke-Hook "agent-hook-context.ps1" `
         (New-Event @{ source = "startup"; cwd = $fixtureRoot }) `
         @("-SteadyAgentHome", $reviewedHome)
-    $manyLessonsObject = $result.Output | ConvertFrom-Json
+    $manyLessonsObject = $result.Output | ConvertFrom-Json -DateKind String
     $manyLessonsContext = [string]$manyLessonsObject.hookSpecificOutput.additionalContext
     Assert-True "startup many-lessons context stays within 800 characters" (
         $manyLessonsContext.Length -le 800
@@ -1364,7 +1365,7 @@ try {
     $scopeManifest = [IO.File]::ReadAllText(
         $scopeManifestPath,
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $scopeEntry = @($scopeManifest.entries | Where-Object {
         [string]$_.payload -ceq "06-agent-hook-smoke-test.ps1"
     })

@@ -109,13 +109,13 @@ Check whether this repository is ready for a public release. Use the Boring Is A
 1. 运行 release gate：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
 2. 如果工作树有明确的进行中改动，使用：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
 ```
 
 3. 把失败解释成具体问题，例如缺文件、链接断裂、发布文案过时、hook 冒烟测试失败或命名残留。

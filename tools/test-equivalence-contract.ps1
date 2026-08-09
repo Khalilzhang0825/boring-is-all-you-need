@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [switch]$InternalVerify,
@@ -99,7 +100,7 @@ function Inject-PolicyDrift {
 function Invoke-InternalVerification {
     param([string]$DriftId = "")
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell.exe"
+    $psi.FileName = "pwsh.exe"
     $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"" + $PSCommandPath + "`" -InternalVerify"
     if ($DriftId) {
         $psi.Arguments += " -InjectPolicyDrift `"" + $DriftId + "`""
@@ -214,7 +215,7 @@ Check "SessionStart retains Caveman lite startup behavior" (
 Check "SessionStart retains lessons title injection" (
     $context -match "Known pitfalls to avoid" -and
     $context -match "lessons[.]md" -and
-    (Read-PublicText "rules\lessons.md") -match "PowerShell 5[.]1 encoding"
+    (Read-PublicText "rules\lessons.md") -match "PowerShell 7 encoding"
 )
 Check "SessionStart retains periodic review reminder" (
     $context -match "HARNESS-REVIEW DUE" -and

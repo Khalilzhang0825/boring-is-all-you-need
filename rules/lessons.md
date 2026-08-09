@@ -3,10 +3,10 @@
 These are title-level reminders for repeated, general failure modes. The
 SessionStart Hook injects only the headings; open this file for details.
 
-### PowerShell 5.1 encoding is part of correctness
+### PowerShell 7 encoding is part of correctness
 
-PowerShell scripts containing non-ASCII text must use UTF-8 with BOM. Prefer
-ASCII-only scripts where practical and verify parsing with Windows PowerShell.
+PowerShell scripts must use strict UTF-8 without BOM and LF line endings.
+Verify parsing and execution with the supported `pwsh` runtime.
 
 ### Shell Hook entrypoints require LF and no BOM
 
@@ -15,9 +15,8 @@ start with a UTF-8 BOM.
 
 ### Native command stderr is not a PowerShell object stream
 
-Do not use `2>&1` with native commands in Windows PowerShell 5.1 when output
-shape or exit behavior matters. Capture stdout, stderr, and exit status
-deliberately.
+Do not treat native stderr as a PowerShell object stream when output shape or
+exit behavior matters. Capture stdout, stderr, and exit status deliberately.
 
 ### Fixture evidence is not Live host evidence
 

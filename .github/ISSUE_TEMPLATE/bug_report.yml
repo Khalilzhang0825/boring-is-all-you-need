@@ -16,7 +16,7 @@ body:
       label: Reproduction
       description: Include commands, host, shell, and relevant output.
       placeholder: |
-        powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+        pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
     validations:
       required: true
   - type: dropdown

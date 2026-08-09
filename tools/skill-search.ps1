@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -28,7 +29,7 @@ if ($JsonPath) {
         exit 2
     }
     if (Test-Path -LiteralPath $JsonPath -PathType Leaf) {
-        try { $catalog = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { }
+        try { $catalog = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String } catch { }
     }
     if ($null -eq $catalog -or
         [int]$catalog.schema_version -ne 2 -or

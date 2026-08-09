@@ -1,4 +1,5 @@
-﻿[CmdletBinding()]
+#requires -Version 7.5
+[CmdletBinding()]
 param(
     [switch]$FocusedSafetyRegression
 )
@@ -177,7 +178,7 @@ function Start-CheckpointChild {
         [Collections.IDictionary]$EnvironmentOverrides
     )
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = 'powershell.exe'
+    $psi.FileName = 'pwsh.exe'
     $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $checkpoint + '" -Message "' + $Message + '" -Files "' + $File + '"'
     if ($DryRun) { $psi.Arguments += ' -DryRun' }
     $psi.WorkingDirectory = $Repository
@@ -277,7 +278,7 @@ function Invoke-CheckpointAllChild {
         [switch]$DryRun
     )
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = 'powershell.exe'
+    $psi.FileName = 'pwsh.exe'
     $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $checkpoint + '" -Message "' + $Message + '" -All'
     if ($File) { $psi.Arguments += ' -Files "' + $File + '"' }
     if ($DryRun) { $psi.Arguments += ' -DryRun' }
@@ -294,7 +295,7 @@ function Invoke-CheckpointNoScopeChild {
         [string]$Message
     )
     $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = 'powershell.exe'
+    $psi.FileName = 'pwsh.exe'
     $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $checkpoint + '" -Message "' + $Message + '"'
     $psi.WorkingDirectory = $Repository
     $psi.UseShellExecute = $false
@@ -868,7 +869,7 @@ if (-not (Test-Path -LiteralPath $env:STEADYAGENT_MUTATION_MARKER)) {
             (Join-Path $shimDirectory 'git.cmd'),
             (
                 "@echo off`r`n" +
-                "if /I `"%~1`"==`"add`" powershell.exe -NoProfile " +
+                "if /I `"%~1`"==`"add`" pwsh.exe -NoProfile " +
                 "-ExecutionPolicy Bypass -File `"%~dp0git-shim.ps1`"`r`n" +
                 "if errorlevel 1 exit /b %ERRORLEVEL%`r`n" +
                 "`"%STEADYAGENT_REAL_GIT%`" %*`r`n" +
@@ -1922,7 +1923,7 @@ if (-not (Test-Path -LiteralPath $env:STEADYAGENT_MUTATION_MARKER)) {
         $artifacts = Get-CheckpointArtifactState
         $journalPath = (& git rev-parse --path-format=absolute --git-path steadyagent-checkpoint-journal.json).Trim()
         $backupPath = (& git rev-parse --path-format=absolute --git-path steadyagent-checkpoint-index.backup).Trim()
-        $journal = [IO.File]::ReadAllText($journalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        $journal = [IO.File]::ReadAllText($journalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
         $publishedIndexHash = Get-RepositoryIndexHash
         $backupIndexHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
         $journalHashBeforeRetry = (Get-FileHash -LiteralPath $journalPath -Algorithm SHA256).Hash

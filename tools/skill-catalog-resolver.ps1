@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -165,7 +166,7 @@ function Read-CatalogBoundRollout {
 function ConvertFrom-CatalogRolloutJson {
     param([string]$Text, [int]$LineNumber)
     try {
-        return $Text | ConvertFrom-Json
+        return $Text | ConvertFrom-Json -DateKind String
     }
     catch {
         throw ("Rollout contains malformed JSONL at line {0}." -f $LineNumber)
@@ -641,7 +642,7 @@ function Resolve-BoundRolloutFileCatalogSnapshot {
         throw ("Expected one bound catalog for thread {0}; found {1}." -f $ThreadId, $candidates.Count)
     }
     $jsonPath = [IO.Path]::GetFullPath($candidates[0])
-    $catalog = Get-Content -LiteralPath $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    $catalog = Get-Content -LiteralPath $jsonPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
     $catalogHost = [string]$catalog.host
     if (-not ($hosts -contains $catalogHost) -or [string]$catalog.thread_id -cne $ThreadId) {
         throw "Bound catalog host/thread identity does not match the requested task."
@@ -727,7 +728,7 @@ function Test-RolloutFileCatalogSnapshot {
     if (-not (Test-Path -LiteralPath $Expected.JsonPath -PathType Leaf) -or
         -not (Test-Path -LiteralPath $Expected.MarkdownPath -PathType Leaf)) { return $false }
     try {
-        $catalog = Get-Content -LiteralPath $Expected.JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $catalog = Get-Content -LiteralPath $Expected.JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
         $markdown = [IO.File]::ReadAllText($Expected.MarkdownPath, [Text.Encoding]::UTF8)
         $actualSkillsHash = Get-CatalogSkillsDigest -Skills @($catalog.skills)
         $expectedMarkdown = Get-CatalogMarkdown -Catalog $catalog

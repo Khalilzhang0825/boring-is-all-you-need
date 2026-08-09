@@ -1,3 +1,4 @@
+#requires -Version 7.5
 function Assert-NoReparsePath {
     param([string]$Path, [switch]$AllowMissingLeaf)
     $cursor = [IO.Path]::GetFullPath($Path)

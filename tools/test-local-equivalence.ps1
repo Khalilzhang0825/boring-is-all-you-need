@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [switch]$InternalVerify,
@@ -296,7 +297,7 @@ if (-not $InternalVerify) {
     $oldMode = $env:STEADYAGENT_EQUIVALENCE_TEST_MODE
     try {
         $env:STEADYAGENT_EQUIVALENCE_TEST_MODE = "1"
-        $negativeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectMappingDrift
+        $negativeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectMappingDrift
         $negativeExit = $LASTEXITCODE
         $negativeText = @($negativeOutput) -join "`n"
         Check "deliberate mapping drift makes the equivalence gate red" (
@@ -305,7 +306,7 @@ if (-not $InternalVerify) {
             $negativeText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $negativeText
 
-        $semanticOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSemanticDrift
+        $semanticOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSemanticDrift
         $semanticExit = $LASTEXITCODE
         $semanticText = @($semanticOutput) -join "`n"
         Check "deliberate semantic mapping drift makes the equivalence gate red" (
@@ -314,7 +315,7 @@ if (-not $InternalVerify) {
             $semanticText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticText
 
-        $supportOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSupportSubstitution
+        $supportOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSupportSubstitution
         $supportExit = $LASTEXITCODE
         $supportText = @($supportOutput) -join "`n"
         Check "deliberate support substitution makes the destination gate red" (
@@ -324,7 +325,7 @@ if (-not $InternalVerify) {
             $supportText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $supportText
 
-        $removalOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectRemovalSubstitution
+        $removalOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectRemovalSubstitution
         $removalExit = $LASTEXITCODE
         $removalText = @($removalOutput) -join "`n"
         Check "equal-count V1 removal substitution makes the frozen projection gate red" (
@@ -334,7 +335,7 @@ if (-not $InternalVerify) {
             $removalText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $removalText
 
-        $byteExactOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectByteExactSubstitution
+        $byteExactOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectByteExactSubstitution
         $byteExactExit = $LASTEXITCODE
         $byteExactText = @($byteExactOutput) -join "`n"
         Check "injected byte-exact classification makes the empty identity gate red" (
@@ -344,7 +345,7 @@ if (-not $InternalVerify) {
             $byteExactText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $byteExactText
 
-        $semanticCheckOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $semanticCheckOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectSemanticCheckSubstitution
         $semanticCheckExit = $LASTEXITCODE
@@ -356,7 +357,7 @@ if (-not $InternalVerify) {
             $semanticCheckText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticCheckText
 
-        $semanticGateOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $semanticGateOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectSemanticCheckGateSubstitution
         $semanticGateExit = $LASTEXITCODE
@@ -368,7 +369,7 @@ if (-not $InternalVerify) {
             $semanticGateText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticGateText
 
-        $catalogSetOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $catalogSetOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectCatalogCaseSetDrift
         $catalogSetExit = $LASTEXITCODE
@@ -381,7 +382,7 @@ if (-not $InternalVerify) {
             $catalogSetText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $catalogSetText
 
-        $hookScopeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $hookScopeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectHookScopeDrift
         $hookScopeExit = $LASTEXITCODE
@@ -401,7 +402,7 @@ if (-not $InternalVerify) {
     }
 }
 
-$map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
 $entries = @($map.entries)
 $legacyRemovalLines = @(
     [IO.File]::ReadAllLines(
@@ -576,7 +577,7 @@ if ($InjectHookScopeDrift) {
     Write-Host "MUTATION Hook scope exclusion substituted"
 }
 Check "equivalence schema is v1" ([int]$map.schemaVersion -eq 1)
-Check "release identity is v2.0.2" ([string]$map.release -eq "v2.0.2")
+Check "release identity is v3.0.0" ([string]$map.release -eq "v3.0.0")
 Check "canonical local manifest SHA-256 is frozen" (
     [string]$map.localPostimageManifestSha256 -eq "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF"
 )
@@ -961,7 +962,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         Copy-PackageFixture -Destination $packageRoot
         $env:STEADYAGENT_TEST_MODE = "1"
         $env:STEADYAGENT_TEST_ROOT = $fixtureRoot
-        $installOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $packageRoot "tools\install.ps1") `
+        $installOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $packageRoot "tools\install.ps1") `
             -TargetRoot $targetRoot `
             -CodexHome $codexHome `
             -ManagedConfigPath $managedConfig `
@@ -1042,7 +1043,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         try {
             $env:STEADYAGENT_EQUIVALENCE_TEST_MODE = "1"
             $installedHookGateOutput = @(
-                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installedHookSuite
+                & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedHookSuite
             )
             $installedHookGateExit = $LASTEXITCODE
         }
@@ -1059,7 +1060,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         $receiptExists = Test-Path -LiteralPath $receiptPath -PathType Leaf
         Check "installer writes a transaction receipt" $receiptExists
         if ($receiptExists) {
-            $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
             $installs = @($receipt.entries | Where-Object { [string]$_.action -eq "install" })
             $removals = @($receipt.entries | Where-Object { [string]$_.action -eq "remove" })
             Check "receipt explains all 53 installed destinations" ($installs.Count -eq [int]$map.totalInstallCount) ([string]$installs.Count)
@@ -1109,7 +1110,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and -not $InjectSup
             $gateExit = $installedHookGateExit
         }
         else {
-            $gateOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+            $gateOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass `
                 -File (Join-Path $repoRoot ([string]$gate.script))
             $gateExit = $LASTEXITCODE
         }

@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -52,41 +53,41 @@ try {
 
         Set-Content -LiteralPath "safe.txt" -Value "safe content"
         & git add -- safe.txt
-        $safeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $safeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "safe staged file passes hook" ($LASTEXITCODE -eq 0) (($safeOutput | Out-String).Trim())
         & git reset -- safe.txt | Out-Null
 
         Set-Content -LiteralPath "secret.txt" -Value ("api" + "_key=example")
         & git add -- secret.txt
-        $secretOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $secretOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "secret staged file fails hook" ($LASTEXITCODE -ne 0) (($secretOutput | Out-String).Trim())
         & git reset -- secret.txt | Out-Null
 
         Set-Content -LiteralPath "staged-secret.txt" -Value ("api" + "_key=example")
         & git add -- staged-secret.txt
         Set-Content -LiteralPath "staged-secret.txt" -Value "safe working tree content"
-        $divergentSecretOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $divergentSecretOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "hook scans staged secret instead of working tree" ($LASTEXITCODE -ne 0) (($divergentSecretOutput | Out-String).Trim())
         & git reset -- staged-secret.txt | Out-Null
 
         Set-Content -LiteralPath "staged-safe.txt" -Value "safe staged content"
         & git add -- staged-safe.txt
         Set-Content -LiteralPath "staged-safe.txt" -Value ("api" + "_key=working-tree-only")
-        $divergentSafeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $divergentSafeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "hook ignores unstaged working tree secret" ($LASTEXITCODE -eq 0) (($divergentSafeOutput | Out-String).Trim())
         & git reset -- staged-safe.txt | Out-Null
 
         $largePath = Join-Path $PWD "large.bin"
         [System.IO.File]::WriteAllBytes($largePath, (New-Object byte[] (26MB)))
         & git add -- large.bin
-        $largeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $largeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "large staged file fails hook" ($LASTEXITCODE -ne 0) (($largeOutput | Out-String).Trim())
         & git reset -- large.bin | Out-Null
 
         Rename-Item -LiteralPath "baseline.txt" -NewName "renamed-secret.txt"
         Set-Content -LiteralPath "renamed-secret.txt" -Value ("api" + "_key=renamed")
         & git add -A
-        $renameOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
+        $renameOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $hookPath
         Add-Check "renamed staged file fails hook" ($LASTEXITCODE -ne 0) (($renameOutput | Out-String).Trim())
     }
 }

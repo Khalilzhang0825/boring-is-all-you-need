@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "release": "v2.0.2",
+  "release": "v3.0.0",
   "scope": "Codex Desktop on Windows",
   "localPostimageManifestSha256": "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF",
   "mappedInstallCount": 23,
@@ -15,7 +15,7 @@
       "payload": "01-requirements.toml",
       "localSha256": "C87CE8AC9C67AC2245B1EBDD532D2CB75B611DA6458437C010C5D66A5DCC0717",
       "publicSource": "templates/codex/requirements.managed-hooks.example.toml",
-      "publicSha256": "2E9C737D2BE4DC08C034384F63382AC459B5F51ADA5080027E895B05674F6EF1",
+      "publicSha256": "F50B7029F7FE58799B51BD108643858FCDF38566B6E1FEEBF6B96D9E477A33A2",
       "installedDestination": "@managedConfig",
       "mode": "rendered-equivalent",
       "evidence": "exact three-block managed Hook matrix with one unified PreToolUse after TargetRoot rendering",
@@ -29,7 +29,7 @@
       "payload": "02-agent-hook-utils.ps1",
       "localSha256": "F2DCD0C3F8E7770E72027A75953E92F5494EC0FE18300708AC535D3D978B8509",
       "publicSource": "tools/hooks/agent-hook-utils.ps1",
-      "publicSha256": "61C9EE89B81056D89FF4136B3F4ADDE9301BA779D53B36BA5EB178F4E985366B",
+      "publicSha256": "B47D7CD6C6E9E9A208A094DCB296532CA856D30847D12120EED9F164F8DF2BCD",
       "installedDestination": "tools/hooks/agent-hook-utils.ps1",
       "mode": "behavior-superset",
       "evidence": "Hook parser, wrappers, audit privacy, and Git global option matrix",
@@ -44,7 +44,7 @@
       "payload": "03-agent-hook-command-guard.ps1",
       "localSha256": "39D40D8E449DE35861BF5196DD013F73FEDF3C400072147FA6ABF69FC7AC7DF1",
       "publicSource": "tools/hooks/agent-hook-command-guard.ps1",
-      "publicSha256": "EA729E08F5EDFDFE4A3BBA795890BC5DF7C84395B116601F2FE2D81A2191509C",
+      "publicSha256": "3CB51469065231836F9FBCC1F126633EE7E4E49B73C729555F5FBD8049EC0AF8",
       "installedDestination": "tools/hooks/agent-hook-command-guard.ps1",
       "mode": "behavior-superset",
       "evidence": "local command denials plus bounded raw input, bounded event traversal, and expanded interpreter wrapper parsing",
@@ -58,7 +58,7 @@
       "payload": "04-agent-hook-file-guard.ps1",
       "localSha256": "3B4A219379E93447F3F855883709047B0D569A0406B75E5F99194DE159D28122",
       "publicSource": "tools/hooks/agent-hook-file-guard.ps1",
-      "publicSha256": "339BDFFF10883CD2EE315F388DBF1272308BD430220F2DA44287038552158344",
+      "publicSha256": "4A53E90B0F5E33F710A893DF7F8C94D9BBD41EB7712E7ABE404544913FA3B43B",
       "installedDestination": "tools/hooks/agent-hook-file-guard.ps1",
       "mode": "behavior-superset",
       "evidence": "nested matched payload and protected-file fail-closed matrix",
@@ -72,7 +72,7 @@
       "payload": "05-agent-hook-context.ps1",
       "localSha256": "6961AEF2D907F204C91E57910E208FD3FB83A79159E88412B4ED91BE0395308C",
       "publicSource": "tools/hooks/agent-hook-context.ps1",
-      "publicSha256": "EAC60CFDC9D1D820EB13ABE0B5153E204AED2838660855759B6BAB56AC36EAFA",
+      "publicSha256": "7C4E0DE3C91268D35896012A2BFD70565C11AC6F795F922676ABFF4530C55F29",
       "installedDestination": "tools/hooks/agent-hook-context.ps1",
       "mode": "rendered-equivalent",
       "evidence": "Codex SessionStart preserves Caveman lite, lesson titles, 90-day review reminders, and state restoration with portable paths",
@@ -89,7 +89,7 @@
       "payload": "06-agent-hook-smoke-test.ps1",
       "localSha256": "08BFE689E8FC36C1515C57A632FA867510B4E8023EC928B8C6CFAB4737921BA2",
       "publicSource": "tools/test-agent-hooks.ps1",
-      "publicSha256": "DE421238B66500467627F58FDE472FF991E5D503EBD334B577D0D7CFCC820E78",
+      "publicSha256": "1D990722F50861F8DB54C03FE53B362F47191EAB7B0B3D0CC93807B18CD7E68C",
       "installedDestination": "tools/test-agent-hooks.ps1",
       "mode": "scoped-equivalent",
       "evidence": "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; eight Claude or removed high-frequency event assertions are explicitly excluded",
@@ -104,7 +104,9 @@
         "retainedAssertions": [
           {
             "name": "matrix: SessionStart retained",
-            "evidenceCases": ["managed template retains SessionStart"]
+            "evidenceCases": [
+              "managed template retains SessionStart"
+            ]
           },
           {
             "name": "matrix: PreToolUse retained",
@@ -121,255 +123,381 @@
           },
           {
             "name": "matrix: PreCompact retained",
-            "evidenceCases": ["managed template retains PreCompact"]
+            "evidenceCases": [
+              "managed template retains PreCompact"
+            ]
           },
           {
             "name": "matrix: Codex host argument explicit",
-            "evidenceCases": ["managed template routes context to the Codex-only runtime"]
+            "evidenceCases": [
+              "managed template routes context to the Codex-only runtime"
+            ]
           },
           {
             "name": "matrix: no Codex Caveman repair hook",
-            "evidenceCases": ["managed template omits a Caveman repair hook"]
+            "evidenceCases": [
+              "managed template omits a Caveman repair hook"
+            ]
           },
           {
             "name": "matrix: no UserPromptSubmit",
-            "evidenceCases": ["managed template omits UserPromptSubmit"]
+            "evidenceCases": [
+              "managed template omits UserPromptSubmit"
+            ]
           },
           {
             "name": "matrix: no PermissionRequest",
-            "evidenceCases": ["managed template omits PermissionRequest"]
+            "evidenceCases": [
+              "managed template omits PermissionRequest"
+            ]
           },
           {
             "name": "matrix: no PostToolUse",
-            "evidenceCases": ["managed template omits PostToolUse"]
+            "evidenceCases": [
+              "managed template omits PostToolUse"
+            ]
           },
           {
             "name": "review rules: Codex-only scope",
-            "evidenceCases": ["review rules are Codex-only"]
+            "evidenceCases": [
+              "review rules are Codex-only"
+            ]
           },
           {
             "name": "review rules: no combined host matrix",
-            "evidenceCases": ["review rules omit a combined host matrix"]
+            "evidenceCases": [
+              "review rules omit a combined host matrix"
+            ]
           },
           {
             "name": "startup: Codex host delta",
-            "evidenceCases": ["SessionStart emits compact Codex context"]
+            "evidenceCases": [
+              "SessionStart emits compact Codex context"
+            ]
           },
           {
             "name": "startup: caveman status report",
-            "evidenceCases": ["startup reports Caveman lite exactly once"]
+            "evidenceCases": [
+              "startup reports Caveman lite exactly once"
+            ]
           },
           {
             "name": "startup: no duplicated AGENTS host contract",
-            "evidenceCases": ["startup omits five AGENTS host contract duplicates"]
+            "evidenceCases": [
+              "startup omits five AGENTS host contract duplicates"
+            ]
           },
           {
             "name": "startup: Codex dynamic context <= 800 chars",
-            "evidenceCases": ["startup dynamic context stays within 800 characters"]
+            "evidenceCases": [
+              "startup dynamic context stays within 800 characters"
+            ]
           },
           {
             "name": "audit: Codex-only marker",
-            "evidenceCases": ["diagnosis is Codex-only"]
+            "evidenceCases": [
+              "diagnosis is Codex-only"
+            ]
           },
           {
             "name": "audit: no Claude hard gate",
-            "evidenceCases": ["diagnosis contains no Claude hard gate"]
+            "evidenceCases": [
+              "diagnosis contains no Claude hard gate"
+            ]
           },
           {
             "name": "audit: checks unexpected managed fields",
-            "evidenceCases": ["diagnosis checks the exact managed matrix"]
+            "evidenceCases": [
+              "diagnosis checks the exact managed matrix"
+            ]
           },
           {
             "name": "startup: no mojibake",
-            "evidenceCases": ["startup output has no known mojibake marker"]
+            "evidenceCases": [
+              "startup output has no known mojibake marker"
+            ]
           },
           {
             "name": "startup: no state inject",
-            "evidenceCases": ["startup does not inject stale state"]
+            "evidenceCases": [
+              "startup does not inject stale state"
+            ]
           },
           {
             "name": "startup: fresh install review baseline",
-            "evidenceCases": ["fresh install without review marker suppresses due notice"]
+            "evidenceCases": [
+              "fresh install without review marker suppresses due notice"
+            ]
           },
           {
             "name": "startup: stale install review baseline",
-            "evidenceCases": ["90-day install baseline without marker emits due notice"]
+            "evidenceCases": [
+              "90-day install baseline without marker emits due notice"
+            ]
           },
           {
             "name": "startup: many lessons stay <= 800 chars",
-            "evidenceCases": ["startup many-lessons context stays within 800 characters"]
+            "evidenceCases": [
+              "startup many-lessons context stays within 800 characters"
+            ]
           },
           {
             "name": "startup: many lessons report omitted count",
-            "evidenceCases": ["startup many-lessons context reports omitted titles"]
+            "evidenceCases": [
+              "startup many-lessons context reports omitted titles"
+            ]
           },
           {
             "name": "compact: restores state",
-            "evidenceCases": ["compact restores PROJECT_STATE"]
+            "evidenceCases": [
+              "compact restores PROJECT_STATE"
+            ]
           },
           {
             "name": "compact: content injected",
-            "evidenceCases": ["compact restores PROJECT_STATE"]
+            "evidenceCases": [
+              "compact restores PROJECT_STATE"
+            ]
           },
           {
             "name": "compact: no caveman startup report",
-            "evidenceCases": ["compact context omits the Caveman startup report"]
+            "evidenceCases": [
+              "compact context omits the Caveman startup report"
+            ]
           },
           {
             "name": "resume: restores .agent/state.md",
-            "evidenceCases": ["resume restores .agent state"]
+            "evidenceCases": [
+              "resume restores .agent state"
+            ]
           },
           {
             "name": "resume: .agent content injected",
-            "evidenceCases": ["resume restores .agent state"]
+            "evidenceCases": [
+              "resume restores .agent state"
+            ]
           },
           {
             "name": "resume no state: fallback",
-            "evidenceCases": ["resume without state emits a bounded fallback"]
+            "evidenceCases": [
+              "resume without state emits a bounded fallback"
+            ]
           },
           {
             "name": "resume: no caveman startup report",
-            "evidenceCases": ["resume context omits the Caveman startup report"]
+            "evidenceCases": [
+              "resume context omits the Caveman startup report"
+            ]
           },
           {
             "name": "precompact: emits marker",
-            "evidenceCases": ["PreCompact emits supported systemMessage"]
+            "evidenceCases": [
+              "PreCompact emits supported systemMessage"
+            ]
           },
           {
             "name": "danger cmd: denied",
-            "evidenceCases": ["command guard denies destructive Git"]
+            "evidenceCases": [
+              "command guard denies destructive Git"
+            ]
           },
           {
             "name": "PowerShell del recurse alias: denied",
-            "evidenceCases": ["command guard denies recursive del alias"]
+            "evidenceCases": [
+              "command guard denies recursive del alias"
+            ]
           },
           {
             "name": "safe cmd: allowed",
-            "evidenceCases": ["command guard allows safe command"]
+            "evidenceCases": [
+              "command guard allows safe command"
+            ]
           },
           {
             "name": "malformed command event",
-            "evidenceCases": ["command guard fails closed on malformed JSON"]
+            "evidenceCases": [
+              "command guard fails closed on malformed JSON"
+            ]
           },
           {
             "name": "null command event",
-            "evidenceCases": ["command guard fails closed on null event"]
+            "evidenceCases": [
+              "command guard fails closed on null event"
+            ]
           },
           {
             "name": "direct shell missing command",
-            "evidenceCases": ["command guard fails closed on missing command"]
+            "evidenceCases": [
+              "command guard fails closed on missing command"
+            ]
           },
           {
             "name": "secret write audit fixture",
-            "evidenceCases": ["file guard denies env file"]
+            "evidenceCases": [
+              "file guard denies env file"
+            ]
           },
           {
             "name": "guard audit: records input hash",
-            "evidenceCases": ["guard audit records input hashes"]
+            "evidenceCases": [
+              "guard audit records input hashes"
+            ]
           },
           {
             "name": "guard audit: omits raw secret",
-            "evidenceCases": ["guard audit omits raw path"]
+            "evidenceCases": [
+              "guard audit omits raw path"
+            ]
           },
           {
             "name": "guard audit: omits raw command",
-            "evidenceCases": ["guard audit omits raw command"]
+            "evidenceCases": [
+              "guard audit omits raw command"
+            ]
           },
           {
             "name": "command guard utils load failure",
-            "evidenceCases": ["command guard fails closed when utils are absent"]
+            "evidenceCases": [
+              "command guard fails closed when utils are absent"
+            ]
           },
           {
             "name": "parallel file-only command guard",
-            "evidenceCases": ["command guard ignores named non-shell tool"]
+            "evidenceCases": [
+              "command guard ignores named non-shell tool"
+            ]
           },
           {
             "name": "parallel PowerShell erase recurse alias: denied",
-            "evidenceCases": ["command guard recursively denies nested danger"]
+            "evidenceCases": [
+              "command guard recursively denies nested danger"
+            ]
           },
           {
             "name": "parallel unknown schema: command guard denies",
-            "evidenceCases": ["command guard fails closed on unknown nested wrapper"]
+            "evidenceCases": [
+              "command guard fails closed on unknown nested wrapper"
+            ]
           },
           {
             "name": "parallel incomplete shell leaf: denied",
-            "evidenceCases": ["command guard fails closed on missing command"]
+            "evidenceCases": [
+              "command guard fails closed on missing command"
+            ]
           },
           {
             "name": "parallel nested unknown schema: command guard denies",
-            "evidenceCases": ["command guard fails closed on unknown nested wrapper"]
+            "evidenceCases": [
+              "command guard fails closed on unknown nested wrapper"
+            ]
           },
           {
             "name": "env file: denied",
-            "evidenceCases": ["file guard denies env file"]
+            "evidenceCases": [
+              "file guard denies env file"
+            ]
           },
           {
             "name": "git metadata root file: denied",
-            "evidenceCases": ["file guard denies ambiguous Windows protected path: fixture/.git./config"]
+            "evidenceCases": [
+              "file guard denies ambiguous Windows protected path: fixture/.git./config"
+            ]
           },
           {
             "name": "nested worktree git file: denied",
-            "evidenceCases": ["file guard denies ambiguous Windows protected path: fixture/.git /config"]
+            "evidenceCases": [
+              "file guard denies ambiguous Windows protected path: fixture/.git /config"
+            ]
           },
           {
             "name": "git metadata child: denied",
-            "evidenceCases": ["file guard denies ambiguous Windows protected path: fixture/.git/config:stream"]
+            "evidenceCases": [
+              "file guard denies ambiguous Windows protected path: fixture/.git/config:stream"
+            ]
           },
           {
             "name": "apply_patch env file: denied",
-            "evidenceCases": ["file guard still parses apply_patch patch fields"]
+            "evidenceCases": [
+              "file guard still parses apply_patch patch fields"
+            ]
           },
           {
             "name": "doc secret_*.md: allowed (B fix)",
-            "evidenceCases": ["file guard allows documentation example"]
+            "evidenceCases": [
+              "file guard allows documentation example"
+            ]
           },
           {
             "name": "SSH public key: allowed",
-            "evidenceCases": ["file guard allows SSH public key"]
+            "evidenceCases": [
+              "file guard allows SSH public key"
+            ]
           },
           {
             "name": "normal file: allowed",
-            "evidenceCases": ["file guard allows documentation example"]
+            "evidenceCases": [
+              "file guard allows documentation example"
+            ]
           },
           {
             "name": "malformed file event",
-            "evidenceCases": ["file guard fails closed on malformed JSON"]
+            "evidenceCases": [
+              "file guard fails closed on malformed JSON"
+            ]
           },
           {
             "name": "null file event",
-            "evidenceCases": ["file guard fails closed on null event"]
+            "evidenceCases": [
+              "file guard fails closed on null event"
+            ]
           },
           {
             "name": "direct edit missing path",
-            "evidenceCases": ["file guard fails closed on missing path"]
+            "evidenceCases": [
+              "file guard fails closed on missing path"
+            ]
           },
           {
             "name": "invalid patch has no target",
-            "evidenceCases": ["file guard fails closed on invalid patch target"]
+            "evidenceCases": [
+              "file guard fails closed on invalid patch target"
+            ]
           },
           {
             "name": "file guard utils load failure",
-            "evidenceCases": ["file guard fails closed when utils are absent"]
+            "evidenceCases": [
+              "file guard fails closed when utils are absent"
+            ]
           },
           {
             "name": "parallel shell-only file guard",
-            "evidenceCases": ["file guard ignores named non-file tool"]
+            "evidenceCases": [
+              "file guard ignores named non-file tool"
+            ]
           },
           {
             "name": "parallel read-only protected path",
-            "evidenceCases": ["file guard ignores read-only protected path"]
+            "evidenceCases": [
+              "file guard ignores read-only protected path"
+            ]
           },
           {
             "name": "parallel unknown schema: file guard denies",
-            "evidenceCases": ["file guard fails closed on unknown nested wrapper"]
+            "evidenceCases": [
+              "file guard fails closed on unknown nested wrapper"
+            ]
           },
           {
             "name": "parallel incomplete file leaf: denied",
-            "evidenceCases": ["file guard fails closed on missing path"]
+            "evidenceCases": [
+              "file guard fails closed on missing path"
+            ]
           },
           {
             "name": "parallel nested unknown schema: file guard denies",
-            "evidenceCases": ["file guard fails closed on unknown nested wrapper"]
+            "evidenceCases": [
+              "file guard fails closed on unknown nested wrapper"
+            ]
           }
         ],
         "excludedAssertionCount": 8,
@@ -419,7 +547,7 @@
       "payload": "07-agent-config-audit.ps1",
       "localSha256": "FB23C4BAD3CCA2BEF53FABF02B6F52C4E5B19204E3F8CB4F98D677DD30D90E54",
       "publicSource": "tools/diagnose-install.ps1",
-      "publicSha256": "19CA6865A674FF2F8A5504DB93AF0BB524151F8A2BAD58DE9D1F9EFE95BD5DB9",
+      "publicSha256": "3DD724F99D6AC67F8C98875A0FC034C8CC2B864F33861A82EFBF682AFE395616",
       "installedDestination": "tools/diagnose-install.ps1",
       "mode": "behavior-superset",
       "evidence": "portable installed-state audit plus Caveman, review/skill, owning-task-after-receipt timing, rollout-file-confirmed catalog, explicit manual Live boundary, Git identity, managed matrix, and Hook smoke checks",
@@ -433,7 +561,7 @@
       "payload": "08-git-checkpoint.ps1",
       "localSha256": "0253EEB42A93E2F0147D7ECE9983BA6D74FE155E20520DBE639699696168D9F7",
       "publicSource": "tools/git-checkpoint.ps1",
-      "publicSha256": "FEB8862C09781268ABE3675C68BBE64DD82112F954961232F09889CF6C84BD66",
+      "publicSha256": "2A0C7A6C3E5648043ABC17C37A8E835E83AE2B34D056D09BC1D8681AB0059356",
       "installedDestination": "tools/git-checkpoint.ps1",
       "mode": "behavior-superset",
       "evidence": "isolated index and object quarantine, bound single-link candidates, real-index snapshot binding without ABA, staged-blob and scope revalidation, explicit files or user-approved all scope, index lock, HEAD CAS, and compensation",
@@ -448,7 +576,7 @@
       "payload": "09-git-checkpoint-test.ps1",
       "localSha256": "32AD24E4FD61486E55F2AF5AA0918866641A1E36E6CF1436458CA1B90B861E45",
       "publicSource": "tools/test-git-checkpoint.ps1",
-      "publicSha256": "736107214A1C562D4996BE7D1F67B959A151B79DBA911C35C841900C59C0A509",
+      "publicSha256": "D57C812DE44AF1677FAFC35E10E17DAED6584441BF8D9E22F45656E8D49C6EF1",
       "installedDestination": "tools/test-git-checkpoint.ps1",
       "mode": "behavior-superset",
       "evidence": "checkpoint transaction, hardlink alias, pre-add growth, object-quarantine, transient index ABA, and concurrent-index adversarial suite",
@@ -462,7 +590,7 @@
       "payload": "10-skill-catalog-resolver.ps1",
       "localSha256": "6C32543DB4BD744460FFF14A932F668B56C24F94EBB6D08FD325F3F40AF84196",
       "publicSource": "tools/skill-catalog-resolver.ps1",
-      "publicSha256": "8C0B0FB78C39FBA9F32A88AD45A4D93000B4267526002C330C07481B54D9FDC2",
+      "publicSha256": "55EE29B42846EAFBA9CD84B13B67BCD6ADEFA4E88D07C2B7A43BC2E448C9EBB5",
       "installedDestination": "tools/skill-catalog-resolver.ps1",
       "mode": "rendered-equivalent",
       "evidence": "CODEX_HOME rollout-file discovery, owning task timestamp, and host-thread-prompt-digest file snapshot binding below Live",
@@ -476,7 +604,7 @@
       "payload": "11-skill-index.ps1",
       "localSha256": "2363C2C0D23D9D17D3DFB487C349225F04A42DE402D66F21FF15632FFBF3E498",
       "publicSource": "tools/skill-index.ps1",
-      "publicSha256": "BAFD436C01E10034B7844638782586473AF14023844ACE0AD001E5AAC729FAB6",
+      "publicSha256": "022AE37710700217AD32A8AB3BF85A9FBD054FA4ADE2EA859C35EC3B98559C91",
       "installedDestination": "tools/skill-index.ps1",
       "mode": "rendered-equivalent",
       "evidence": "current-task thread binding, rollout-file-confirmed visibility, portable catalog root, optional CODEX_BINARY, and atomic snapshot publication",
@@ -490,7 +618,7 @@
       "payload": "12-skill-search.ps1",
       "localSha256": "29726E625E722C3E2D47ADDD1188D08F2D8EC92D141C9C6257A50343378CF9F3",
       "publicSource": "tools/skill-search.ps1",
-      "publicSha256": "3C23F87E213041034FA284C9579951170341B75BCCEE46A9818D49ACC3533745",
+      "publicSha256": "524D69F84C36D544572A1C3A881259D330F27A54CC0FFD614D1B701C2542F698",
       "installedDestination": "tools/skill-search.ps1",
       "mode": "rendered-equivalent",
       "evidence": "current-task-bound rollout-file catalog search with validated absolute SKILL.md paths, complete readable contents, zero partial output, and explicit fixture isolation",
@@ -504,7 +632,7 @@
       "payload": "13-skill-catalog-test.ps1",
       "localSha256": "712939D6EF540512F1FE7BEC25AB440BA19B3605AEB4E39142021565EF7EEBEE",
       "publicSource": "tools/test-skill-catalog.ps1",
-      "publicSha256": "756A6F2BBFDE937B835F8B8B3DEBCDD3FCC3D3D093D15ECBEB72893500C54A3C",
+      "publicSha256": "24C99876113589AB8B3C78F597221B00558BF1E099C1DC51739245286B029A99",
       "installedDestination": "tools/test-skill-catalog.ps1",
       "mode": "rendered-equivalent",
       "evidence": "exact 69-case deterministic catalog, bound-rollout incremental search, task-timing, and diagnosis-boundary set plus an exact 76-case optional real-rollout file canary set; neither is Live acceptance",
@@ -524,7 +652,7 @@
       "payload": "14-pre-commit-check.ps1",
       "localSha256": "A2A5886A40B9714713176932200CD8D4F3060F681FE9BFA4DA9AE086891EAB31",
       "publicSource": "tools/git-hooks/pre-commit-check.ps1",
-      "publicSha256": "A95D68209F9C9AC3F8A073D6891B4B8BA96CF34AC12324AB956A6934EEBD90B1",
+      "publicSha256": "3E35F6F1CF762096D7869C33C42E343F62F78B6E1877AB39F3EF3E6060E12170",
       "installedDestination": "tools/git-hooks/pre-commit-check.ps1",
       "mode": "behavior-superset",
       "evidence": "staged protected-path, hardlink alias, secret, and oversized-blob checks",
@@ -538,7 +666,7 @@
       "payload": "15-pre-commit-check-test.ps1",
       "localSha256": "FA3F1C7C75F31DED25180305CA2EDC75BADF65DEC8C30EADAB273A019F0C82F8",
       "publicSource": "tools/test-pre-commit.ps1",
-      "publicSha256": "623AE1BEA118A87FFC6476C3FF433E76D5BCC96DD9319A5B2F7E881E7A9F5B52",
+      "publicSha256": "A7E781DB825A9C5C9AEA34A850F53A3B65881BC3D394CB368D31D3DF08C89F57",
       "installedDestination": "tools/test-pre-commit.ps1",
       "mode": "behavior-superset",
       "evidence": "public pre-commit fixture includes local policy, hardlink alias rejection, and additional secret checks",
@@ -608,7 +736,7 @@
       "payload": "20-HARNESS-GUIDE.md",
       "localSha256": "9B952C5AFB2F38CB59E49450EFFC0A65557DD16FE9FA89D01BCA0AEC5900E2E4",
       "publicSource": "rules/HARNESS-GUIDE.md",
-      "publicSha256": "7193867745A985F0EF93732AED5D9091475FD5A428E8AC4D0BD03D743BE7F5F5",
+      "publicSha256": "F96AFDD8AD6AD49261BE6286D32434A6FF76D6805E8486000C10C7A22123DC04",
       "installedDestination": "rules/HARNESS-GUIDE.md",
       "mode": "policy-equivalent",
       "evidence": "portable Codex-only runtime, rollout-file catalog, manual Live boundary, validation, recovery, and evidence guide",
@@ -636,7 +764,7 @@
       "payload": "22-protected-path-policy.ps1",
       "localSha256": "EC22C8249201131C8FDEB1E87C9810378559031B9B98922D53E8940714884256",
       "publicSource": "tools/protected-path-policy.ps1",
-      "publicSha256": "CC787BA33E921140EEBA9BF5B25085BA743EB9CE78744A644A554C6FA9F77030",
+      "publicSha256": "A6213BB6A2A4FE5804122FAAADB3DBF5AA77AB7ABCE596AAC2BBDE37B94ED215",
       "installedDestination": "tools/protected-path-policy.ps1",
       "mode": "behavior-superset",
       "evidence": "local protected-file policy plus Windows path aliases, read-only pending-mutation detection, mutex-bound repair, bound mutation, and receipt-before-publish owned-directory identity primitives",
@@ -652,7 +780,7 @@
       "payload": "23-protected-path-policy-test.ps1",
       "localSha256": "90735A098240ED4BEF284E74BCBF3B5AD36C61AFF25B70D2598243EBEEA79D06",
       "publicSource": "tools/test-protected-path-policy.ps1",
-      "publicSha256": "C74F75507AF09AC9E871B78BB1AE414DCAB0DC2E8D74203984CCE6F117791044",
+      "publicSha256": "144AA1F170A6B0B2DC6F183AA67FDBFFBB4A02759F84CD882561795D64C6EEC4",
       "installedDestination": "tools/test-protected-path-policy.ps1",
       "mode": "behavior-superset",
       "evidence": "local policy cases plus executable Windows path-alias and owned-directory identity regression coverage",

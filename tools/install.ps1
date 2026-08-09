@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [string]$TargetRoot = (Join-Path $HOME ".steadyagent"),
@@ -27,6 +28,9 @@ param(
     [switch]$InjectAutomaticRollbackFailure,
     [string]$InjectTargetMutationPath,
     [string]$InjectGitHooksMutationValue,
+    [string]$InjectTrustedUpgradePostValidationMutationPath,
+    [switch]$InjectTrustedUpgradePointerCasMutation,
+    [switch]$InjectTrustedUpgradeCleanupFailure,
     [int]$InjectJunctionSwapAt = 0,
     [string]$InjectJunctionParkedRoot,
     [string]$InjectJunctionEscapeRoot
@@ -34,7 +38,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$expectedMigrationRuntimeSha256 = "818C393376398BA2CE43597CE2C90EB146CCDD6C2DC5524F52DD03A729081F11"
+$expectedMigrationRuntimeSha256 = "1B560A50AF7DECF76789C29F8BEC567877760BBDC179282C3CF9DBC86E44A950"
 $migrationRuntimePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "migration-runtime.ps1"))
 if (-not [IO.File]::Exists($migrationRuntimePath)) {
     throw "Migration runtime is missing; no migration writes were made."
@@ -100,10 +104,10 @@ foreach ($migrationRuntimeCommand in @(
         throw "Migration runtime did not load its frozen primitive set; no migration writes were made."
     }
 }
-$version = "2.0.2"
+$version = "3.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "9BD2762CF0AC01B091C3436F0548F7B25574E05EF049425E579775780CED736A"
+$expectedPackageManifestSha256 = "38CA32C7D61888FD6A383848D56D374AC7A80F570F8915A68DA35983CF1EEC6E"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -326,7 +330,7 @@ function Resolve-ActiveReceipt {
     Assert-NoReparsePath -Path $pointerPath
     $pointerBytes = [IO.File]::ReadAllBytes($pointerPath)
     $pointerFileSHA256 = Get-Sha256Bytes -Bytes $pointerBytes
-    $pointer = [Text.Encoding]::UTF8.GetString($pointerBytes) | ConvertFrom-Json
+    $pointer = [Text.Encoding]::UTF8.GetString($pointerBytes) | ConvertFrom-Json -DateKind String
     $expectedProperties = @("schema_version", "target_root", "receipts", "pointer_integrity_sha256")
     $actualProperties = @($pointer.PSObject.Properties.Name)
     if (@($expectedProperties | Where-Object { $actualProperties -notcontains $_ }).Count -gt 0 -or
@@ -349,7 +353,7 @@ function Resolve-ActiveReceipt {
     }
     $receiptBytes = [IO.File]::ReadAllBytes($receiptPath)
     $receiptSHA256 = Get-Sha256Bytes -Bytes $receiptBytes
-    $activeReceipt = [Text.Encoding]::UTF8.GetString($receiptBytes) | ConvertFrom-Json
+    $activeReceipt = [Text.Encoding]::UTF8.GetString($receiptBytes) | ConvertFrom-Json -DateKind String
     if ([string]$activeReceipt.status -notin @(
             "applying", "applied", "rollback_incomplete", "rolled_back", "restored"
         ) -or
@@ -393,7 +397,7 @@ function Get-ActiveRollbackJournalState {
         throw "The active rollback journal is missing or ambiguous."
     }
     Assert-NoReparsePath -Path $journalPath
-    $journal = [IO.File]::ReadAllText($journalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $journal = [IO.File]::ReadAllText($journalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $expectedProperties = @(
         "schema_version", "transaction_kind", "transaction_id", "state",
         "created_utc", "updated_utc", "failure_code", "failure_message",
@@ -456,8 +460,8 @@ function Write-NewTaskStrictAuditBlock {
     Write-Host ('$SteadyAgentRoot = ' + $quotedTargetRoot)
     Write-Host ('$ReceiptPath = ' + $quotedReceiptPath)
     Write-Host 'if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { throw "Run this audit from a newly started Codex task." }'
-    Write-Host 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID'
-    Write-Host 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity'
+    Write-Host 'pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID'
+    Write-Host 'pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity'
 }
 
 
@@ -806,6 +810,146 @@ function Test-OperationsMatchDesiredState {
     return $true
 }
 
+function Test-TrustedV202UpgradeState {
+    param(
+        [object]$ActiveReceipt,
+        [AllowNull()][string]$CurrentGitHooksPath
+    )
+    try {
+    $candidate = $ActiveReceipt.Receipt
+    $expectedReceiptProperties = @(
+        'schema_version', 'steadyagent_version', 'created_utc', 'completed_utc',
+        'restored_utc', 'failure', 'status', 'target_root', 'codex_home',
+        'managed_config', 'git_config', 'git_config_existed_before',
+        'git_config_before_sha256', 'git_config_after_sha256',
+        'git_config_before_snapshot_name', 'git_config_before_snapshot_sha256',
+        'git_config_after_snapshot_name', 'git_config_after_snapshot_sha256',
+        'git_hooks_path_before', 'git_hooks_path_after',
+        'git_hooks_path_before_snapshot_name', 'git_hooks_path_before_snapshot_sha256',
+        'install_operation_count', 'remove_operation_count',
+        'install_projection_sha256', 'removal_projection_sha256',
+        'created_directories', 'entries', 'receipt_integrity_sha256'
+    )
+    $actualReceiptProperties = @($candidate.PSObject.Properties.Name)
+    if ($actualReceiptProperties.Count -ne $expectedReceiptProperties.Count -or
+        @($expectedReceiptProperties | Where-Object {
+            $actualReceiptProperties -cnotcontains $_
+        }).Count -gt 0) {
+        return $false
+    }
+    if ([int]$candidate.schema_version -ne 2 -or
+        [string]$candidate.steadyagent_version -cne '2.0.2' -or
+        [string]$candidate.status -cne 'applied' -or
+        -not [string]$candidate.completed_utc -or
+        $null -ne $candidate.restored_utc -or
+        $null -ne $candidate.failure -or
+        [int]$candidate.install_operation_count -ne 53 -or
+        [int]$candidate.remove_operation_count -ne 27 -or
+        [string]$candidate.install_projection_sha256 -cne
+            'D8FAAE46FF7C2E80E71C3ECC539DE1B9CE9097A0F8EFC2D1E82B25865A857356' -or
+        [string]$candidate.removal_projection_sha256 -cne
+            'F69BFE5A67AAE53337DE0C1E54D52CDDD1C841EF8528180B1F9F758F94A74582') {
+        return $false
+    }
+    if (-not ([IO.Path]::GetFullPath([string]$candidate.target_root)).Equals(
+            $targetFull,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        -not ([IO.Path]::GetFullPath([string]$candidate.codex_home)).Equals(
+            $codexFull,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        -not ([IO.Path]::GetFullPath([string]$candidate.managed_config)).Equals(
+            $managedFull,
+            [StringComparison]::OrdinalIgnoreCase
+        ) -or
+        -not ([IO.Path]::GetFullPath([string]$candidate.git_config)).Equals(
+            $gitConfigFull,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        return $false
+    }
+    $entries = @($candidate.entries)
+    if ($entries.Count -ne 80) { return $false }
+    $expectedEntryProperties = @(
+        'action', 'destination', 'existed', 'snapshot_name',
+        'original_sha256', 'installed_sha256'
+    )
+    $seenDestinations = @{}
+    $installEntries = New-Object Collections.Generic.List[object]
+    $removeEntries = New-Object Collections.Generic.List[object]
+    foreach ($entry in $entries) {
+        $actualEntryProperties = @($entry.PSObject.Properties.Name)
+        if ($actualEntryProperties.Count -ne $expectedEntryProperties.Count -or
+            @($expectedEntryProperties | Where-Object {
+                $actualEntryProperties -cnotcontains $_
+            }).Count -gt 0) {
+            return $false
+        }
+        $destination = [IO.Path]::GetFullPath([string]$entry.destination)
+        $destinationKey = $destination.ToUpperInvariant()
+        if ($seenDestinations.ContainsKey($destinationKey)) { return $false }
+        $seenDestinations[$destinationKey] = $true
+        $inManagedSurface = (
+            $destination.Equals($managedFull, [StringComparison]::OrdinalIgnoreCase) -or
+            (Test-PathWithinRoot -Path $destination -Root $targetFull) -or
+            (Test-PathWithinRoot -Path $destination -Root $codexFull)
+        )
+        if (-not $inManagedSurface) { return $false }
+        if ([string]$entry.action -ceq 'install') {
+            $installEntries.Add($entry) | Out-Null
+            if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or
+                [string]$entry.installed_sha256 -notmatch '^[0-9A-F]{64}$' -or
+                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -cne
+                    [string]$entry.installed_sha256) {
+                return $false
+            }
+        }
+        elseif ([string]$entry.action -ceq 'remove') {
+            $removeEntries.Add($entry) | Out-Null
+            if (Test-Path -LiteralPath $destination) { return $false }
+        }
+        else { return $false }
+    }
+    if ($installEntries.Count -ne 53 -or $removeEntries.Count -ne 27) {
+        return $false
+    }
+    $calculatedInstallProjection = Get-SortedProjectionSha256 -Projection @(
+        Get-OperationProjection `
+            -Operations $installEntries.ToArray() `
+            -TargetRoot $targetFull `
+            -CodexHome $codexFull `
+            -ManagedConfig $managedFull
+    )
+    $calculatedRemovalProjection = Get-SortedProjectionSha256 -Projection @(
+        Get-OperationProjection `
+            -Operations $removeEntries.ToArray() `
+            -TargetRoot $targetFull `
+            -CodexHome $codexFull `
+            -ManagedConfig $managedFull
+    )
+    if ($calculatedInstallProjection -cne
+            'D8FAAE46FF7C2E80E71C3ECC539DE1B9CE9097A0F8EFC2D1E82B25865A857356' -or
+        $calculatedRemovalProjection -cne
+            'F69BFE5A67AAE53337DE0C1E54D52CDDD1C841EF8528180B1F9F758F94A74582') {
+        return $false
+    }
+    if (-not (Test-Path -LiteralPath $gitConfigFull -PathType Leaf) -or
+        [string]$candidate.git_config_after_sha256 -notmatch '^[0-9A-F]{64}$' -or
+        (Get-FileHash -LiteralPath $gitConfigFull -Algorithm SHA256).Hash -cne
+            [string]$candidate.git_config_after_sha256 -or
+        $null -eq $CurrentGitHooksPath -or
+        -not $CurrentGitHooksPath.Equals(
+            [string]$candidate.git_hooks_path_after,
+            [StringComparison]::OrdinalIgnoreCase
+        )) {
+        return $false
+    }
+    return $true
+    }
+    catch { return $false }
+}
+
 $targetFull = [IO.Path]::GetFullPath($TargetRoot)
 $codexFull = [IO.Path]::GetFullPath($CodexHome)
 $managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
@@ -836,6 +980,7 @@ if ($isTestMode) {
         $backupFull,
         $gitConfigFull,
         $InjectTargetMutationPath,
+        $InjectTrustedUpgradePostValidationMutationPath,
         $InjectJunctionParkedRoot,
         $InjectJunctionEscapeRoot
     )) {
@@ -901,6 +1046,8 @@ if (($InjectFailureAfter -gt 0 -or $InjectPostWriteFailureAt -gt 0 -or $InjectSn
      $InjectGitConfigCasMutationValue -or
      $InjectRemovalSubstitution -or $InjectMutexFailure -or $InjectAutomaticRollbackFailure -or
      $InjectTargetMutationPath -or $InjectGitHooksMutationValue -or
+     $InjectTrustedUpgradePostValidationMutationPath -or
+     $InjectTrustedUpgradePointerCasMutation -or $InjectTrustedUpgradeCleanupFailure -or
      $InjectJunctionSwapAt -gt 0 -or $InjectJunctionParkedRoot -or
      $InjectJunctionEscapeRoot) -and
     -not $isTestMode) {
@@ -1026,7 +1173,7 @@ $legacyManifestText = ConvertFrom-StrictUtf8Bytes `
     -Bytes ([byte[]]$packageSnapshot[$legacyManifestKey].Bytes) `
     -Label "V1-owned file manifest"
 $legacyRemovalRelativePaths = @(
-    $legacyManifestText.Split(@("`r`n", "`n"), [StringSplitOptions]::None) |
+    $legacyManifestText.Split([string[]]@("`r`n", "`n"), [StringSplitOptions]::None) |
         ForEach-Object { $_.Trim() } |
         Where-Object { $_ }
 )
@@ -1077,6 +1224,11 @@ $gitConfigBytesAfter = $null
 $gitConfigAfterSHA256 = $null
 $gitConfigCasConflict = $false
 $snapshotCopies = 0
+$trustedV202Upgrade = $false
+$trustedUpgradePointerBytes = $null
+$trustedUpgradePointerSHA256 = $null
+$trustedUpgradeEntriesByDestination = @{}
+$trustedUpgradePointerTakenOver = $false
 
 try {
     New-Item -ItemType Directory -Path $stageRoot -Force | Out-Null
@@ -1178,7 +1330,7 @@ try {
             -not $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
             $conflicts += ("Git core.hooksPath=" + $gitHooksBefore)
         }
-        Write-Host "DRY-RUN Boring Is All You Need v2.0.2 migration"
+        Write-Host "DRY-RUN Boring Is All You Need v3.0.0 migration"
         Write-Host (
             (
                 "Plan: {0} operations; {1} existing conflict(s); " +
@@ -1277,16 +1429,33 @@ try {
         else {
             Resolve-ActiveAppliedReceipt -TargetRoot $targetFull
         }
-        Write-Host "[OK] Boring Is All You Need v2.0.2 is already installed; no target/config/backup/receipt/state writes."
+        Write-Host "[OK] Boring Is All You Need v3.0.0 is already installed; no target/config/backup/receipt/state writes."
         Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $activeReceiptPath
         exit 0
     }
     if ($activeReceipt -and [string]$activeReceipt.Status -ceq "applied") {
-        [Console]::Error.WriteLine(
-            "Boring Is All You Need install refused: the active applied receipt no longer matches installed state."
-        )
-        [Console]::Error.WriteLine("Recovery receipt: " + [string]$activeReceipt.Path)
-        exit 3
+        $trustedV202Upgrade = Test-TrustedV202UpgradeState `
+            -ActiveReceipt $activeReceipt `
+            -CurrentGitHooksPath $gitHooksBefore
+        if (-not $trustedV202Upgrade) {
+            [Console]::Error.WriteLine(
+                "Boring Is All You Need install refused: the active applied receipt no longer matches installed state."
+            )
+            [Console]::Error.WriteLine("Recovery receipt: " + [string]$activeReceipt.Path)
+            exit 3
+        }
+        if (-not $ReplaceExistingWorkflow) {
+            Write-Host "[FAIL] A verified v2.0.2 installation is active. No files were written."
+            Write-Host "Review the dry-run, then use -ReplaceExistingWorkflow to authorize the v3.0.0 upgrade."
+            exit 2
+        }
+        $trustedUpgradePointerBytes = [IO.File]::ReadAllBytes($activePointerPath)
+        $trustedUpgradePointerSHA256 = Get-Sha256Bytes -Bytes $trustedUpgradePointerBytes
+        foreach ($trustedEntry in @($activeReceipt.Receipt.entries)) {
+            $trustedDestination = [IO.Path]::GetFullPath([string]$trustedEntry.destination)
+            $trustedUpgradeEntriesByDestination[$trustedDestination.ToUpperInvariant()] = $trustedEntry
+        }
+        Write-Host "[OK] Verified the complete v2.0.2 receipt, installed bytes, and Git Hook state for trusted upgrade."
     }
     $conflicts = @(Get-OperationConflicts -Operations $operations)
     if ($gitHooksBefore -and
@@ -1322,6 +1491,40 @@ try {
     }
     $preWriteConflicts = @(Get-OperationConflicts -Operations $operations)
     $preWriteGitHooks = Get-GitHooksPath
+    if ($trustedV202Upgrade) {
+        $trustedUpgradeAuthorityStillMatches = (
+            (Test-Path -LiteralPath $activePointerPath -PathType Leaf) -and
+            (Get-FileHash -LiteralPath $activePointerPath -Algorithm SHA256).Hash -ceq
+                $trustedUpgradePointerSHA256 -and
+            (Test-Path -LiteralPath ([string]$activeReceipt.Path) -PathType Leaf) -and
+            (Get-FileHash -LiteralPath ([string]$activeReceipt.Path) -Algorithm SHA256).Hash -ceq
+                [string]$activeReceipt.ReceiptSHA256 -and
+            (Test-TrustedV202UpgradeState `
+                -ActiveReceipt $activeReceipt `
+                -CurrentGitHooksPath $preWriteGitHooks)
+        )
+        if (-not $trustedUpgradeAuthorityStillMatches) {
+            throw "The verified v2.0.2 upgrade source changed before snapshot; no migration writes were made."
+        }
+    }
+    if ($InjectTrustedUpgradePostValidationMutationPath) {
+        if (-not $trustedV202Upgrade) {
+            throw "Post-validation mutation injection requires a trusted v2.0.2 upgrade."
+        }
+        $postValidationMutationFull = [IO.Path]::GetFullPath(
+            $InjectTrustedUpgradePostValidationMutationPath
+        )
+        if (-not $trustedUpgradeEntriesByDestination.ContainsKey(
+                $postValidationMutationFull.ToUpperInvariant()
+            )) {
+            throw "Post-validation mutation target is outside the trusted v2.0.2 receipt."
+        }
+        [IO.File]::WriteAllText(
+            $postValidationMutationFull,
+            "injected-post-validation-drift",
+            (New-Object Text.UTF8Encoding($false))
+        )
+    }
     $gitHooksChangedAfterPlan = (
         ($null -eq $gitHooksBefore -and $null -ne $preWriteGitHooks) -or
         ($null -ne $gitHooksBefore -and
@@ -1342,6 +1545,11 @@ try {
         Get-Sha256Bytes -Bytes $gitConfigBytesBefore
     }
     else { $null }
+    if ($trustedV202Upgrade -and
+        (-not $gitConfigExistedBefore -or
+         $gitConfigBeforeSHA256 -cne [string]$activeReceipt.Receipt.git_config_after_sha256)) {
+        throw "The verified v2.0.2 Git config changed before durable snapshot."
+    }
     if ($gitHooksBefore -and
         $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
         $gitConfigBytesAfter = $gitConfigBytesBefore
@@ -1414,6 +1622,19 @@ try {
                 throw "Injected pre-receipt snapshot copy failure."
             }
         }
+        if ($trustedV202Upgrade) {
+            $trustedSnapshotEntry = $trustedUpgradeEntriesByDestination[
+                ([IO.Path]::GetFullPath([string]$item.Destination)).ToUpperInvariant()
+            ]
+            if ($null -eq $trustedSnapshotEntry -or
+                [string]$trustedSnapshotEntry.action -cne [string]$item.Action -or
+                ($item.Action -eq "install" -and
+                 (-not $exists -or
+                  $originalHash -cne [string]$trustedSnapshotEntry.installed_sha256)) -or
+                ($item.Action -eq "remove" -and $exists)) {
+                throw ("The verified v2.0.2 target changed before durable snapshot: " + $item.Destination)
+            }
+        }
         $snapshots.Add([pscustomobject]@{
             Destination = $item.Destination
             Existed = $exists
@@ -1423,6 +1644,20 @@ try {
             Action = $item.Action
             InstalledSHA256 = $item.DesiredHash
         }) | Out-Null
+    }
+    if ($trustedV202Upgrade) {
+        $trustedUpgradePublicationStillMatches = (
+            (Get-FileHash -LiteralPath $activePointerPath -Algorithm SHA256).Hash -ceq
+                $trustedUpgradePointerSHA256 -and
+            (Get-FileHash -LiteralPath ([string]$activeReceipt.Path) -Algorithm SHA256).Hash -ceq
+                [string]$activeReceipt.ReceiptSHA256 -and
+            (Test-TrustedV202UpgradeState `
+                -ActiveReceipt $activeReceipt `
+                -CurrentGitHooksPath (Get-GitHooksPath))
+        )
+        if (-not $trustedUpgradePublicationStillMatches) {
+            throw "The verified v2.0.2 upgrade source changed before authority publication."
+        }
     }
 
     $receipt = [pscustomobject][ordered]@{
@@ -1467,7 +1702,23 @@ try {
     }
     $receiptPath = Join-Path $backupFull "migration-receipt.json"
     Write-MigrationReceipt -Receipt $receipt -Path $receiptPath
-    Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $receiptPath
+    if ($InjectTrustedUpgradePointerCasMutation) {
+        if (-not $trustedV202Upgrade) {
+            throw "Pointer CAS mutation injection requires a trusted v2.0.2 upgrade."
+        }
+        [IO.File]::WriteAllText(
+            $activePointerPath,
+            "injected-concurrent-pointer",
+            (New-Object Text.UTF8Encoding($false))
+        )
+    }
+    Write-ActiveReceiptPointer `
+        -TargetRoot $targetFull `
+        -ReceiptPath $receiptPath `
+        -ExpectedCurrentPointerSHA256 $(
+            if ($trustedV202Upgrade) { $trustedUpgradePointerSHA256 } else { $null }
+        )
+    if ($trustedV202Upgrade) { $trustedUpgradePointerTakenOver = $true }
     Write-Host ("Recovery receipt: " + $receiptPath)
     if ($InjectSnapshotMutationAt -gt 0) {
         if ($InjectSnapshotMutationAt -gt $snapshots.Count) {
@@ -1798,12 +2049,57 @@ catch {
         }
         catch { $rollbackErrors += "pre-receipt backup cleanup" }
     }
+    if ($receipt -and $trustedV202Upgrade -and -not $trustedUpgradePointerTakenOver -and
+        $written -eq 0 -and -not $gitHooksChanged) {
+        try {
+            if ($InjectTrustedUpgradeCleanupFailure) {
+                throw "Injected trusted upgrade orphan backup cleanup failure."
+            }
+            if (Test-Path -LiteralPath $backupFull -PathType Container) {
+                Assert-NoReparsePath -Path $backupFull
+                Remove-Item -LiteralPath $backupFull -Recurse -Force
+            }
+        }
+        catch { $rollbackErrors += "pre-takeover trusted upgrade cleanup" }
+        finally { $receipt = $null }
+    }
     if ($receipt -and (Test-Path -LiteralPath $backupFull)) {
         $receipt.status = if ($rollbackErrors.Count -eq 0) { "rolled_back" } else { "rollback_incomplete" }
         $receipt.failure = $_.Exception.Message
         $failedReceiptPath = Join-Path $backupFull "migration-receipt.json"
         Write-MigrationReceipt -Receipt $receipt -Path $failedReceiptPath
         Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $failedReceiptPath
+        if ($rollbackErrors.Count -eq 0 -and $null -ne $trustedUpgradePointerBytes -and
+            -not (Test-TrustedV202UpgradeState `
+                -ActiveReceipt $activeReceipt `
+                -CurrentGitHooksPath (Get-GitHooksPath))) {
+            $rollbackErrors += "trusted v2.0.2 exact preimage"
+            $receipt.status = "rollback_incomplete"
+            Write-MigrationReceipt -Receipt $receipt -Path $failedReceiptPath
+            Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $failedReceiptPath
+        }
+        elseif ($rollbackErrors.Count -eq 0 -and $null -ne $trustedUpgradePointerBytes) {
+            try {
+                $failedPointerSHA256 = (
+                    Get-FileHash -LiteralPath $activePointerPath -Algorithm SHA256
+                ).Hash
+                Invoke-SteadyAgentBoundAtomicWrite `
+                    -Destination $activePointerPath `
+                    -Bytes $trustedUpgradePointerBytes `
+                    -ExpectedCurrentSHA256 $failedPointerSHA256
+                if ((Get-FileHash -LiteralPath $activePointerPath -Algorithm SHA256).Hash -cne
+                    $trustedUpgradePointerSHA256) {
+                    throw "The trusted v2.0.2 active pointer was not restored exactly."
+                }
+                Write-Host "[RECOVERED] Restored the trusted v2.0.2 active receipt pointer."
+            }
+            catch {
+                $rollbackErrors += "trusted v2.0.2 active receipt pointer"
+                $receipt.status = "rollback_incomplete"
+                Write-MigrationReceipt -Receipt $receipt -Path $failedReceiptPath
+                Write-ActiveReceiptPointer -TargetRoot $targetFull -ReceiptPath $failedReceiptPath
+            }
+        }
     }
     if ($rollbackErrors.Count -gt 0) {
         [Console]::Error.WriteLine("Boring Is All You Need migration failed and rollback was incomplete.")

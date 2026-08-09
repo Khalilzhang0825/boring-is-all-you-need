@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -30,7 +31,7 @@ function Write-SemanticCheck {
 
 function Invoke-Guard {
     param([int]$MaxMB = 25)
-    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $guard -MaxMB $MaxMB
+    $output = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $guard -MaxMB $MaxMB
     return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = @($output) -join "`n" }
 }
 

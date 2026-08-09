@@ -3,7 +3,7 @@ hook_dir=${0%/*}
 if [ "$hook_dir" = "$0" ]; then hook_dir=.; fi
 hook_dir=$(CDPATH= cd -- "$hook_dir" && pwd) || exit 1
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$hook_dir/pre-commit-check.ps1" || exit $?
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$hook_dir/pre-commit-check.ps1" || exit $?
 
 if [ "${STEADYAGENT_CHAINING_LOCAL_PRE_COMMIT:-}" = "1" ]; then
   exit 0

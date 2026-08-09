@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param([string]$SteadyAgentHome = "")
 
@@ -17,7 +18,7 @@ try {
     $raw = $reader.ReadToEnd()
     $reader.Dispose()
     if ($raw) {
-        $event = $raw | ConvertFrom-Json
+        $event = $raw | ConvertFrom-Json -DateKind String
         if ($event.PSObject.Properties.Name -contains "source") { $source = [string]$event.source }
         if ($event.PSObject.Properties.Name -contains "cwd") { $cwd = [string]$event.cwd }
     }
@@ -49,7 +50,7 @@ function Get-CavemanStatusLine {
     $configPath = Join-Path $Root "config\caveman.json"
     if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         try {
-            $config = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $config = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
             if ($config.PSObject.Properties.Name -contains "defaultMode" -and [string]$config.defaultMode) {
                 $mode = [string]$config.defaultMode
                 $sourceLabel = "local config defaultMode"
