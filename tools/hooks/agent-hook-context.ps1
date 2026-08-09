@@ -43,27 +43,6 @@ function Find-StateFile {
     return $null
 }
 
-function Get-CavemanStatusLine {
-    param([string]$Root)
-    $mode = "lite"
-    $sourceLabel = "Boring Is All You Need default"
-    $configPath = Join-Path $Root "config\caveman.json"
-    if (Test-Path -LiteralPath $configPath -PathType Leaf) {
-        try {
-            $config = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
-            if ($config.PSObject.Properties.Name -contains "defaultMode" -and [string]$config.defaultMode) {
-                $mode = [string]$config.defaultMode
-                $sourceLabel = "local config defaultMode"
-            }
-        }
-        catch { }
-    }
-    if ($mode -eq "off") {
-        return "Caveman startup status report: OFF, mode off, source: " + $sourceLabel + "."
-    }
-    return "Caveman startup status report: ON, mode " + $mode + ", source: " + $sourceLabel + "."
-}
-
 function Add-LessonsIndex {
     param(
         [Collections.Generic.List[string]]$Lines,
@@ -102,13 +81,6 @@ function Add-LessonsIndex {
 }
 
 $lines = New-Object Collections.Generic.List[string]
-
-if ($source -eq "startup" -or -not $source) {
-    $lines.Add("")
-    $lines.Add("[CAVEMAN STARTUP STATUS]")
-    $lines.Add((Get-CavemanStatusLine -Root $SteadyAgentHome))
-    $lines.Add("Required visible opening for the first assistant response in this new conversation: address the user, report Caveman enabled/disabled and mode in one short sentence, then answer.")
-}
 
 Add-LessonsIndex -Lines $lines -Path (Join-Path $SteadyAgentHome "rules\lessons.md")
 

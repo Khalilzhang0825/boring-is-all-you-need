@@ -20,7 +20,7 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readi
 - 确认 `LICENSE`、`CONTRIBUTING.md`、`SECURITY.md` 和 `RELEASE_NOTES.md` 都存在。
 - 确认 `.github/` issue/PR 模板和 validation workflow 已存在。
 - 确认公开 skill 路径是 `skills/steadyagent-workflow/`。
-- 确认 `manifests/local-postimage-equivalence.json` 保持 23/23，且等价门无 missing、drift 或未解释目标。Payload 06 必须继续使用 `scoped-equivalent`，并把冻结的 73 条源断言精确分成 65 条保留的 Codex-active 断言和 8 条明确排除的 Claude 或已移除事件断言。
+- 确认 `manifests/local-postimage-equivalence.json` 保持 23/23，且等价门无 missing、drift 或未解释目标。Payload 06 必须继续使用 `scoped-equivalent`，并把冻结的 73 条源断言精确分成 63 条保留的 Codex-active 断言和 10 条明确排除的 Claude、已移除事件或已移除 Caveman 行为断言。
 - 确认 `package-assets.sha256` 恰好包含 52 条规范源资产，所有源哈希一致，且 `install.ps1` 中唯一嵌入摘要与 manifest 匹配。
 - 确认 `.github/workflows/release.yml` 只接受当前 `origin/main` 上的精确 `v3.0.0` tag，全部 action 固定到已审查的 Node-24-native commit、强制 Node 24、串行化精确 release 且不取消 active run，把只读验证、attestation 与 draft 创建拆为三个最小权限 job，重新运行干净 tag-checkout 门，并在创建前后重新解析 live tag/main。重跑只接受标题、显示 reviewed commit 的正文与三个 asset 都字节精确一致、且不是 prerelease 的 draft。上传后读回还必须匹配捕获的 release ID；创建后 ref 竞态只能删除该 ID，并发替换必须保留。
 - 确认 workflow 冻结已审计的 `v1.0.0` commit 与唯一仓库 root、证明 V1 ancestry，并为每个发布命令提供显式 `GH_REPO`/`-R` 上下文。

@@ -4,7 +4,7 @@ Codex runtime 精确包含 3 个 managed Hook block：
 
 | 事件 | 行为 |
 | --- | --- |
-| `SessionStart` | 只注入动态 Caveman 状态、lessons 标题、真正到期的 90 天 Harness review 提醒，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`。fresh install 缺少 review marker 时，以已安装 context Hook 的 mtime 作为首次 90 天基线。 |
+| `SessionStart` | 只注入 lessons 标题、真正到期的 90 天 Harness review 提醒，并在 resume/compact 后恢复 `PROJECT_STATE.md` 或 `.agent/state.md`；不注入 Caveman 行为。fresh install 缺少 review marker 时，以已安装 context Hook 的 mtime 作为首次 90 天基线。 |
 | `PreToolUse` | 在一个 PowerShell 进程内递归检查匹配的 shell 与文件编辑叶子。标准 managed 命令使用 `-EnforcementMode Audit`，尽力记录已识别风险，但永远不返回 deny。 |
 | `PreCompact` | 提醒 Agent 固化当前状态。 |
 

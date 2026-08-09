@@ -382,10 +382,8 @@ try {
     )
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "startup"; cwd = $fixtureRoot })
-    Assert-True "SessionStart emits compact Codex context" ($result.ExitCode -eq 0 -and -not $result.Error -and $result.Output -match "Caveman startup status report")
-    Assert-True "startup reports Caveman lite exactly once" (
-        ([regex]::Matches($result.Output, [regex]::Escape("Caveman startup status report: ON, mode lite"))).Count -eq 1
-    )
+    Assert-True "SessionStart emits compact Codex context" ($result.ExitCode -eq 0 -and -not $result.Error)
+    Assert-True "startup omits Caveman behavior" ($result.Output -notmatch 'Caveman')
     Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 7 encoding")
     Assert-True "fresh install without review marker suppresses due notice" (
         $result.Output -notmatch "HARNESS-REVIEW DUE"
@@ -409,7 +407,7 @@ try {
     Assert-True "startup output has no known mojibake marker" ($result.Output -notmatch [string][char]0x951B)
 
     $reviewedHome = Join-Path $fixtureRoot "reviewed-home"
-    New-Item -ItemType Directory -Path (Join-Path $reviewedHome "rules"), (Join-Path $reviewedHome "config") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $reviewedHome "rules") -Force | Out-Null
     $lessonBodyMarker = "LESSON_BODY_MUST_NOT_BE_INJECTED"
     [IO.File]::WriteAllText(
         (Join-Path $reviewedHome "rules\lessons.md"),
@@ -418,12 +416,10 @@ try {
     )
     $reviewMarker = Join-Path $reviewedHome ".harness-last-review"
     [IO.File]::WriteAllText($reviewMarker, [datetime]::UtcNow.ToString("yyyy-MM-dd"), [Text.Encoding]::UTF8)
-    [IO.File]::WriteAllText((Join-Path $reviewedHome "config\caveman.json"), '{"defaultMode":"off"}', [Text.Encoding]::UTF8)
     $result = Invoke-Hook "agent-hook-context.ps1" `
         (New-Event @{ source = "startup"; cwd = $fixtureRoot }) `
         @("-SteadyAgentHome", $reviewedHome)
     Assert-True "current review marker suppresses due notice" ($result.Output -notmatch "HARNESS-REVIEW DUE")
-    Assert-True "local Caveman config can disable mode" ($result.Output -match "Caveman startup status report: OFF, mode off")
     Assert-True "fixture lesson title is injected" ($result.Output -match "Fixture lesson")
     Assert-True "lesson body is not injected" ($result.Output -notmatch [regex]::Escape($lessonBodyMarker))
     Assert-True "placeholder lesson title is excluded" ($result.Output -notmatch [regex]::Escape("<placeholder>"))
@@ -486,14 +482,8 @@ try {
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "compact"; cwd = $stateRoot })
     Assert-True "compact restores PROJECT_STATE" ($result.Output -match "SMOKE_PROJECT_STATE")
-    Assert-True "compact context omits the Caveman startup report" (
-        $result.Output -notmatch 'Caveman startup status report'
-    )
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "resume"; cwd = $agentStateRoot })
     Assert-True "resume restores .agent state" ($result.Output -match "SMOKE_AGENT_STATE")
-    Assert-True "resume context omits the Caveman startup report" (
-        $result.Output -notmatch 'Caveman startup status report'
-    )
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "resume"; cwd = $fixtureRoot })
     Assert-True "resume without state emits a bounded fallback" (
         $result.Output -match 'No PROJECT_STATE'
@@ -1337,10 +1327,9 @@ try {
         $fileGuardEvidence += "file guard denies ambiguous Windows protected path: " + $ambiguousProtectedPath
     }
     Write-SemanticPass "hooks.file-guard-nested-protected-failclosed" $fileGuardEvidence
-    Write-SemanticPass "context.caveman-lite" @(
+    Write-SemanticPass "context.no-caveman-startup" @(
         "SessionStart emits compact Codex context",
-        "startup reports Caveman lite exactly once",
-        "local Caveman config can disable mode"
+        "startup omits Caveman behavior"
     )
     Write-SemanticPass "context.lessons-title-only" @(
         "startup injects lesson titles",

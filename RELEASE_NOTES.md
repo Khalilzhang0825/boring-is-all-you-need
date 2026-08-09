@@ -47,8 +47,8 @@ Boring Is All You Need v2.0.0 is the in-place successor to legacy SteadyAgent v1
 - adds a versioned V1-owned-file tombstone manifest so authorized replacement removes the old Codex release surface and the same receipt restores it;
 - activates the scoped global pre-commit path as part of the same authorized transaction, runs the Boring Is All You Need guard first, and chains executable repository-local pre-commit hooks;
 - adds portable, thread-bound runtime skill indexing and search without shipping local runtime state; production tools discover the fixed `$HOME\.steadyagent` installation root from their installed location;
-- retains dynamic Caveman lite reporting, lessons-title injection, due-only 90-day Harness maintenance reminders with a fresh-install mtime baseline, strict runtime-catalog/Git-identity diagnosis, and the three-to-six-month maintenance checklist;
-- freezes a 23-item local-postimage equivalence map with rendered-equivalent, behavior-superset, scoped-equivalent, and policy-equivalent evidence, plus an exact 65-assertion retained Hook-to-public-evidence binding;
+- retains lessons-title injection, due-only 90-day Harness maintenance reminders with a fresh-install mtime baseline, strict runtime-catalog/Git-identity diagnosis, and the three-to-six-month maintenance checklist while preserving the current no-Caveman startup behavior;
+- freezes a 23-item local-postimage equivalence map with rendered-equivalent, behavior-superset, scoped-equivalent, and policy-equivalent evidence, plus an exact 63-assertion retained Hook-to-public-evidence binding and ten explicit exclusions, including the removed Caveman behavior;
 - adds dedicated migration, Hook, checkpoint, pre-commit, skill-catalog, protected-path and local-equivalence regression suites.
 - pins the release jobs to reviewed Node-24-native action commits, serializes the exact tag workflow, and publishes a machine-readable provenance asset plus a release body that expose the reviewed commit; draft creation finishes only after live ID, body, assets, digests, tag, and `main` read back exactly.
 

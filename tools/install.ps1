@@ -107,7 +107,7 @@ foreach ($migrationRuntimeCommand in @(
 $version = "3.0.0"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "DE8870859222AB74333056A2EE8CE172C68AE8CA17651BBA1ACDD39B3B35AC9E"
+$expectedPackageManifestSha256 = "9454C89A7EC73E6B53D4F1EEB0128E5A1811CEA083DB5DAD1AB0B6399DC0C119"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -817,7 +817,8 @@ function Test-OperationsMatchDesiredState {
 function Test-TrustedV202UpgradeState {
     param(
         [object]$ActiveReceipt,
-        [AllowNull()][string]$CurrentGitHooksPath
+        [AllowNull()][string]$CurrentGitHooksPath,
+        [hashtable]$AllowedInstalledSHA256ByDestination = @{}
     )
     try {
     $candidate = $ActiveReceipt.Receipt
@@ -882,6 +883,8 @@ function Test-TrustedV202UpgradeState {
     $seenDestinations = @{}
     $installEntries = New-Object Collections.Generic.List[object]
     $removeEntries = New-Object Collections.Generic.List[object]
+    $allowedProfileEntryCount = 0
+    $allowedProfileMatchCount = 0
     foreach ($entry in $entries) {
         $actualEntryProperties = @($entry.PSObject.Properties.Name)
         if ($actualEntryProperties.Count -ne $expectedEntryProperties.Count -or
@@ -903,10 +906,33 @@ function Test-TrustedV202UpgradeState {
         if ([string]$entry.action -ceq 'install') {
             $installEntries.Add($entry) | Out-Null
             if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or
-                [string]$entry.installed_sha256 -notmatch '^[0-9A-F]{64}$' -or
-                (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash -cne
-                    [string]$entry.installed_sha256) {
+                [string]$entry.installed_sha256 -notmatch '^[0-9A-F]{64}$') {
                 return $false
+            }
+            $actualInstalledSHA256 = (
+                Get-FileHash -LiteralPath $destination -Algorithm SHA256
+            ).Hash
+            $allowedInstalledSHA256 = if (
+                $AllowedInstalledSHA256ByDestination.ContainsKey($destinationKey)
+            ) {
+                [string]$AllowedInstalledSHA256ByDestination[$destinationKey]
+            }
+            else { $null }
+            if ($null -ne $allowedInstalledSHA256) {
+                $allowedProfileEntryCount++
+                if ($allowedInstalledSHA256 -notmatch '^[0-9A-F]{64}$' -or
+                    $allowedInstalledSHA256 -ceq [string]$entry.installed_sha256) {
+                    return $false
+                }
+            }
+            if ($actualInstalledSHA256 -cne [string]$entry.installed_sha256 -and
+                ($allowedInstalledSHA256 -notmatch '^[0-9A-F]{64}$' -or
+                 $actualInstalledSHA256 -cne $allowedInstalledSHA256)) {
+                return $false
+            }
+            if ($null -ne $allowedInstalledSHA256 -and
+                $actualInstalledSHA256 -ceq $allowedInstalledSHA256) {
+                $allowedProfileMatchCount++
             }
         }
         elseif ([string]$entry.action -ceq 'remove') {
@@ -916,6 +942,11 @@ function Test-TrustedV202UpgradeState {
         else { return $false }
     }
     if ($installEntries.Count -ne 53 -or $removeEntries.Count -ne 27) {
+        return $false
+    }
+    if ($allowedProfileEntryCount -ne $AllowedInstalledSHA256ByDestination.Count -or
+        ($allowedProfileMatchCount -ne 0 -and
+         $allowedProfileMatchCount -ne $AllowedInstalledSHA256ByDestination.Count)) {
         return $false
     }
     $calculatedInstallProjection = Get-SortedProjectionSha256 -Projection @(
@@ -1269,6 +1300,28 @@ try {
     $operations = New-Object Collections.Generic.List[object]
     foreach ($item in $plan) { $operations.Add($item) | Out-Null }
     foreach ($item in $removals) { $operations.Add($item) | Out-Null }
+    $trustedUpgradeAllowedPreimages = @{}
+    $noCavemanAgentsDestination = [IO.Path]::GetFullPath(
+        (Join-Path $codexFull 'AGENTS.md')
+    )
+    $noCavemanAgentsOperation = @($plan | Where-Object {
+        $_.Destination.Equals(
+            $noCavemanAgentsDestination,
+            [StringComparison]::OrdinalIgnoreCase
+        )
+    })
+    if ($noCavemanAgentsOperation.Count -ne 1) {
+        throw 'The no-Caveman AGENTS migration preimage could not be bound to one plan item.'
+    }
+    $trustedUpgradeAllowedPreimages[
+        $noCavemanAgentsDestination.ToUpperInvariant()
+    ] = [string]$noCavemanAgentsOperation[0].DesiredHash
+    $noCavemanContextDestination = [IO.Path]::GetFullPath(
+        (Join-Path $targetFull 'tools\hooks\agent-hook-context.ps1')
+    )
+    $trustedUpgradeAllowedPreimages[
+        $noCavemanContextDestination.ToUpperInvariant()
+    ] = '20BF528341B1A5BF6A098BD8BB55975475BD663C109C6038AC6515FD6DC69091'
     $operationDestinations = @{}
     foreach ($item in $operations) {
         $operationKey = $item.Destination.ToLowerInvariant()
@@ -1440,7 +1493,8 @@ try {
     if ($activeReceipt -and [string]$activeReceipt.Status -ceq "applied") {
         $trustedV202Upgrade = Test-TrustedV202UpgradeState `
             -ActiveReceipt $activeReceipt `
-            -CurrentGitHooksPath $gitHooksBefore
+            -CurrentGitHooksPath $gitHooksBefore `
+            -AllowedInstalledSHA256ByDestination $trustedUpgradeAllowedPreimages
         if (-not $trustedV202Upgrade) {
             [Console]::Error.WriteLine(
                 "Boring Is All You Need install refused: the active applied receipt no longer matches installed state."
@@ -1457,9 +1511,29 @@ try {
         $trustedUpgradePointerSHA256 = Get-Sha256Bytes -Bytes $trustedUpgradePointerBytes
         foreach ($trustedEntry in @($activeReceipt.Receipt.entries)) {
             $trustedDestination = [IO.Path]::GetFullPath([string]$trustedEntry.destination)
-            $trustedUpgradeEntriesByDestination[$trustedDestination.ToUpperInvariant()] = $trustedEntry
+            $trustedDestinationKey = $trustedDestination.ToUpperInvariant()
+            $trustedInstalledSHA256 = [string]$trustedEntry.installed_sha256
+            if ([string]$trustedEntry.action -ceq 'install' -and
+                $trustedUpgradeAllowedPreimages.ContainsKey($trustedDestinationKey)) {
+                $actualTrustedSHA256 = (
+                    Get-FileHash -LiteralPath $trustedDestination -Algorithm SHA256
+                ).Hash
+                if ($actualTrustedSHA256 -ceq
+                    [string]$trustedUpgradeAllowedPreimages[$trustedDestinationKey]) {
+                    $trustedInstalledSHA256 = $actualTrustedSHA256
+                }
+            }
+            $trustedUpgradeEntriesByDestination[$trustedDestinationKey] =
+                [pscustomobject][ordered]@{
+                    action = [string]$trustedEntry.action
+                    destination = [string]$trustedEntry.destination
+                    existed = [bool]$trustedEntry.existed
+                    snapshot_name = $trustedEntry.snapshot_name
+                    original_sha256 = $trustedEntry.original_sha256
+                    installed_sha256 = $trustedInstalledSHA256
+                }
         }
-        Write-Host "[OK] Verified the complete v2.0.2 receipt, installed bytes, and Git Hook state for trusted upgrade."
+        Write-Host "[OK] Verified the complete v2.0.2 receipt, supported no-Caveman preimages, and Git Hook state for trusted upgrade."
     }
     $conflicts = @(Get-OperationConflicts -Operations $operations)
     if ($gitHooksBefore -and
@@ -1505,7 +1579,8 @@ try {
                 [string]$activeReceipt.ReceiptSHA256 -and
             (Test-TrustedV202UpgradeState `
                 -ActiveReceipt $activeReceipt `
-                -CurrentGitHooksPath $preWriteGitHooks)
+                -CurrentGitHooksPath $preWriteGitHooks `
+                -AllowedInstalledSHA256ByDestination $trustedUpgradeAllowedPreimages)
         )
         if (-not $trustedUpgradeAuthorityStillMatches) {
             throw "The verified v2.0.2 upgrade source changed before snapshot; no migration writes were made."
@@ -1657,7 +1732,8 @@ try {
                 [string]$activeReceipt.ReceiptSHA256 -and
             (Test-TrustedV202UpgradeState `
                 -ActiveReceipt $activeReceipt `
-                -CurrentGitHooksPath (Get-GitHooksPath))
+                -CurrentGitHooksPath (Get-GitHooksPath) `
+                -AllowedInstalledSHA256ByDestination $trustedUpgradeAllowedPreimages)
         )
         if (-not $trustedUpgradePublicationStillMatches) {
             throw "The verified v2.0.2 upgrade source changed before authority publication."
@@ -2076,7 +2152,8 @@ catch {
         if ($rollbackErrors.Count -eq 0 -and $null -ne $trustedUpgradePointerBytes -and
             -not (Test-TrustedV202UpgradeState `
                 -ActiveReceipt $activeReceipt `
-                -CurrentGitHooksPath (Get-GitHooksPath))) {
+                -CurrentGitHooksPath (Get-GitHooksPath) `
+                -AllowedInstalledSHA256ByDestination $trustedUpgradeAllowedPreimages)) {
             $rollbackErrors += "trusted v2.0.2 exact preimage"
             $receipt.status = "rollback_incomplete"
             Write-MigrationReceipt -Receipt $receipt -Path $failedReceiptPath

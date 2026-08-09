@@ -765,11 +765,9 @@ if ((Test-Path -LiteralPath $contextHookPath -PathType Leaf) -and
     $contextText = [IO.File]::ReadAllText($contextHookPath, [Text.Encoding]::UTF8)
     $agentsText = [IO.File]::ReadAllText($agentsPath, [Text.Encoding]::UTF8)
     Add-Result $(if (
-        $contextText -match "Caveman startup status report" -and
-        $contextText -match "first assistant response" -and
-        $contextText -match "mode = `"lite`"" -and
-        $agentsText -match "Caveman.*lite"
-    ) { "PASS" } else { "FAIL" }) "Caveman lite startup contract is installed"
+        $contextText -notmatch "Caveman startup status report|CAVEMAN STARTUP STATUS|Get-CavemanStatusLine" -and
+        $agentsText -notmatch "Use Caveman|current Caveman state"
+    ) { "PASS" } else { "FAIL" }) "Caveman startup behavior is absent"
     Add-Result $(if (
         $contextText -match "Known pitfalls to avoid" -and
         $contextText -match "HARNESS-REVIEW DUE" -and

@@ -206,11 +206,9 @@ $context = Read-PublicText "tools\hooks\agent-hook-context.ps1"
 $hookTests = Read-PublicText "tools\test-agent-hooks.ps1"
 $agents = Read-PublicText "templates\codex\AGENTS.md"
 $rulesIndex = Read-PublicText "rules\README.md"
-Check "SessionStart retains Caveman lite startup behavior" (
-    $context -match "Caveman startup status report" -and
-    $context -match 'mode = "lite"' -and
-    $context -match "first assistant response" -and
-    $agents -match "Caveman.*lite"
+Check "SessionStart omits Caveman startup behavior" (
+    $context -notmatch "Caveman" -and
+    $agents -notmatch "Caveman"
 )
 Check "SessionStart retains lessons title injection" (
     $context -match "Known pitfalls to avoid" -and
@@ -222,8 +220,8 @@ Check "SessionStart retains periodic review reminder" (
     $context -match "[.]harness-last-review" -and
     $context -match "yyyy-MM-dd"
 )
-Check "Hook suite asserts Caveman lessons and review behavior" (
-    $hookTests -match "startup reports Caveman lite exactly once" -and
+Check "Hook suite asserts no-Caveman lessons and review behavior" (
+    $hookTests -match "startup omits Caveman behavior" -and
     $hookTests -match "startup injects lesson titles" -and
     $hookTests -match "current review marker suppresses due notice" -and
     $hookTests -match "89-day review marker suppresses due notice" -and
@@ -242,8 +240,8 @@ Check "diagnosis keeps file evidence below Live acceptance" (
     $diagnose -notmatch "CreationTimeUtc" -and
     $diagnose -notmatch "runtime-confirmed"
 )
-Check "diagnosis checks Caveman and review skill contracts" (
-    $diagnose -match "Caveman lite startup contract" -and
+Check "diagnosis checks no-Caveman and review skill contracts" (
+    $diagnose -match "Caveman startup behavior is absent" -and
     $diagnose -match "review, skill, and periodic maintenance contracts"
 )
 Check "diagnosis checks Git identity on request" (

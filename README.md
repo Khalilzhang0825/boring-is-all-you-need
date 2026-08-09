@@ -88,7 +88,7 @@ The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-07. The
 | --- | ---: |
 | Complete release readiness | `149/0` |
 | Installed local-postimage equivalence | `430/0` |
-| Transactional migration and rollback | `332/0` |
+| Transactional migration and rollback | `344/0` |
 | Crash-recoverable Git checkpoint | `333/0` |
 | Managed Hook behavior | `294/0` |
 | Runtime skill catalog | `69/0` |
@@ -115,9 +115,9 @@ GitHub-hosted Windows runners execute with an administrator token. Install, roll
 - The loaded installer anchors a canonical 52-source `package-assets.sha256` manifest and installs only the once-read bytes that match it.
 - Apply and rollback support either an ordinary or elevated token. They use only the token that launched them and never request UAC, change ACLs, or take ownership.
 - A versioned V1-owned-file manifest removes the old Codex release surface during authorized replacement and restores it from the same receipt if rolled back.
-- A frozen 23-item equivalence manifest maps every Codex-active capability in the maintainer's reviewed local postimage to a portable public source and installed destination. The local Hook smoke item separately freezes 65 retained assertions and eight explicit Claude or removed-event exclusions; it is scoped equivalence, not a claim that V3 republishes the excluded V1 surfaces.
+- A frozen 23-item equivalence manifest maps every Codex-active capability in the maintainer's reviewed local postimage to a portable public source and installed destination. The local Hook smoke item separately freezes 63 retained assertions and ten explicit Claude, removed-event, or removed-Caveman-behavior exclusions; it is scoped equivalence, not a claim that V3 republishes the excluded V1 surfaces.
 - Thread-bound skill indexing and search are included without publishing the maintainer's runtime catalog, session IDs, or private paths.
-- SessionStart emits only dynamic Caveman lite status, portable lesson headings, due 90-day Harness maintenance reminders, and resume/compact state. A fresh install uses the installed context Hook mtime as its first review baseline instead of warning immediately.
+- SessionStart emits only portable lesson headings, due 90-day Harness maintenance reminders, and resume/compact state. It does not inject Caveman behavior. A fresh install uses the installed context Hook mtime as its first review baseline instead of warning immediately.
 
 ## Why Codex only
 

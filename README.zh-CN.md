@@ -87,7 +87,7 @@ v3.0.0 发行候选于 2026-08-07 在 PowerShell 7.6.4 上验证。聚合入口�
 | --- | ---: |
 | 完整 release readiness | `149/0` |
 | 安装后本机 postimage 等价性 | `430/0` |
-| 事务式迁移与回滚 | `332/0` |
+| 事务式迁移与回滚 | `344/0` |
 | 可崩溃恢复的 Git checkpoint | `333/0` |
 | Managed Hook 行为 | `294/0` |
 | Runtime skill catalog | `69/0` |
@@ -114,9 +114,9 @@ GitHub-hosted Windows runner 使用管理员 token。安装、rollback 与 CI fi
 - 已加载的 installer 会锚定规范化的 52 项源资产 `package-assets.sha256`，并且只安装一次性读取且哈希匹配的字节。
 - Apply 与 rollback 同时支持普通和提权 token；脚本不会主动请求 UAC、修改 ACL 或接管 owner，只使用启动它们时已有的 token。
 - 版本化 V1 资产清单会在明确授权替换时移除旧 Codex 发行面，并可通过同一收据完整恢复。
-- 冻结的 23 项等价清单把维护者已审查的本机 Codex-active 能力逐一映射到可移植公开源与安装目标。本机 Hook smoke 项另行冻结了 65 条保留断言和 8 条明确排除的 Claude 或已移除事件断言；这是范围明确的等价，不表示 V3 会重新发布被排除的 V1 能力面。
+- 冻结的 23 项等价清单把维护者已审查的本机 Codex-active 能力逐一映射到可移植公开源与安装目标。本机 Hook smoke 项另行冻结了 63 条保留断言和 10 条明确排除的 Claude、已移除事件或已移除 Caveman 行为断言；这是范围明确的等价，不表示 V3 会重新发布被排除的 V1 能力面。
 - 包内包含线程绑定的 skill 索引与检索，但不会发布维护者的 runtime catalog、线程 ID 或私人路径。
-- SessionStart 只输出动态 Caveman lite 状态、可移植 lessons 标题、真正到期的 90 天 Harness 维护提醒，以及 resume/compact 状态。fresh install 以已安装 context Hook 的 mtime 作为首次复查基线，不会立即告警。
+- SessionStart 只输出可移植 lessons 标题、真正到期的 90 天 Harness 维护提醒，以及 resume/compact 状态；不注入 Caveman 行为。fresh install 以已安装 context Hook 的 mtime 作为首次复查基线，不会立即告警。
 
 ## 为什么只发布 Codex
 

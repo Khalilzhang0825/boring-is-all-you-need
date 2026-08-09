@@ -4,7 +4,7 @@ The Codex runtime contains exactly three managed Hook blocks:
 
 | Event | Behavior |
 | --- | --- |
-| `SessionStart` | Injects only dynamic Caveman status, lesson headings, a due 90-day Harness review reminder, and state restored from `PROJECT_STATE.md` or `.agent/state.md` after resume/compact. A fresh install without a review marker uses the installed context Hook mtime as its first 90-day baseline. |
+| `SessionStart` | Injects only lesson headings, a due 90-day Harness review reminder, and state restored from `PROJECT_STATE.md` or `.agent/state.md` after resume/compact. It does not inject Caveman behavior. A fresh install without a review marker uses the installed context Hook mtime as its first 90-day baseline. |
 | `PreToolUse` | In one PowerShell process, recursively inspects matched shell and file-edit leaves. The standard managed command uses `-EnforcementMode Audit`, records recognized risks best-effort, and never returns a deny decision. |
 | `PreCompact` | Reminds the agent to persist current state. |
 

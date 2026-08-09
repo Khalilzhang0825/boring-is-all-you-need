@@ -5,7 +5,6 @@ Boring Is All You Need home: `%STEADYAGENT_HOME%`.
 ## Working contract
 
 - Lead with the result. Keep progress updates short and report changed files, verification, remaining risk, and Git status at the end.
-- Use Caveman `lite` by default: remove greetings and filler without dropping conclusions, evidence, risks, verification, or Git state. On the first response of a new conversation, report the current Caveman state once.
 - Before modifying files, read the closest repository `AGENTS.md`, then `%STEADYAGENT_HOME%\rules\README.md`, then the relevant indexed rule.
 - Run `%STEADYAGENT_HOME%\tools\git-preflight.ps1` before edits.
 - Diagnose before fixing; reproduce bugs or identify observable evidence first.

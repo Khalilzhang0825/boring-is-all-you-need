@@ -436,7 +436,7 @@ $expectedSemanticChecksByPayload = [ordered]@{
         "hooks.file-guard-nested-protected-failclosed"
     )
     "05-agent-hook-context.ps1" = @(
-        "context.caveman-lite",
+        "context.no-caveman-startup",
         "context.lessons-title-only",
         "context.review-90-day",
         "context.state-restore"
@@ -506,7 +506,7 @@ $expectedSemanticGateAssignments = [ordered]@{
     "hooks.command-guard-wrapper-normalization" = "hooks"
     "hooks.command-guard-bounded-input-tree" = "hooks"
     "hooks.file-guard-nested-protected-failclosed" = "hooks"
-    "context.caveman-lite" = "hooks"
+    "context.no-caveman-startup" = "hooks"
     "context.lessons-title-only" = "hooks"
     "context.review-90-day" = "hooks"
     "context.state-restore" = "hooks"
@@ -606,9 +606,9 @@ Check "catalog default and rollout-file canary case-set contract matches indepen
 )
 $expectedHookScopeSourceCount = 73
 $expectedHookScopeSourceSha256 = "D8510FD50093292CF978FBE351018C4F28BF7881739FCB661F852BBF484F13A4"
-$expectedHookScopeRetainedCount = 65
-$expectedHookScopeRetainedSha256 = "90F5004A5321EBA6BFC4710CBA4C5185D6CD032E84F9D42FCF53DFED80A49101"
-$expectedHookEvidenceBindingSha256 = "4ADA439151FE6FFC6B0266A4F842ED2143E6094C862FA5862B8F43466CD7E106"
+$expectedHookScopeRetainedCount = 63
+$expectedHookScopeRetainedSha256 = "53162B6F4ECC5B5600AF5E25EF9FAC3FBAAA01604D90B1928D12B6504AA4AC14"
+$expectedHookEvidenceBindingSha256 = "FC998DE48C2393B18620D099D73FCDB09148CE76A53F441D3CCA6A0ECBA779D2"
 $expectedHookScopeExcluded = @(
     [pscustomobject]@{
         name = "startup: Claude review policy unchanged"
@@ -641,12 +641,20 @@ $expectedHookScopeExcluded = @(
     [pscustomobject]@{
         name = "posttool audit: no deny"
         reason = "removed-event:PostToolUse"
+    },
+    [pscustomobject]@{
+        name = "compact: no caveman startup report"
+        reason = "removed-behavior:Caveman"
+    },
+    [pscustomobject]@{
+        name = "resume: no caveman startup report"
+        reason = "removed-behavior:Caveman"
     }
 )
 $expectedHookScopeExcludedRows = @($expectedHookScopeExcluded | ForEach-Object {
     [string]$_.name + "|" + [string]$_.reason
 })
-$expectedHookScopeExcludedSha256 = "DEDE51BCC4B3F64C9A931B03D18603BF9CEEECC79ECD614FCA54AA79E59235F4"
+$expectedHookScopeExcludedSha256 = "FCA49E3088AE6E50B55A5D0D352D40B04798482FC18B0A8F9D35DBCA4EA1C5DB"
 $hookScopeEntry = @($entries | Where-Object {
     [string]$_.payload -ceq "06-agent-hook-smoke-test.ps1"
 }) | Select-Object -First 1
@@ -666,6 +674,11 @@ else { @() }
 Check "payload 06 uses Codex-active scoped equivalence rather than a full behavior superset" (
     $hookScopeEntry -and
     [string]$hookScopeEntry.mode -ceq "scoped-equivalent"
+)
+Check "payload 06 evidence names the frozen ten-item exclusion scope" (
+    $hookScopeEntry -and
+    [string]$hookScopeEntry.evidence -ceq
+        "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; ten Claude, removed-event, or removed-Caveman-behavior assertions are explicitly excluded"
 )
 Check "payload 06 freezes the authoritative local assertion catalog" (
     $hookScopeContract -and
@@ -1138,7 +1151,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and -not $InjectSup
                 $expectedHookScopeRetainedSha256 + " binding_sha256=" +
                 $expectedHookEvidenceBindingSha256
             )
-            Check "Hook semantic marker carries the independent 65-assertion binding digest" (
+            Check "Hook semantic marker carries the independent 63-assertion binding digest" (
                 @($gateText -split '\r?\n' | Where-Object {
                     [string]$_ -ceq $expectedHookCaseSetLine
                 }).Count -eq 1

@@ -18,7 +18,7 @@ managed configuration.
 6. `tools\git-hooks\` provides staged secret and oversized-blob checks.
 7. `tools\skill-index.ps1` and `tools\skill-search.ps1` create and query a
    thread-bound catalog from the skills advertised in the active Codex rollout.
-8. SessionStart reports Caveman lite, injects headings from `rules\lessons.md`,
+8. SessionStart omits Caveman behavior, injects headings from `rules\lessons.md`,
    and emits a review reminder when `.harness-last-review` is invalid or at
    least 90 days old. A fresh install without the marker uses the installed
    context Hook mtime as its first 90-day baseline.

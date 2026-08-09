@@ -1077,6 +1077,48 @@ function Invoke-InstalledBytesDiagnosisFixture {
     }
 }
 
+function Set-SupportedNoCavemanV202Preimage {
+    param(
+        [object]$InstallResult,
+        [string]$PackageRoot,
+        [switch]$AgentsOnly,
+        [switch]$ContextOnly
+    )
+    if ($AgentsOnly -and $ContextOnly) {
+        throw 'AgentsOnly and ContextOnly are mutually exclusive.'
+    }
+    $utf8NoBom = New-Object Text.UTF8Encoding($false)
+    $agentsTemplate = [IO.File]::ReadAllText(
+        (Join-Path $PackageRoot 'templates\codex\AGENTS.md'),
+        [Text.Encoding]::UTF8
+    )
+    $renderedAgents = $agentsTemplate.Replace('%STEADYAGENT_HOME%', $InstallResult.TargetRoot)
+    if (-not $ContextOnly) {
+        [IO.File]::WriteAllText(
+            (Join-Path $InstallResult.CodexHome 'AGENTS.md'),
+            $renderedAgents,
+            $utf8NoBom
+        )
+    }
+
+    $contextSource = [IO.File]::ReadAllText(
+        (Join-Path $PackageRoot 'tools\hooks\agent-hook-context.ps1'),
+        [Text.Encoding]::UTF8
+    )
+    $legacyNoCavemanContext = $contextSource `
+        -replace '^#requires -Version 7[.]5\r?\n', '' `
+        -replace 'ConvertFrom-Json -DateKind String', 'ConvertFrom-Json'
+    $legacyContextPath = Join-Path $InstallResult.TargetRoot 'tools\hooks\agent-hook-context.ps1'
+    if (-not $AgentsOnly) {
+        [IO.File]::WriteAllText($legacyContextPath, $legacyNoCavemanContext, $utf8NoBom)
+    }
+    $legacyContextHash = (Get-FileHash -LiteralPath $legacyContextPath -Algorithm SHA256).Hash
+    if (-not $AgentsOnly -and $legacyContextHash -cne
+        '20BF528341B1A5BF6A098BD8BB55975475BD663C109C6038AC6515FD6DC69091') {
+        throw ('The supported no-Caveman v2.0.2 context preimage drifted: ' + $legacyContextHash)
+    }
+}
+
 Test-MigrationRuntimeRefactorContract
 if ($RefactorContractOnly) {
     Write-Host ("RESULT pass={0} fail={1}" -f $script:Passed, $script:Failed)
@@ -1094,6 +1136,143 @@ try {
     $v202PackageRoot = Join-Path $fixtureRoot 'v2.0.2-package'
     Copy-V202PackageFixture -Destination $v202PackageRoot
     $v202Installer = Join-Path $v202PackageRoot 'tools\install.ps1'
+
+    $noCavemanUpgradeCase = Join-Path $fixtureRoot 'trusted-v202-no-caveman-upgrade'
+    $noCavemanUpgradeV2 = Invoke-Installer `
+        -CaseRoot $noCavemanUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before supported no-Caveman upgrade' (
+        $noCavemanUpgradeV2.ExitCode -eq 0
+    ) $noCavemanUpgradeV2.Output
+    Set-SupportedNoCavemanV202Preimage `
+        -InstallResult $noCavemanUpgradeV2 `
+        -PackageRoot $testPackageRoot
+    $noCavemanPreimage = Get-ManagedSurfaceFingerprint `
+        -Roots @($noCavemanUpgradeV2.TargetRoot, $noCavemanUpgradeV2.CodexHome) `
+        -Files @($noCavemanUpgradeV2.ManagedPath, $noCavemanUpgradeV2.GitConfigPath)
+    $noCavemanUpgradeV3 = Invoke-Installer `
+        -CaseRoot $noCavemanUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -CustomBackupRoot (Join-Path $noCavemanUpgradeCase 'backup-v3')
+    Assert-True 'supported no-Caveman v2.0.2 preimages upgrade to v3.0.0' (
+        $noCavemanUpgradeV3.ExitCode -eq 0 -and
+        $noCavemanUpgradeV3.Output -match 'supported no-Caveman preimages' -and
+        $noCavemanUpgradeV3.Output -match '3[.]0[.]0 installed and verified'
+    ) $noCavemanUpgradeV3.Output
+    $noCavemanInstalledAgents = [IO.File]::ReadAllText(
+        (Join-Path $noCavemanUpgradeV3.CodexHome 'AGENTS.md'),
+        [Text.Encoding]::UTF8
+    )
+    $noCavemanInstalledContext = [IO.File]::ReadAllText(
+        (Join-Path $noCavemanUpgradeV3.TargetRoot 'tools\hooks\agent-hook-context.ps1'),
+        [Text.Encoding]::UTF8
+    )
+    $noCavemanAgentsOmitBehavior =
+        $noCavemanInstalledAgents -notmatch 'Use Caveman|current Caveman state'
+    $noCavemanContextOmitBehavior = $noCavemanInstalledContext -notmatch 'Caveman'
+    $noCavemanContextRequiresPS7 = $noCavemanInstalledContext -match '(?m)^#requires -Version 7[.]5$'
+    $noCavemanContextPreservesJsonDates =
+        $noCavemanInstalledContext -match 'ConvertFrom-Json -DateKind String'
+    Assert-True 'v3 preserves no-Caveman startup behavior while adding PowerShell 7' (
+        $noCavemanAgentsOmitBehavior -and
+        $noCavemanContextOmitBehavior -and
+        $noCavemanContextRequiresPS7 -and
+        $noCavemanContextPreservesJsonDates
+    ) (
+        'agents_omit={0} context_omit={1} requires_ps7={2} datekind_string={3}' -f
+        $noCavemanAgentsOmitBehavior,
+        $noCavemanContextOmitBehavior,
+        $noCavemanContextRequiresPS7,
+        $noCavemanContextPreservesJsonDates
+    )
+    $noCavemanRollback = Invoke-ReceiptRollback -InstallResult $noCavemanUpgradeV3
+    $noCavemanPostRollback = Get-ManagedSurfaceFingerprint `
+        -Roots @($noCavemanUpgradeV2.TargetRoot, $noCavemanUpgradeV2.CodexHome) `
+        -Files @($noCavemanUpgradeV2.ManagedPath, $noCavemanUpgradeV2.GitConfigPath)
+    Assert-True 'v3 rollback after no-Caveman upgrade succeeds' (
+        $noCavemanRollback.ExitCode -eq 0
+    ) $noCavemanRollback.Output
+    Assert-True 'v3 rollback restores exact supported no-Caveman preimages' (
+        $noCavemanPostRollback -ceq $noCavemanPreimage
+    ) ('before={0} after={1}' -f $noCavemanPreimage, $noCavemanPostRollback)
+
+    $hybridProfiles = @(
+        [pscustomobject]@{
+            Name = 'AGENTS-only'
+            CaseName = 'trusted-v202-no-caveman-agents-only'
+            AgentsOnly = $true
+        },
+        [pscustomobject]@{
+            Name = 'context-only'
+            CaseName = 'trusted-v202-no-caveman-context-only'
+            AgentsOnly = $false
+        }
+    )
+    foreach ($hybridProfile in $hybridProfiles) {
+        $hybridCase = Join-Path $fixtureRoot ([string]$hybridProfile.CaseName)
+        $hybridV2 = Invoke-Installer `
+            -CaseRoot $hybridCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -InstallerPath $v202Installer
+        Assert-True (
+            'exact v2.0.2 package installs before ' + [string]$hybridProfile.Name +
+            ' hybrid rejection'
+        ) ($hybridV2.ExitCode -eq 0) $hybridV2.Output
+        if ([bool]$hybridProfile.AgentsOnly) {
+            Set-SupportedNoCavemanV202Preimage `
+                -InstallResult $hybridV2 `
+                -PackageRoot $testPackageRoot `
+                -AgentsOnly
+        }
+        else {
+            Set-SupportedNoCavemanV202Preimage `
+                -InstallResult $hybridV2 `
+                -PackageRoot $testPackageRoot `
+                -ContextOnly
+        }
+        $hybridReceiptPath = Join-Path $hybridV2.BackupRoot 'migration-receipt.json'
+        $hybridPointerPath = Get-TestActiveReceiptPointerPath -TargetRoot $hybridV2.TargetRoot
+        $hybridBefore = Get-ManagedSurfaceFingerprint `
+            -Roots @($hybridV2.TargetRoot, $hybridV2.CodexHome) `
+            -Files @(
+                $hybridV2.ManagedPath,
+                $hybridV2.GitConfigPath,
+                $hybridReceiptPath,
+                $hybridPointerPath
+            )
+        $hybridBackupV3 = Join-Path $hybridCase 'backup-v3'
+        $hybridAttempt = Invoke-Installer `
+            -CaseRoot $hybridCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -CustomBackupRoot $hybridBackupV3
+        $hybridAfter = Get-ManagedSurfaceFingerprint `
+            -Roots @($hybridV2.TargetRoot, $hybridV2.CodexHome) `
+            -Files @(
+                $hybridV2.ManagedPath,
+                $hybridV2.GitConfigPath,
+                $hybridReceiptPath,
+                $hybridPointerPath
+            )
+        Assert-True (
+            'trusted upgrade rejects ' + [string]$hybridProfile.Name +
+            ' no-Caveman hybrid'
+        ) (
+            $hybridAttempt.ExitCode -ne 0 -and
+            $hybridAttempt.Output -match 'active applied receipt no longer matches installed state'
+        ) $hybridAttempt.Output
+        Assert-True (
+            [string]$hybridProfile.Name +
+            ' no-Caveman hybrid rejection performs zero managed or evidence writes'
+        ) (
+            $hybridAfter -ceq $hybridBefore -and
+            -not (Test-Path -LiteralPath $hybridBackupV3)
+        ) ('before={0} after={1}' -f $hybridBefore, $hybridAfter)
+    }
 
     $forgedUpgradeCase = Join-Path $fixtureRoot 'forged-v202-upgrade'
     $forgedUpgradeV2 = Invoke-Installer `
@@ -4544,6 +4723,17 @@ exit 0
         "rollback junction fixture installs successfully",
         "rollback mutation blocks a junction swap after validation",
         "blocked rollback junction swap leaves the escape tree byte-identical",
+        "exact v2.0.2 package installs before supported no-Caveman upgrade",
+        "supported no-Caveman v2.0.2 preimages upgrade to v3.0.0",
+        "v3 preserves no-Caveman startup behavior while adding PowerShell 7",
+        "v3 rollback after no-Caveman upgrade succeeds",
+        "v3 rollback restores exact supported no-Caveman preimages",
+        "exact v2.0.2 package installs before AGENTS-only hybrid rejection",
+        "trusted upgrade rejects AGENTS-only no-Caveman hybrid",
+        "AGENTS-only no-Caveman hybrid rejection performs zero managed or evidence writes",
+        "exact v2.0.2 package installs before context-only hybrid rejection",
+        "trusted upgrade rejects context-only no-Caveman hybrid",
+        "context-only no-Caveman hybrid rejection performs zero managed or evidence writes",
         "exact v2.0.2 package installs before forged receipt test",
         "trusted upgrade rejects a rehashed duplicate-entry v2.0.2 receipt",
         "forged v2.0.2 receipt rejection performs zero managed or evidence writes",

@@ -72,13 +72,13 @@
       "payload": "05-agent-hook-context.ps1",
       "localSha256": "6961AEF2D907F204C91E57910E208FD3FB83A79159E88412B4ED91BE0395308C",
       "publicSource": "tools/hooks/agent-hook-context.ps1",
-      "publicSha256": "7C4E0DE3C91268D35896012A2BFD70565C11AC6F795F922676ABFF4530C55F29",
+      "publicSha256": "9853DE241DFC921B307BF902770AD0EF1C83698263AB3FC7AFCA1FBC4184C5AC",
       "installedDestination": "tools/hooks/agent-hook-context.ps1",
       "mode": "rendered-equivalent",
-      "evidence": "Codex SessionStart preserves Caveman lite, lesson titles, 90-day review reminders, and state restoration with portable paths",
+      "evidence": "Codex SessionStart preserves no-Caveman startup behavior, lesson titles, 90-day review reminders, and state restoration with portable paths",
       "semanticGate": "hooks",
       "semanticChecks": [
-        "context.caveman-lite",
+        "context.no-caveman-startup",
         "context.lessons-title-only",
         "context.review-90-day",
         "context.state-restore"
@@ -89,18 +89,18 @@
       "payload": "06-agent-hook-smoke-test.ps1",
       "localSha256": "08BFE689E8FC36C1515C57A632FA867510B4E8023EC928B8C6CFAB4737921BA2",
       "publicSource": "tools/test-agent-hooks.ps1",
-      "publicSha256": "1D990722F50861F8DB54C03FE53B362F47191EAB7B0B3D0CC93807B18CD7E68C",
+      "publicSha256": "C0BA5203595179AE17C5169D0272BCD16053A7128D83C0FD91E6E0863F51355C",
       "installedDestination": "tools/test-agent-hooks.ps1",
       "mode": "scoped-equivalent",
-      "evidence": "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; eight Claude or removed high-frequency event assertions are explicitly excluded",
+      "evidence": "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; ten Claude, removed-event, or removed-Caveman-behavior assertions are explicitly excluded",
       "scopeContract": {
         "scope": "codex-active-v2",
         "sourceAssertionCount": 73,
         "sourceAssertionProjectionSha256": "D8510FD50093292CF978FBE351018C4F28BF7881739FCB661F852BBF484F13A4",
-        "retainedAssertionCount": 65,
-        "retainedAssertionProjectionSha256": "90F5004A5321EBA6BFC4710CBA4C5185D6CD032E84F9D42FCF53DFED80A49101",
+        "retainedAssertionCount": 63,
+        "retainedAssertionProjectionSha256": "53162B6F4ECC5B5600AF5E25EF9FAC3FBAAA01604D90B1928D12B6504AA4AC14",
         "assertionProjectionKind": "ordered-name-to-public-evidence-cases-v1",
-        "retainedEvidenceProjectionSha256": "4ADA439151FE6FFC6B0266A4F842ED2143E6094C862FA5862B8F43466CD7E106",
+        "retainedEvidenceProjectionSha256": "FC998DE48C2393B18620D099D73FCDB09148CE76A53F441D3CCA6A0ECBA779D2",
         "retainedAssertions": [
           {
             "name": "matrix: SessionStart retained",
@@ -176,9 +176,9 @@
             ]
           },
           {
-            "name": "startup: caveman status report",
+            "name": "startup: no Caveman behavior",
             "evidenceCases": [
-              "startup reports Caveman lite exactly once"
+              "startup omits Caveman behavior"
             ]
           },
           {
@@ -260,12 +260,6 @@
             ]
           },
           {
-            "name": "compact: no caveman startup report",
-            "evidenceCases": [
-              "compact context omits the Caveman startup report"
-            ]
-          },
-          {
             "name": "resume: restores .agent/state.md",
             "evidenceCases": [
               "resume restores .agent state"
@@ -281,12 +275,6 @@
             "name": "resume no state: fallback",
             "evidenceCases": [
               "resume without state emits a bounded fallback"
-            ]
-          },
-          {
-            "name": "resume: no caveman startup report",
-            "evidenceCases": [
-              "resume context omits the Caveman startup report"
             ]
           },
           {
@@ -500,8 +488,8 @@
             ]
           }
         ],
-        "excludedAssertionCount": 8,
-        "excludedAssertionProjectionSha256": "DEDE51BCC4B3F64C9A931B03D18603BF9CEEECC79ECD614FCA54AA79E59235F4",
+        "excludedAssertionCount": 10,
+        "excludedAssertionProjectionSha256": "FCA49E3088AE6E50B55A5D0D352D40B04798482FC18B0A8F9D35DBCA4EA1C5DB",
         "excludedAssertions": [
           {
             "name": "startup: Claude review policy unchanged",
@@ -534,6 +522,14 @@
           {
             "name": "posttool audit: no deny",
             "reason": "removed-event:PostToolUse"
+          },
+          {
+            "name": "compact: no caveman startup report",
+            "reason": "removed-behavior:Caveman"
+          },
+          {
+            "name": "resume: no caveman startup report",
+            "reason": "removed-behavior:Caveman"
           }
         ]
       },
@@ -547,10 +543,10 @@
       "payload": "07-agent-config-audit.ps1",
       "localSha256": "FB23C4BAD3CCA2BEF53FABF02B6F52C4E5B19204E3F8CB4F98D677DD30D90E54",
       "publicSource": "tools/diagnose-install.ps1",
-      "publicSha256": "3DD724F99D6AC67F8C98875A0FC034C8CC2B864F33861A82EFBF682AFE395616",
+      "publicSha256": "727571153024EF4218A15376A18F0DD4F55F1F5E5C239E72442A22B7167EAA8C",
       "installedDestination": "tools/diagnose-install.ps1",
       "mode": "behavior-superset",
-      "evidence": "portable installed-state audit plus Caveman, review/skill, owning-task-after-receipt timing, rollout-file-confirmed catalog, explicit manual Live boundary, Git identity, managed matrix, and Hook smoke checks",
+      "evidence": "portable installed-state audit plus no-Caveman startup, review/skill, owning-task-after-receipt timing, rollout-file-confirmed catalog, explicit manual Live boundary, Git identity, managed matrix, and Hook smoke checks",
       "semanticGate": "migration",
       "semanticChecks": [
         "diagnose.strict-installed-contract"
@@ -736,7 +732,7 @@
       "payload": "20-HARNESS-GUIDE.md",
       "localSha256": "9B952C5AFB2F38CB59E49450EFFC0A65557DD16FE9FA89D01BCA0AEC5900E2E4",
       "publicSource": "rules/HARNESS-GUIDE.md",
-      "publicSha256": "F96AFDD8AD6AD49261BE6286D32434A6FF76D6805E8486000C10C7A22123DC04",
+      "publicSha256": "1397C6414D028488006B34B03132B9F3AE18DB18619B0C119018156BC1AB7B9E",
       "installedDestination": "rules/HARNESS-GUIDE.md",
       "mode": "policy-equivalent",
       "evidence": "portable Codex-only runtime, rollout-file catalog, manual Live boundary, validation, recovery, and evidence guide",
