@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
@@ -28,7 +29,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
-$expectedMigrationRuntimeSha256 = "818C393376398BA2CE43597CE2C90EB146CCDD6C2DC5524F52DD03A729081F11"
+$expectedMigrationRuntimeSha256 = "1B560A50AF7DECF76789C29F8BEC567877760BBDC179282C3CF9DBC86E44A950"
 $migrationRuntimePath = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "migration-runtime.ps1"))
 if (-not [IO.File]::Exists($migrationRuntimePath)) {
     throw "Migration runtime is missing; no migration writes were made."
@@ -143,7 +144,7 @@ function Resolve-ReceiptOwnedActivePointer {
     Assert-NoReparsePath -Path $pointerPath
     $pointerBytes = [IO.File]::ReadAllBytes($pointerPath)
     $pointerSHA256 = Get-Sha256Bytes -Bytes $pointerBytes
-    $pointer = [Text.Encoding]::UTF8.GetString($pointerBytes) | ConvertFrom-Json
+    $pointer = [Text.Encoding]::UTF8.GetString($pointerBytes) | ConvertFrom-Json -DateKind String
     if ([int]$pointer.schema_version -ne 1 -or
         @($pointer.receipts).Count -ne 1 -or
         [string]$pointer.pointer_integrity_sha256 -notmatch '^[0-9A-F]{64}$' -or
@@ -226,7 +227,7 @@ function Write-RollbackJournal {
 function Read-RollbackJournal {
     param([string]$Path)
     Assert-NoReparsePath -Path $Path
-    $journal = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $journal = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $expectedProperties = @(
         "schema_version",
         "transaction_kind",
@@ -337,7 +338,11 @@ function Assert-SteadyAgentMigrationMutexSecurity {
         [Security.Principal.WellKnownSidType]::LocalSystemSid,
         $null
     )
-    $security = $Mutex.GetAccessControl()
+    $security = [Security.AccessControl.MutexSecurity]::new(
+        "Global\SteadyAgentV2Migration",
+        [Security.AccessControl.AccessControlSections]::Access -bor
+            [Security.AccessControl.AccessControlSections]::Owner
+    )
     $owner = $security.GetOwner([Security.Principal.SecurityIdentifier])
     if (-not $owner.Equals($CurrentUser) -and
         -not $owner.Equals($administrators) -and
@@ -426,7 +431,7 @@ function New-SteadyAgentMigrationMutex {
             )))
         }
         $createdNew = $false
-        $mutex = New-Object Threading.Mutex(
+        $mutex = [Threading.MutexAcl]::Create(
             $false,
             "Global\SteadyAgentV2Migration",
             [ref]$createdNew,
@@ -592,7 +597,7 @@ $rollbackJournal = if ($hasRollbackJournal) {
 else { $null }
 $receiptBytes = [IO.File]::ReadAllBytes($receiptFull)
 $receiptBytesSha256 = Get-Sha256Bytes -Bytes $receiptBytes
-$receipt = ([Text.Encoding]::UTF8.GetString($receiptBytes)) | ConvertFrom-Json
+$receipt = ([Text.Encoding]::UTF8.GetString($receiptBytes)) | ConvertFrom-Json -DateKind String
 $expectedReceiptProperties = @(
     "schema_version",
     "steadyagent_version",
@@ -634,7 +639,7 @@ $extraReceiptProperties = @($actualReceiptProperties | Where-Object {
 if ($missingReceiptProperties.Count -gt 0 -or $extraReceiptProperties.Count -gt 0) {
     throw "Receipt schema properties do not match the frozen V2 contract."
 }
-if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "2.0.2") {
+if ([int]$receipt.schema_version -ne 2 -or [string]$receipt.steadyagent_version -ne "3.0.0") {
     throw "Unsupported migration receipt."
 }
 $receiptStatus = [string]$receipt.status
@@ -797,7 +802,7 @@ if ($gitHooksBeforeSnapshotSha256 -notmatch '^[0-9A-F]{64}$' -or
 }
 $gitHooksBeforeSnapshot = (
     [IO.File]::ReadAllText($gitHooksBeforeSnapshotPath, [Text.Encoding]::UTF8) |
-        ConvertFrom-Json
+        ConvertFrom-Json -DateKind String
 )
 $gitSnapshotProperties = @($gitHooksBeforeSnapshot.PSObject.Properties.Name)
 if ($gitSnapshotProperties.Count -ne 2 -or
@@ -1198,7 +1203,7 @@ if (-not $Apply) {
         @($dryRunClassification.PendingPaths).Count -eq 0) {
         Write-Host "STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0"
     }
-    Write-Host ("DRY-RUN Boring Is All You Need v2.0.2 rollback: {0} files; 0 writes." -f $validated.Count)
+    Write-Host ("DRY-RUN Boring Is All You Need v3.0.0 rollback: {0} files; 0 writes." -f $validated.Count)
     foreach ($pendingPath in @($dryRunClassification.PendingPaths)) {
         Write-Host ("PENDING BOUND RECOVERY " + $pendingPath)
     }
@@ -1881,7 +1886,7 @@ try {
             -ExpectedCurrentSHA256 $ownedActivePointer.SHA256 | Out-Null
         $activePointerReleasedDurably = $true
     }
-    Write-Host ("[OK] Boring Is All You Need v2.0.2 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
+    Write-Host ("[OK] Boring Is All You Need v3.0.0 rollback restored {0} files and Git core.hooksPath." -f $validated.Count)
     exit 0
 }
 catch {

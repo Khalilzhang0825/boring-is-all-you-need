@@ -18,7 +18,7 @@ managed configuration.
 6. `tools\git-hooks\` provides staged secret and oversized-blob checks.
 7. `tools\skill-index.ps1` and `tools\skill-search.ps1` create and query a
    thread-bound catalog from the skills advertised in the active Codex rollout.
-8. SessionStart reports Caveman lite, injects headings from `rules\lessons.md`,
+8. SessionStart omits Caveman behavior, injects headings from `rules\lessons.md`,
    and emits a review reminder when `.harness-last-review` is invalid or at
    least 90 days old. A fresh install without the marker uses the installed
    context Hook mtime as its first 90-day baseline.
@@ -51,8 +51,8 @@ accepted only in explicit fixture mode and never becomes Live evidence.
 
 ```powershell
 $SteadyAgentRoot = Join-Path $HOME ".steadyagent"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1"
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-search.ps1" -Query "code review"
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1"
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-search.ps1" -Query "code review"
 ```
 
 Rollout-file catalog snapshots are generated data under
@@ -77,9 +77,9 @@ if (-not (Test-Path -LiteralPath $ReceiptPath -PathType Leaf)) {
 if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) {
     throw "Run this cold strict audit from a newly started Codex task."
 }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
 if ($LASTEXITCODE -ne 0) { throw "The task-bound skill catalog could not be built." }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
 if ($LASTEXITCODE -ne 0) { throw "Strict installed diagnosis failed." }
 ```
 

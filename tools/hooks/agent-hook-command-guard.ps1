@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [ValidateSet("Unified", "Command", "File")]
@@ -62,7 +63,7 @@ try {
     }
 
     try {
-        $event = $raw | ConvertFrom-Json
+        $event = $raw | ConvertFrom-Json -DateKind String
     }
     catch {
         Write-HookDeny -HookEventName "PreToolUse" -Reason (

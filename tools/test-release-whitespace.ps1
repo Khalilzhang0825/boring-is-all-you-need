@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -79,8 +80,13 @@ function Restore-ProcessEnvironmentState {
         [Environment]::SetEnvironmentVariable($Name, [string]$State.Value, "Process")
     }
     else {
-        [Environment]::SetEnvironmentVariable($Name, $null, "Process")
+        Remove-Item -LiteralPath ("Env:\" + $Name) -ErrorAction SilentlyContinue
     }
+}
+
+function Clear-ProcessEnvironmentVariable {
+    param([string]$Name)
+    Remove-Item -LiteralPath ("Env:\" + $Name) -ErrorAction SilentlyContinue
 }
 
 function Assert-EnvironmentState {
@@ -139,7 +145,7 @@ $isolationEnvironmentNames = @(
 $originalEnvironment = @{}
 foreach ($name in $environmentNames) {
     $originalEnvironment[$name] = Get-ProcessEnvironmentState -Name $name
-    [Environment]::SetEnvironmentVariable($name, $null, "Process")
+    Clear-ProcessEnvironmentVariable -Name $name
 }
 
 New-Item -ItemType Directory -Path $fixtureFull -Force | Out-Null
@@ -187,7 +193,7 @@ try {
             Assert-Equal ($name + " parent value survives child sanitization") (
                 [Environment]::GetEnvironmentVariable($name, "Process")
             ) ([string]$traceInjection[$name])
-            [Environment]::SetEnvironmentVariable($name, $null, "Process")
+            Clear-ProcessEnvironmentVariable -Name $name
         }
 
         $configInjection = @{
@@ -210,7 +216,7 @@ try {
             Assert-Equal ($name + " parent value survives child sanitization") (
                 [Environment]::GetEnvironmentVariable($name, "Process")
             ) ([string]$configInjection[$name])
-            [Environment]::SetEnvironmentVariable($name, $null, "Process")
+            Clear-ProcessEnvironmentVariable -Name $name
         }
         $sanitizedEnvironment = New-ReleaseWhitespaceGitEnvironment
         Assert-Equal "child Git environment disables terminal prompts" (
@@ -536,7 +542,7 @@ try {
         }
 
         foreach ($name in $isolationEnvironmentNames) {
-            [Environment]::SetEnvironmentVariable($name, $null, "Process")
+            Clear-ProcessEnvironmentVariable -Name $name
         }
         Assert-Equal "WIP check preserves exact index bytes" (Get-FileSha256 -Path $indexPath) $beforeIndexHash
         Assert-Equal "WIP check preserves repository object inventory" (Get-ObjectInventory -ObjectRoot $objectsPath) $beforeObjects

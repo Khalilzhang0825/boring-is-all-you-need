@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [Alias("LargeFileMb")]
@@ -15,5 +16,5 @@ if (-not (Test-Path -LiteralPath $checker -PathType Leaf)) {
     exit 1
 }
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $checker -MaxMB $MaxMB
+& pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $checker -MaxMB $MaxMB
 exit $LASTEXITCODE

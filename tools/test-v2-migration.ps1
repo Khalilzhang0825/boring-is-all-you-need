@@ -1,5 +1,9 @@
+#requires -Version 7.5
 [CmdletBinding()]
-param([switch]$RefactorContractOnly)
+param(
+    [switch]$RefactorContractOnly,
+    [switch]$TrustedUpgradeOnly
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
@@ -261,7 +265,7 @@ function Test-MigrationRuntimeRefactorContract {
             entries = @()
         })
     }
-    Assert-True "diagnosis hashes empty receipt collections under PowerShell 5.1" (
+    Assert-True "diagnosis hashes empty receipt collections under PowerShell 7" (
         $emptyCollectionReceiptHash -match '^[0-9A-F]{64}$'
     ) $emptyCollectionReceiptHash
     Assert-True "strict diagnosis pins every trusted parent directory through execution" (
@@ -504,6 +508,61 @@ function Copy-PackageFixture {
     )
 }
 
+function Copy-V202PackageFixture {
+    param([string]$Destination)
+    $archivePath = Join-Path $fixtureRoot 'v2.0.2-package.zip'
+    & git -C $repoRoot cat-file -e 'v2.0.2^{commit}'
+    if ($LASTEXITCODE -ne 0) {
+        throw 'The trusted upgrade test requires the repository v2.0.2 tag.'
+    }
+    & git -C $repoRoot archive --format=zip "--output=$archivePath" v2.0.2
+    if ($LASTEXITCODE -ne 0 -or
+        -not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+        throw 'Could not materialize the exact v2.0.2 package fixture.'
+    }
+    Expand-Archive -LiteralPath $archivePath -DestinationPath $Destination
+    Remove-Item -LiteralPath $archivePath -Force
+    $v202Installer = Join-Path $Destination 'tools\install.ps1'
+    if (-not (Test-Path -LiteralPath $v202Installer -PathType Leaf) -or
+        [IO.File]::ReadAllText($v202Installer, [Text.Encoding]::UTF8) -notmatch
+            '[$]version\s*=\s*"2[.]0[.]2"') {
+        throw 'The exact v2.0.2 package fixture has the wrong installer identity.'
+    }
+    $v202InstallerText = [IO.File]::ReadAllText($v202Installer, [Text.Encoding]::UTF8)
+    $legacySplit = '$legacyManifestText.Split(@("`r`n", "`n"), [StringSplitOptions]::None)'
+    $pwshSplit = '$legacyManifestText.Split([string[]]@("`r`n", "`n"), [StringSplitOptions]::None)'
+    if (([regex]::Matches($v202InstallerText, [regex]::Escape($legacySplit))).Count -ne 1) {
+        throw 'The v2.0.2 PowerShell 7 fixture adapter did not find its exact legacy Split call.'
+    }
+    [IO.File]::WriteAllText(
+        $v202Installer,
+        $v202InstallerText.Replace($legacySplit, $pwshSplit),
+        (New-Object Text.UTF8Encoding($false))
+    )
+}
+
+function Get-TestActiveReceiptPointerPath {
+    param([string]$TargetRoot)
+    $targetFull = [IO.Path]::GetFullPath($TargetRoot)
+    $token = (Get-Sha256Text -Text $targetFull.ToUpperInvariant()).Substring(0, 20).ToLowerInvariant()
+    return Join-Path (Split-Path -Parent $targetFull) ('.steadyagent-active-receipt-' + $token + '.json')
+}
+
+function Get-TestActiveReceiptPointerIntegritySha256 {
+    param([object]$Pointer)
+    $receipts = @($Pointer.receipts)
+    $lines = @(
+        'schema_version=' + [string]$Pointer.schema_version,
+        'target_root=' + [string]$Pointer.target_root,
+        'receipts.count=' + $receipts.Count
+    )
+    for ($index = 0; $index -lt $receipts.Count; $index++) {
+        $lines += 'receipts[' + $index + '].path=' + [string]$receipts[$index].path
+        $lines += 'receipts[' + $index + '].sha256=' + [string]$receipts[$index].sha256
+    }
+    return Get-Sha256Text -Text ($lines -join "`n")
+}
+
 function Get-ReceiptOperationProjection {
     param(
         [object[]]$Entries,
@@ -568,6 +627,9 @@ function Invoke-Installer {
         [string]$InjectJunctionEscapeRoot,
         [string]$InjectTargetMutationPath,
         [string]$InjectGitHooksMutationValue,
+        [string]$InjectTrustedUpgradePostValidationMutationPath,
+        [switch]$InjectTrustedUpgradePointerCasMutation,
+        [switch]$InjectTrustedUpgradeCleanupFailure,
         [string]$CustomTargetRoot,
         [string]$CustomCodexHome,
         [string]$CustomBackupRoot,
@@ -635,6 +697,18 @@ function Invoke-Installer {
     }
     if ($InjectTargetMutationPath) { $arguments += @("-InjectTargetMutationPath", $InjectTargetMutationPath) }
     if ($InjectGitHooksMutationValue) { $arguments += @("-InjectGitHooksMutationValue", $InjectGitHooksMutationValue) }
+    if ($InjectTrustedUpgradePostValidationMutationPath) {
+        $arguments += @(
+            "-InjectTrustedUpgradePostValidationMutationPath",
+            $InjectTrustedUpgradePostValidationMutationPath
+        )
+    }
+    if ($InjectTrustedUpgradePointerCasMutation) {
+        $arguments += "-InjectTrustedUpgradePointerCasMutation"
+    }
+    if ($InjectTrustedUpgradeCleanupFailure) {
+        $arguments += "-InjectTrustedUpgradeCleanupFailure"
+    }
     $errorPath = Join-Path ([IO.Path]::GetTempPath()) ("steadyagent-v2-migration-error-" + [guid]::NewGuid().ToString("N") + ".log")
     $oldMigrationTestMode = $env:STEADYAGENT_TEST_MODE
     $oldMigrationTestRoot = $env:STEADYAGENT_TEST_ROOT
@@ -649,7 +723,7 @@ function Invoke-Installer {
         $savedErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = "Continue"
-            $output = & powershell.exe @arguments 2>$errorPath
+            $output = & pwsh.exe @arguments 2>$errorPath
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -809,7 +883,7 @@ function Invoke-ReceiptRollback {
         $savedErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = "Continue"
-            $output = & powershell.exe @arguments 2>$errorPath
+            $output = & pwsh.exe @arguments 2>$errorPath
             $exitCode = $LASTEXITCODE
         }
         finally {
@@ -855,7 +929,7 @@ function Start-ReceiptRollbackAuthorityBarrier {
         throw "Authority barrier fixture paths must not contain whitespace."
     }
     $startInfo = New-Object Diagnostics.ProcessStartInfo
-    $startInfo.FileName = "powershell.exe"
+    $startInfo.FileName = "pwsh.exe"
     $startInfo.Arguments = $arguments -join " "
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
@@ -892,7 +966,7 @@ function Invoke-TamperedReceiptRollbackFixture {
     }
     $sourceReceiptPath = Join-Path $installed.BackupRoot "migration-receipt.json"
     $tamperedReceiptPath = Join-Path $installed.BackupRoot ("tampered-" + $Name + ".json")
-    $receipt = [IO.File]::ReadAllText($sourceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $receipt = [IO.File]::ReadAllText($sourceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     & $Mutate $receipt $installed
     if ($Rehash) { Update-ReceiptIntegrity -Receipt $receipt }
     [IO.File]::WriteAllText(
@@ -949,7 +1023,7 @@ function Invoke-StrictDiagnosisFixture {
         $env:CODEX_THREAD_ID = $ThreadId
         $env:STEADYAGENT_TEST_MODE = "1"
         $env:STEADYAGENT_TEST_ROOT = $fixtureRoot
-        $output = & powershell.exe @arguments
+        $output = & pwsh.exe @arguments
         $exitCode = $LASTEXITCODE
     }
     finally {
@@ -979,7 +1053,7 @@ function Invoke-InstalledBytesDiagnosisFixture {
     try {
         $env:STEADYAGENT_TEST_MODE = "1"
         $env:STEADYAGENT_TEST_ROOT = $fixtureRoot
-        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+        $output = & pwsh.exe -NoProfile -ExecutionPolicy Bypass `
             -File $DiagnosePath `
             -TargetRoot $InstallResult.TargetRoot `
             -CodexHome $InstallResult.CodexHome `
@@ -1003,6 +1077,48 @@ function Invoke-InstalledBytesDiagnosisFixture {
     }
 }
 
+function Set-SupportedNoCavemanV202Preimage {
+    param(
+        [object]$InstallResult,
+        [string]$PackageRoot,
+        [switch]$AgentsOnly,
+        [switch]$ContextOnly
+    )
+    if ($AgentsOnly -and $ContextOnly) {
+        throw 'AgentsOnly and ContextOnly are mutually exclusive.'
+    }
+    $utf8NoBom = New-Object Text.UTF8Encoding($false)
+    $agentsTemplate = [IO.File]::ReadAllText(
+        (Join-Path $PackageRoot 'templates\codex\AGENTS.md'),
+        [Text.Encoding]::UTF8
+    )
+    $renderedAgents = $agentsTemplate.Replace('%STEADYAGENT_HOME%', $InstallResult.TargetRoot)
+    if (-not $ContextOnly) {
+        [IO.File]::WriteAllText(
+            (Join-Path $InstallResult.CodexHome 'AGENTS.md'),
+            $renderedAgents,
+            $utf8NoBom
+        )
+    }
+
+    $contextSource = [IO.File]::ReadAllText(
+        (Join-Path $PackageRoot 'tools\hooks\agent-hook-context.ps1'),
+        [Text.Encoding]::UTF8
+    )
+    $legacyNoCavemanContext = $contextSource `
+        -replace '^#requires -Version 7[.]5\r?\n', '' `
+        -replace 'ConvertFrom-Json -DateKind String', 'ConvertFrom-Json'
+    $legacyContextPath = Join-Path $InstallResult.TargetRoot 'tools\hooks\agent-hook-context.ps1'
+    if (-not $AgentsOnly) {
+        [IO.File]::WriteAllText($legacyContextPath, $legacyNoCavemanContext, $utf8NoBom)
+    }
+    $legacyContextHash = (Get-FileHash -LiteralPath $legacyContextPath -Algorithm SHA256).Hash
+    if (-not $AgentsOnly -and $legacyContextHash -cne
+        '20BF528341B1A5BF6A098BD8BB55975475BD663C109C6038AC6515FD6DC69091') {
+        throw ('The supported no-Caveman v2.0.2 context preimage drifted: ' + $legacyContextHash)
+    }
+}
+
 Test-MigrationRuntimeRefactorContract
 if ($RefactorContractOnly) {
     Write-Host ("RESULT pass={0} fail={1}" -f $script:Passed, $script:Failed)
@@ -1016,6 +1132,447 @@ try {
     Copy-PackageFixture -Destination $testPackageRoot
     $installer = Join-Path $testPackageRoot "tools\install.ps1"
     . (Join-Path $testPackageRoot "tools\protected-path-policy.ps1")
+
+    $v202PackageRoot = Join-Path $fixtureRoot 'v2.0.2-package'
+    Copy-V202PackageFixture -Destination $v202PackageRoot
+    $v202Installer = Join-Path $v202PackageRoot 'tools\install.ps1'
+
+    $noCavemanUpgradeCase = Join-Path $fixtureRoot 'trusted-v202-no-caveman-upgrade'
+    $noCavemanUpgradeV2 = Invoke-Installer `
+        -CaseRoot $noCavemanUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before supported no-Caveman upgrade' (
+        $noCavemanUpgradeV2.ExitCode -eq 0
+    ) $noCavemanUpgradeV2.Output
+    Set-SupportedNoCavemanV202Preimage `
+        -InstallResult $noCavemanUpgradeV2 `
+        -PackageRoot $testPackageRoot
+    $noCavemanPreimage = Get-ManagedSurfaceFingerprint `
+        -Roots @($noCavemanUpgradeV2.TargetRoot, $noCavemanUpgradeV2.CodexHome) `
+        -Files @($noCavemanUpgradeV2.ManagedPath, $noCavemanUpgradeV2.GitConfigPath)
+    $noCavemanUpgradeV3 = Invoke-Installer `
+        -CaseRoot $noCavemanUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -CustomBackupRoot (Join-Path $noCavemanUpgradeCase 'backup-v3')
+    Assert-True 'supported no-Caveman v2.0.2 preimages upgrade to v3.0.0' (
+        $noCavemanUpgradeV3.ExitCode -eq 0 -and
+        $noCavemanUpgradeV3.Output -match 'supported no-Caveman preimages' -and
+        $noCavemanUpgradeV3.Output -match '3[.]0[.]0 installed and verified'
+    ) $noCavemanUpgradeV3.Output
+    $noCavemanInstalledAgents = [IO.File]::ReadAllText(
+        (Join-Path $noCavemanUpgradeV3.CodexHome 'AGENTS.md'),
+        [Text.Encoding]::UTF8
+    )
+    $noCavemanInstalledContext = [IO.File]::ReadAllText(
+        (Join-Path $noCavemanUpgradeV3.TargetRoot 'tools\hooks\agent-hook-context.ps1'),
+        [Text.Encoding]::UTF8
+    )
+    $noCavemanAgentsOmitBehavior =
+        $noCavemanInstalledAgents -notmatch 'Use Caveman|current Caveman state'
+    $noCavemanContextOmitBehavior = $noCavemanInstalledContext -notmatch 'Caveman'
+    $noCavemanContextRequiresPS7 = $noCavemanInstalledContext -match '(?m)^#requires -Version 7[.]5$'
+    $noCavemanContextPreservesJsonDates =
+        $noCavemanInstalledContext -match 'ConvertFrom-Json -DateKind String'
+    Assert-True 'v3 preserves no-Caveman startup behavior while adding PowerShell 7' (
+        $noCavemanAgentsOmitBehavior -and
+        $noCavemanContextOmitBehavior -and
+        $noCavemanContextRequiresPS7 -and
+        $noCavemanContextPreservesJsonDates
+    ) (
+        'agents_omit={0} context_omit={1} requires_ps7={2} datekind_string={3}' -f
+        $noCavemanAgentsOmitBehavior,
+        $noCavemanContextOmitBehavior,
+        $noCavemanContextRequiresPS7,
+        $noCavemanContextPreservesJsonDates
+    )
+    $noCavemanRollback = Invoke-ReceiptRollback -InstallResult $noCavemanUpgradeV3
+    $noCavemanPostRollback = Get-ManagedSurfaceFingerprint `
+        -Roots @($noCavemanUpgradeV2.TargetRoot, $noCavemanUpgradeV2.CodexHome) `
+        -Files @($noCavemanUpgradeV2.ManagedPath, $noCavemanUpgradeV2.GitConfigPath)
+    Assert-True 'v3 rollback after no-Caveman upgrade succeeds' (
+        $noCavemanRollback.ExitCode -eq 0
+    ) $noCavemanRollback.Output
+    Assert-True 'v3 rollback restores exact supported no-Caveman preimages' (
+        $noCavemanPostRollback -ceq $noCavemanPreimage
+    ) ('before={0} after={1}' -f $noCavemanPreimage, $noCavemanPostRollback)
+
+    $hybridProfiles = @(
+        [pscustomobject]@{
+            Name = 'AGENTS-only'
+            CaseName = 'trusted-v202-no-caveman-agents-only'
+            AgentsOnly = $true
+        },
+        [pscustomobject]@{
+            Name = 'context-only'
+            CaseName = 'trusted-v202-no-caveman-context-only'
+            AgentsOnly = $false
+        }
+    )
+    foreach ($hybridProfile in $hybridProfiles) {
+        $hybridCase = Join-Path $fixtureRoot ([string]$hybridProfile.CaseName)
+        $hybridV2 = Invoke-Installer `
+            -CaseRoot $hybridCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -InstallerPath $v202Installer
+        Assert-True (
+            'exact v2.0.2 package installs before ' + [string]$hybridProfile.Name +
+            ' hybrid rejection'
+        ) ($hybridV2.ExitCode -eq 0) $hybridV2.Output
+        if ([bool]$hybridProfile.AgentsOnly) {
+            Set-SupportedNoCavemanV202Preimage `
+                -InstallResult $hybridV2 `
+                -PackageRoot $testPackageRoot `
+                -AgentsOnly
+        }
+        else {
+            Set-SupportedNoCavemanV202Preimage `
+                -InstallResult $hybridV2 `
+                -PackageRoot $testPackageRoot `
+                -ContextOnly
+        }
+        $hybridReceiptPath = Join-Path $hybridV2.BackupRoot 'migration-receipt.json'
+        $hybridPointerPath = Get-TestActiveReceiptPointerPath -TargetRoot $hybridV2.TargetRoot
+        $hybridBefore = Get-ManagedSurfaceFingerprint `
+            -Roots @($hybridV2.TargetRoot, $hybridV2.CodexHome) `
+            -Files @(
+                $hybridV2.ManagedPath,
+                $hybridV2.GitConfigPath,
+                $hybridReceiptPath,
+                $hybridPointerPath
+            )
+        $hybridBackupV3 = Join-Path $hybridCase 'backup-v3'
+        $hybridAttempt = Invoke-Installer `
+            -CaseRoot $hybridCase `
+            -Apply `
+            -ReplaceExistingWorkflow `
+            -CustomBackupRoot $hybridBackupV3
+        $hybridAfter = Get-ManagedSurfaceFingerprint `
+            -Roots @($hybridV2.TargetRoot, $hybridV2.CodexHome) `
+            -Files @(
+                $hybridV2.ManagedPath,
+                $hybridV2.GitConfigPath,
+                $hybridReceiptPath,
+                $hybridPointerPath
+            )
+        Assert-True (
+            'trusted upgrade rejects ' + [string]$hybridProfile.Name +
+            ' no-Caveman hybrid'
+        ) (
+            $hybridAttempt.ExitCode -ne 0 -and
+            $hybridAttempt.Output -match 'active applied receipt no longer matches installed state'
+        ) $hybridAttempt.Output
+        Assert-True (
+            [string]$hybridProfile.Name +
+            ' no-Caveman hybrid rejection performs zero managed or evidence writes'
+        ) (
+            $hybridAfter -ceq $hybridBefore -and
+            -not (Test-Path -LiteralPath $hybridBackupV3)
+        ) ('before={0} after={1}' -f $hybridBefore, $hybridAfter)
+    }
+
+    $forgedUpgradeCase = Join-Path $fixtureRoot 'forged-v202-upgrade'
+    $forgedUpgradeV2 = Invoke-Installer `
+        -CaseRoot $forgedUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before forged receipt test' (
+        $forgedUpgradeV2.ExitCode -eq 0
+    ) $forgedUpgradeV2.Output
+    $forgedReceiptPath = Join-Path $forgedUpgradeV2.BackupRoot 'migration-receipt.json'
+    $forgedPointerPath = Get-TestActiveReceiptPointerPath -TargetRoot $forgedUpgradeV2.TargetRoot
+    $forgedReceipt = [IO.File]::ReadAllText(
+        $forgedReceiptPath,
+        [Text.Encoding]::UTF8
+    ) | ConvertFrom-Json -DateKind String
+    $forgedReceipt.entries[79] = $forgedReceipt.entries[0]
+    Update-ReceiptIntegrity -Receipt $forgedReceipt
+    [IO.File]::WriteAllText(
+        $forgedReceiptPath,
+        (($forgedReceipt | ConvertTo-Json -Depth 7) + "`n"),
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $forgedPointer = [IO.File]::ReadAllText(
+        $forgedPointerPath,
+        [Text.Encoding]::UTF8
+    ) | ConvertFrom-Json -DateKind String
+    $forgedPointer.receipts[0].sha256 = (
+        Get-FileHash -LiteralPath $forgedReceiptPath -Algorithm SHA256
+    ).Hash
+    $forgedPointer.pointer_integrity_sha256 = Get-TestActiveReceiptPointerIntegritySha256 `
+        -Pointer $forgedPointer
+    [IO.File]::WriteAllText(
+        $forgedPointerPath,
+        (($forgedPointer | ConvertTo-Json -Depth 6) + "`n"),
+        (New-Object Text.UTF8Encoding($false))
+    )
+    $forgedUpgradeBefore = Get-ManagedSurfaceFingerprint `
+        -Roots @($forgedUpgradeV2.TargetRoot, $forgedUpgradeV2.CodexHome) `
+        -Files @(
+            $forgedUpgradeV2.ManagedPath,
+            $forgedUpgradeV2.GitConfigPath,
+            $forgedReceiptPath,
+            $forgedPointerPath
+        )
+    $forgedUpgradeAttempt = Invoke-Installer `
+        -CaseRoot $forgedUpgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -CustomBackupRoot (Join-Path $forgedUpgradeCase 'backup-v3')
+    $forgedUpgradeAfter = Get-ManagedSurfaceFingerprint `
+        -Roots @($forgedUpgradeV2.TargetRoot, $forgedUpgradeV2.CodexHome) `
+        -Files @(
+            $forgedUpgradeV2.ManagedPath,
+            $forgedUpgradeV2.GitConfigPath,
+            $forgedReceiptPath,
+            $forgedPointerPath
+        )
+    Assert-True 'trusted upgrade rejects a rehashed duplicate-entry v2.0.2 receipt' (
+        $forgedUpgradeAttempt.ExitCode -ne 0 -and
+        $forgedUpgradeAttempt.Output -match 'active applied receipt no longer matches installed state'
+    ) $forgedUpgradeAttempt.Output
+    Assert-True 'forged v2.0.2 receipt rejection performs zero managed or evidence writes' (
+        $forgedUpgradeAfter -ceq $forgedUpgradeBefore -and
+        -not (Test-Path -LiteralPath (Join-Path $forgedUpgradeCase 'backup-v3'))
+    ) ("before={0} after={1}" -f $forgedUpgradeBefore, $forgedUpgradeAfter)
+
+    $upgradeRaceCase = Join-Path $fixtureRoot 'trusted-v202-upgrade-race'
+    $upgradeRaceV2 = Invoke-Installer `
+        -CaseRoot $upgradeRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before trusted upgrade race test' (
+        $upgradeRaceV2.ExitCode -eq 0
+    ) $upgradeRaceV2.Output
+    $upgradeRaceReceipt = Join-Path $upgradeRaceV2.BackupRoot 'migration-receipt.json'
+    $upgradeRacePointer = Get-TestActiveReceiptPointerPath -TargetRoot $upgradeRaceV2.TargetRoot
+    $upgradeRaceReceiptHash = (Get-FileHash -LiteralPath $upgradeRaceReceipt -Algorithm SHA256).Hash
+    $upgradeRacePointerHash = (Get-FileHash -LiteralPath $upgradeRacePointer -Algorithm SHA256).Hash
+    $upgradeRaceTarget = Join-Path $upgradeRaceV2.CodexHome 'AGENTS.md'
+    $upgradeRaceAttempt = Invoke-Installer `
+        -CaseRoot $upgradeRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InjectTargetMutationPath $upgradeRaceTarget `
+        -CustomBackupRoot (Join-Path $upgradeRaceCase 'backup-v3')
+    Assert-True 'trusted upgrade rejects receipt-bound target drift before snapshot' (
+        $upgradeRaceAttempt.ExitCode -ne 0 -and
+        $upgradeRaceAttempt.Output -match 'upgrade source changed before snapshot'
+    ) $upgradeRaceAttempt.Output
+    Assert-True 'trusted upgrade target race preserves external drift without publishing v3 evidence' (
+        [IO.File]::ReadAllText($upgradeRaceTarget, [Text.Encoding]::UTF8) -ceq 'injected-external-drift' -and
+        (Get-FileHash -LiteralPath $upgradeRaceReceipt -Algorithm SHA256).Hash -ceq $upgradeRaceReceiptHash -and
+        (Get-FileHash -LiteralPath $upgradeRacePointer -Algorithm SHA256).Hash -ceq $upgradeRacePointerHash -and
+        -not (Test-Path -LiteralPath (Join-Path $upgradeRaceCase 'backup-v3'))
+    ) $upgradeRaceAttempt.Output
+
+    $upgradeGitRaceCase = Join-Path $fixtureRoot 'trusted-v202-upgrade-git-race'
+    $upgradeGitRaceV2 = Invoke-Installer `
+        -CaseRoot $upgradeGitRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before trusted upgrade Git race test' (
+        $upgradeGitRaceV2.ExitCode -eq 0
+    ) $upgradeGitRaceV2.Output
+    $upgradeGitRaceReceipt = Join-Path $upgradeGitRaceV2.BackupRoot 'migration-receipt.json'
+    $upgradeGitRacePointer = Get-TestActiveReceiptPointerPath -TargetRoot $upgradeGitRaceV2.TargetRoot
+    $upgradeGitRaceReceiptHash = (
+        Get-FileHash -LiteralPath $upgradeGitRaceReceipt -Algorithm SHA256
+    ).Hash
+    $upgradeGitRacePointerHash = (
+        Get-FileHash -LiteralPath $upgradeGitRacePointer -Algorithm SHA256
+    ).Hash
+    $upgradeGitRaceAttempt = Invoke-Installer `
+        -CaseRoot $upgradeGitRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InjectGitHooksMutationValue 'external-hooks' `
+        -CustomBackupRoot (Join-Path $upgradeGitRaceCase 'backup-v3')
+    $upgradeGitRaceHooks = & git config --file $upgradeGitRaceV2.GitConfigPath --get core.hooksPath
+    Assert-True 'trusted upgrade rejects Git Hook drift before snapshot' (
+        $upgradeGitRaceAttempt.ExitCode -ne 0 -and
+        $upgradeGitRaceAttempt.Output -match 'upgrade source changed before snapshot'
+    ) $upgradeGitRaceAttempt.Output
+    Assert-True 'trusted upgrade Git race preserves external drift without publishing v3 evidence' (
+        $upgradeGitRaceHooks -ceq 'external-hooks' -and
+        (Get-FileHash -LiteralPath $upgradeGitRaceReceipt -Algorithm SHA256).Hash -ceq
+            $upgradeGitRaceReceiptHash -and
+        (Get-FileHash -LiteralPath $upgradeGitRacePointer -Algorithm SHA256).Hash -ceq
+            $upgradeGitRacePointerHash -and
+        -not (Test-Path -LiteralPath (Join-Path $upgradeGitRaceCase 'backup-v3'))
+    ) $upgradeGitRaceAttempt.Output
+
+    $postValidationRaceCase = Join-Path $fixtureRoot 'trusted-v202-post-validation-race'
+    $postValidationRaceV2 = Invoke-Installer `
+        -CaseRoot $postValidationRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before post-validation snapshot race test' (
+        $postValidationRaceV2.ExitCode -eq 0
+    ) $postValidationRaceV2.Output
+    $postValidationRaceReceipt = Join-Path $postValidationRaceV2.BackupRoot 'migration-receipt.json'
+    $postValidationRacePointer = Get-TestActiveReceiptPointerPath `
+        -TargetRoot $postValidationRaceV2.TargetRoot
+    $postValidationRaceReceiptHash = (
+        Get-FileHash -LiteralPath $postValidationRaceReceipt -Algorithm SHA256
+    ).Hash
+    $postValidationRacePointerHash = (
+        Get-FileHash -LiteralPath $postValidationRacePointer -Algorithm SHA256
+    ).Hash
+    $postValidationRaceTarget = Join-Path $postValidationRaceV2.CodexHome 'AGENTS.md'
+    $postValidationRaceAttempt = Invoke-Installer `
+        -CaseRoot $postValidationRaceCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InjectTrustedUpgradePostValidationMutationPath $postValidationRaceTarget `
+        -CustomBackupRoot (Join-Path $postValidationRaceCase 'backup-v3')
+    Assert-True 'trusted upgrade binds every durable snapshot to the v2.0.2 receipt' (
+        $postValidationRaceAttempt.ExitCode -ne 0 -and
+        $postValidationRaceAttempt.Output -match 'target changed before durable snapshot'
+    ) $postValidationRaceAttempt.Output
+    Assert-True 'post-validation snapshot race preserves drift without v3 authority or evidence' (
+        [IO.File]::ReadAllText($postValidationRaceTarget, [Text.Encoding]::UTF8) -ceq
+            'injected-post-validation-drift' -and
+        (Get-FileHash -LiteralPath $postValidationRaceReceipt -Algorithm SHA256).Hash -ceq
+            $postValidationRaceReceiptHash -and
+        (Get-FileHash -LiteralPath $postValidationRacePointer -Algorithm SHA256).Hash -ceq
+            $postValidationRacePointerHash -and
+        -not (Test-Path -LiteralPath (Join-Path $postValidationRaceCase 'backup-v3'))
+    ) $postValidationRaceAttempt.Output
+
+    $takeoverCleanupCase = Join-Path $fixtureRoot 'trusted-v202-takeover-cleanup-failure'
+    $takeoverCleanupV2 = Invoke-Installer `
+        -CaseRoot $takeoverCleanupCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before takeover cleanup failure test' (
+        $takeoverCleanupV2.ExitCode -eq 0
+    ) $takeoverCleanupV2.Output
+    $takeoverCleanupReceipt = Join-Path $takeoverCleanupV2.BackupRoot 'migration-receipt.json'
+    $takeoverCleanupPointer = Get-TestActiveReceiptPointerPath -TargetRoot $takeoverCleanupV2.TargetRoot
+    $takeoverCleanupReceiptHash = (
+        Get-FileHash -LiteralPath $takeoverCleanupReceipt -Algorithm SHA256
+    ).Hash
+    $takeoverCleanupBackup = Join-Path $takeoverCleanupCase 'backup-v3'
+    $takeoverCleanupAttempt = Invoke-Installer `
+        -CaseRoot $takeoverCleanupCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InjectTrustedUpgradePointerCasMutation `
+        -InjectTrustedUpgradeCleanupFailure `
+        -CustomBackupRoot $takeoverCleanupBackup
+    Assert-True 'trusted upgrade reports takeover CAS plus orphan cleanup failure' (
+        $takeoverCleanupAttempt.ExitCode -eq 3 -and
+        $takeoverCleanupAttempt.Output -match 'rollback was incomplete' -and
+        $takeoverCleanupAttempt.Output -match 'Preserve the backup root'
+    ) $takeoverCleanupAttempt.Output
+    Assert-True 'failed pre-takeover cleanup never overwrites the concurrent pointer' (
+        [IO.File]::ReadAllText($takeoverCleanupPointer, [Text.Encoding]::UTF8) -ceq
+            'injected-concurrent-pointer' -and
+        (Get-FileHash -LiteralPath $takeoverCleanupReceipt -Algorithm SHA256).Hash -ceq
+            $takeoverCleanupReceiptHash
+    ) $takeoverCleanupAttempt.Output
+    Assert-True 'failed pre-takeover cleanup preserves orphan v3 evidence without authority' (
+        (Test-Path -LiteralPath $takeoverCleanupBackup -PathType Container) -and
+        (Test-Path -LiteralPath (Join-Path $takeoverCleanupBackup 'migration-receipt.json') -PathType Leaf)
+    ) $takeoverCleanupBackup
+
+    $upgradeFailureCase = Join-Path $fixtureRoot 'trusted-v202-upgrade-failure'
+    $upgradeFailureV2 = Invoke-Installer `
+        -CaseRoot $upgradeFailureCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before upgrade failure test' (
+        $upgradeFailureV2.ExitCode -eq 0
+    ) $upgradeFailureV2.Output
+    $upgradeFailurePointer = Get-TestActiveReceiptPointerPath -TargetRoot $upgradeFailureV2.TargetRoot
+    $upgradeFailureBefore = Get-ManagedSurfaceFingerprint `
+        -Roots @($upgradeFailureV2.TargetRoot, $upgradeFailureV2.CodexHome) `
+        -Files @($upgradeFailureV2.ManagedPath, $upgradeFailureV2.GitConfigPath, $upgradeFailurePointer)
+    $upgradeFailureV3 = Invoke-Installer `
+        -CaseRoot $upgradeFailureCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InjectPostWriteFailureAt 1 `
+        -CustomBackupRoot (Join-Path $upgradeFailureCase 'backup-v3')
+    $upgradeFailureAfter = Get-ManagedSurfaceFingerprint `
+        -Roots @($upgradeFailureV2.TargetRoot, $upgradeFailureV2.CodexHome) `
+        -Files @($upgradeFailureV2.ManagedPath, $upgradeFailureV2.GitConfigPath, $upgradeFailurePointer)
+    Assert-True 'trusted v2.0.2 to v3.0.0 injected failure is reported' (
+        $upgradeFailureV3.ExitCode -ne 0 -and
+        $upgradeFailureV3.Output -match 'Verified the complete v2[.]0[.]2 receipt' -and
+        $upgradeFailureV3.Output -match 'Restored the trusted v2[.]0[.]2 active receipt pointer'
+    ) $upgradeFailureV3.Output
+    Assert-True 'trusted upgrade failure restores exact v2.0.2 bytes and active pointer' (
+        $upgradeFailureAfter -ceq $upgradeFailureBefore
+    ) ("before={0} after={1}" -f $upgradeFailureBefore, $upgradeFailureAfter)
+
+    $upgradeCase = Join-Path $fixtureRoot 'trusted-v202-upgrade'
+    $upgradeV2 = Invoke-Installer `
+        -CaseRoot $upgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -InstallerPath $v202Installer
+    Assert-True 'exact v2.0.2 package installs before trusted upgrade' (
+        $upgradeV2.ExitCode -eq 0
+    ) $upgradeV2.Output
+    $upgradePointer = Get-TestActiveReceiptPointerPath -TargetRoot $upgradeV2.TargetRoot
+    $upgradeV2Receipt = Join-Path $upgradeV2.BackupRoot 'migration-receipt.json'
+    $upgradeV2ReceiptHash = (Get-FileHash -LiteralPath $upgradeV2Receipt -Algorithm SHA256).Hash
+    $upgradePreimage = Get-ManagedSurfaceFingerprint `
+        -Roots @($upgradeV2.TargetRoot, $upgradeV2.CodexHome) `
+        -Files @($upgradeV2.ManagedPath, $upgradeV2.GitConfigPath)
+    $upgradePreview = Invoke-Installer `
+        -CaseRoot $upgradeCase `
+        -CustomBackupRoot (Join-Path $upgradeCase 'preview-v3')
+    Assert-True 'v3 dry-run reports the installed v2.0.2 replacement surface without writes' (
+        $upgradePreview.ExitCode -eq 0 -and
+        $upgradePreview.Output -match 'DRY-RUN Boring Is All You Need v3[.]0[.]0 migration' -and
+        (Get-FileHash -LiteralPath $upgradeV2Receipt -Algorithm SHA256).Hash -ceq $upgradeV2ReceiptHash
+    ) $upgradePreview.Output
+    $upgradeV3 = Invoke-Installer `
+        -CaseRoot $upgradeCase `
+        -Apply `
+        -ReplaceExistingWorkflow `
+        -CustomBackupRoot (Join-Path $upgradeCase 'backup-v3')
+    Assert-True 'verified v2.0.2 installation upgrades in place to v3.0.0' (
+        $upgradeV3.ExitCode -eq 0 -and
+        $upgradeV3.Output -match 'Verified the complete v2[.]0[.]2 receipt' -and
+        $upgradeV3.Output -match '3[.]0[.]0 installed and verified'
+    ) $upgradeV3.Output
+    Assert-True 'trusted upgrade preserves the original v2.0.2 receipt evidence' (
+        (Test-Path -LiteralPath $upgradeV2Receipt -PathType Leaf) -and
+        (Get-FileHash -LiteralPath $upgradeV2Receipt -Algorithm SHA256).Hash -ceq $upgradeV2ReceiptHash
+    ) $upgradeV2Receipt
+    $upgradeRollback = Invoke-ReceiptRollback -InstallResult $upgradeV3
+    $upgradePostRollback = Get-ManagedSurfaceFingerprint `
+        -Roots @($upgradeV2.TargetRoot, $upgradeV2.CodexHome) `
+        -Files @($upgradeV2.ManagedPath, $upgradeV2.GitConfigPath)
+    Assert-True 'v3 rollback after trusted upgrade succeeds' (
+        $upgradeRollback.ExitCode -eq 0
+    ) $upgradeRollback.Output
+    Assert-True 'v3 rollback restores exact v2.0.2 managed bytes' (
+        $upgradePostRollback -ceq $upgradePreimage
+    ) ("before={0} after={1}" -f $upgradePreimage, $upgradePostRollback)
+    Assert-True 'v3 rollback keeps the original v2.0.2 receipt evidence' (
+        (Test-Path -LiteralPath $upgradeV2Receipt -PathType Leaf) -and
+        (Get-FileHash -LiteralPath $upgradeV2Receipt -Algorithm SHA256).Hash -ceq $upgradeV2ReceiptHash -and
+        -not (Test-Path -LiteralPath $upgradePointer)
+    ) $upgradeV2Receipt
+    if ($TrustedUpgradeOnly) {
+        Write-Host ("RESULT pass={0} fail={1}" -f $script:Passed, $script:Failed)
+        if ($script:Failed -gt 0) { exit 1 }
+        exit 0
+    }
 
     $missingRuntimePackage = Join-Path $fixtureRoot "missing-runtime-package"
     Copy-PackageFixture -Destination $missingRuntimePackage
@@ -1223,7 +1780,7 @@ try {
     $dryCase = Join-Path $fixtureRoot "dry"
     $dry = Invoke-Installer -CaseRoot $dryCase
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
-    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]2 migration") $dry.Output
+    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]0 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
     Assert-True "dry-run reports zero target config state writes rather than zero filesystem writes" (
         $dry.Output -match "0 target/config/backup/receipt/state writes" -and
@@ -1556,7 +2113,7 @@ try {
         $directoryCrashReceiptPath = Join-Path $directoryCrash.BackupRoot "migration-receipt.json"
         $directoryCrashReceipt = if (Test-Path -LiteralPath $directoryCrashReceiptPath -PathType Leaf) {
             [IO.File]::ReadAllText($directoryCrashReceiptPath, [Text.Encoding]::UTF8) |
-                ConvertFrom-Json
+                ConvertFrom-Json -DateKind String
         }
         else { $null }
         Assert-True ("directory publication hard kill leaves an applying receipt: " + $directoryCrashPhase) (
@@ -1630,7 +2187,7 @@ try {
     $appliedPointerReceipt = [IO.File]::ReadAllText(
         $appliedPointerReceiptPath,
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $appliedPointerFile = @(
         Get-ChildItem -LiteralPath $appliedPointerCrashCase `
             -Filter ".steadyagent-active-receipt-*.json" -File -Force
@@ -1638,7 +2195,7 @@ try {
     $appliedPointerState = [IO.File]::ReadAllText(
         $appliedPointerFile[0].FullName,
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     Assert-True "hard kill between applied receipt and pointer leaves a valid applied receipt" (
         $appliedPointerCrash.ExitCode -ne 0 -and
         [string]$appliedPointerReceipt.status -eq "applied"
@@ -1775,7 +2332,7 @@ try {
         -InjectHardKillAfterOperation 40
     $midCrashReceiptPath = Join-Path $midCrash.BackupRoot "migration-receipt.json"
     $midCrashReceipt = if (Test-Path -LiteralPath $midCrashReceiptPath -PathType Leaf) {
-        [IO.File]::ReadAllText($midCrashReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        [IO.File]::ReadAllText($midCrashReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     }
     else { $null }
     Assert-True "hard kill during file apply leaves an applying recovery receipt" (
@@ -1839,7 +2396,7 @@ try {
     $midCrashDryRun = Invoke-ReceiptRollback -InstallResult $midCrash -DryRun
     Assert-True "applying receipt rollback dry-run succeeds" (
         $midCrashDryRun.ExitCode -eq 0 -and
-        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v2[.]0[.]2 rollback"
+        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]0 rollback"
     ) $midCrashDryRun.Output
     Assert-True "applying receipt rollback dry-run performs zero writes" (
         (Get-ManagedSurfaceFingerprint `
@@ -1872,7 +2429,7 @@ try {
     $midCrashReceiptBytes = [IO.File]::ReadAllBytes($midCrashReceiptPath)
     $midCrashTamperedReceipt = (
         [IO.File]::ReadAllText($midCrashReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     $midCrashTamperedReceipt.failure = "tampered"
     [IO.File]::WriteAllText(
@@ -1955,7 +2512,7 @@ try {
     ) $midCrashRecovery.Output
     $midCrashRecoveredReceipt = (
         [IO.File]::ReadAllText($midCrashReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "successful applying recovery publishes an integrity-valid rolled-back receipt" (
         [string]$midCrashRecoveredReceipt.status -eq "rolled_back" -and
@@ -1989,7 +2546,7 @@ try {
         -InjectGitConfigCasMutationValue "git-cas-third-party"
     $gitCasReceiptPath = Join-Path $gitCasRace.BackupRoot "migration-receipt.json"
     $gitCasReceipt = if (Test-Path -LiteralPath $gitCasReceiptPath -PathType Leaf) {
-        [IO.File]::ReadAllText($gitCasReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        [IO.File]::ReadAllText($gitCasReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     }
     else { $null }
     $gitCasObserved = & git config --file $gitCasConfig --get core.hooksPath
@@ -2027,7 +2584,7 @@ try {
         -InjectHardKillAfterGitActivation
     $gitCrashReceiptPath = Join-Path $gitCrash.BackupRoot "migration-receipt.json"
     $gitCrashReceipt = if (Test-Path -LiteralPath $gitCrashReceiptPath -PathType Leaf) {
-        [IO.File]::ReadAllText($gitCrashReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        [IO.File]::ReadAllText($gitCrashReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     }
     else { $null }
     Assert-True "hard kill after Git activation preserves an applying receipt" (
@@ -2102,7 +2659,7 @@ try {
         -InjectReapplyFailure
     $incompleteRecoveryReceipt = (
         [IO.File]::ReadAllText($incompleteRecoveryReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "incomplete applying recovery returns the manual-recovery exit code" (
         $incompleteRecovery.ExitCode -eq 3
@@ -2210,6 +2767,19 @@ try {
         $rollbackSource -notmatch "non-elevated PowerShell process" -and
         $rollbackSource -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
+    $currentTokenProbePassed = $true
+    $currentTokenProbeDetail = "Both production mutex ACL paths succeeded under the current Windows token."
+    try {
+        Invoke-ProductionMutexAclProbe -ScriptPath $installer
+        Invoke-ProductionMutexAclProbe -ScriptPath (Join-Path $PSScriptRoot "rollback.ps1")
+    }
+    catch {
+        $currentTokenProbePassed = $false
+        $currentTokenProbeDetail = $_.Exception.Message
+    }
+    Assert-True "current token probes both production mutex ACL paths" `
+        $currentTokenProbePassed `
+        $currentTokenProbeDetail
     $elevatedCiProbePassed = $true
     $elevatedCiProbeDetail = "Skipped outside GitHub Actions; windows-latest runs this against its actual token."
     if ($env:GITHUB_ACTIONS -eq "true" -and $env:RUNNER_OS -eq "Windows") {
@@ -2397,7 +2967,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
         (New-Object Text.UTF8Encoding($false))
     )
     $skillProbeStart = New-Object Diagnostics.ProcessStartInfo
-    $skillProbeStart.FileName = Join-Path $PSHOME "powershell.exe"
+    $skillProbeStart.FileName = Join-Path $PSHOME "pwsh.exe"
     $skillProbeStart.Arguments = (
         '-NoProfile -ExecutionPolicy Bypass -File "' + $skillRoutingProbePath + '"'
     )
@@ -2463,7 +3033,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     Assert-True "fresh install writes one integrity-protected active receipt pointer" (
         $activeReceiptPointers.Count -eq 1 -and
         ([IO.File]::ReadAllText($activeReceiptPointers[0].FullName, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json).pointer_integrity_sha256 -match '^[0-9A-F]{64}$'
+            ConvertFrom-Json -DateKind String).pointer_integrity_sha256 -match '^[0-9A-F]{64}$'
     ) (($activeReceiptPointers | Select-Object -ExpandProperty FullName) -join "`n")
     $freshHooksPath = & git config --file $fresh.GitConfigPath --get core.hooksPath
     Assert-True "fresh install activates global pre-commit path" ($LASTEXITCODE -eq 0 -and $freshHooksPath -eq (Join-Path $fresh.TargetRoot "tools\git-hooks")) ([string]$freshHooksPath)
@@ -2507,7 +3077,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     $activePointerPath = $activeReceiptPointers[0].FullName
     $activePointerBytes = [IO.File]::ReadAllBytes($activePointerPath)
     $damagedActivePointer = [IO.File]::ReadAllText($activePointerPath, [Text.Encoding]::UTF8) |
-        ConvertFrom-Json
+        ConvertFrom-Json -DateKind String
     $damagedActivePointer.pointer_integrity_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
     [IO.File]::WriteAllText(
         $activePointerPath,
@@ -2589,7 +3159,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     $strictReceipt = [IO.File]::ReadAllText(
         (Join-Path $fresh.BackupRoot "migration-receipt.json"),
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $strictSessionStartedUtc = (
         [DateTimeOffset]::Parse([string]$strictReceipt.completed_utc).ToUniversalTime().AddSeconds(1)
     ).ToString("o")
@@ -2623,7 +3193,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     try {
         $env:CODEX_HOME = $syntheticCodexHome
         $env:CODEX_THREAD_ID = $strictThreadId
-        $catalogBuildOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installedSkillIndex `
+        $catalogBuildOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedSkillIndex `
             -HostSurface CodexDesktop `
             -ThreadId $strictThreadId
         $catalogBuildCode = $LASTEXITCODE
@@ -2639,7 +3209,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     )
     $strictCatalog = if ($strictCatalogJsonFiles.Count -eq 1) {
         Get-Content -LiteralPath $strictCatalogJsonFiles[0].FullName -Raw -Encoding UTF8 |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     }
     else { $null }
     $strictCatalogVisibility = if ($null -ne $strictCatalog) {
@@ -2771,7 +3341,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     $runtimeReceiptParkedPath = Join-Path $fresh.BackupRoot "runtime-receipt-original.parked"
     $runtimeReceiptReplacement = (
         [IO.File]::ReadAllText($runtimeReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     $verifiedCompletedUtc = [DateTimeOffset]::Parse(
         [string]$runtimeReceiptReplacement.completed_utc
@@ -2802,7 +3372,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     try {
         $env:CODEX_HOME = $syntheticCodexHome
         $env:CODEX_THREAD_ID = $receiptSwapThreadId
-        $receiptSwapCatalogBuildOutput = & powershell.exe `
+        $receiptSwapCatalogBuildOutput = & pwsh.exe `
             -NoProfile `
             -ExecutionPolicy Bypass `
             -File $installedSkillIndex `
@@ -2910,7 +3480,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
     $savedPublicSkipErrorAction = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $publicSkipOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+        $publicSkipOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass `
             -File $installedDiagnose `
             -TargetRoot $fresh.TargetRoot `
             -CodexHome $fresh.CodexHome `
@@ -3006,7 +3576,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 param([string]`$ReceiptPath, [string]`$GitConfigPath)
 [IO.File]::WriteAllText('$escapedRollbackSentinel', 'executed', [Text.Encoding]::UTF8)
 Write-Host 'STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0'
-Write-Host 'DRY-RUN Boring Is All You Need v2.0.2 rollback: 80 files; 0 writes.'
+Write-Host 'DRY-RUN Boring Is All You Need v3.0.0 rollback: 80 files; 0 writes.'
 exit 0
 "@
     [IO.File]::WriteAllText(
@@ -3081,7 +3651,7 @@ exit 0
 
     $strictCatalogJsonPath = $strictCatalogJsonFiles[0].FullName
     $strictCatalogBytes = [IO.File]::ReadAllBytes($strictCatalogJsonPath)
-    $damagedCatalog = [IO.File]::ReadAllText($strictCatalogJsonPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $damagedCatalog = [IO.File]::ReadAllText($strictCatalogJsonPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $damagedCatalog.skills[0].name = "damaged-semantic-catalog"
     [IO.File]::WriteAllText(
         $strictCatalogJsonPath,
@@ -3208,7 +3778,7 @@ exit 0
     try {
         $env:STEADYAGENT_TEST_MODE = "1"
         $env:STEADYAGENT_TEST_ROOT = $fixtureRoot
-        $wrongDiagnoseOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installedDiagnose `
+        $wrongDiagnoseOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedDiagnose `
             -TargetRoot $fresh.TargetRoot `
             -CodexHome $fresh.CodexHome `
             -ManagedConfigPath $wrongManagedPath `
@@ -3238,7 +3808,7 @@ exit 0
     $outsidePath = Join-Path $freshCase "outside.txt"
     [IO.File]::WriteAllText($outsidePath, "outside-safe", [Text.Encoding]::UTF8)
     $maliciousReceiptPath = Join-Path $fresh.BackupRoot "untrusted-receipt.json"
-    $maliciousReceipt = [IO.File]::ReadAllText((Join-Path $fresh.BackupRoot "migration-receipt.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $maliciousReceipt = [IO.File]::ReadAllText((Join-Path $fresh.BackupRoot "migration-receipt.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $maliciousReceipt.entries[0].destination = $outsidePath
     [IO.File]::WriteAllText($maliciousReceiptPath, (($maliciousReceipt | ConvertTo-Json -Depth 6) + "`n"), (New-Object Text.UTF8Encoding($false)))
     $untrustedRollback = Invoke-ReceiptRollback -InstallResult $fresh -ReceiptPath $maliciousReceiptPath
@@ -3295,7 +3865,7 @@ exit 0
     Assert-True "migration removes the exact 27-item V1 Codex surface" (
         $remainingV1RemovalPaths.Count -eq 0
     ) ($remainingV1RemovalPaths -join "; ")
-    $migrateReceipt = [IO.File]::ReadAllText((Join-Path $migrate.BackupRoot "migration-receipt.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $migrateReceipt = [IO.File]::ReadAllText((Join-Path $migrate.BackupRoot "migration-receipt.json"), [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $receiptInstallEntries = @($migrateReceipt.entries | Where-Object { [string]$_.action -eq "install" })
     $actualInstallProjection = @(
         Get-ReceiptOperationProjection `
@@ -3627,7 +4197,7 @@ exit 0
     $installSnapshotRaceReceipt = [IO.File]::ReadAllText(
         (Join-Path $installSnapshotRace.BackupRoot "migration-receipt.json"),
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $installSnapshotRaceEntry = @($installSnapshotRaceReceipt.entries)[0]
     Assert-True "automatic rollback rejects a changed original snapshot" ($installSnapshotRace.ExitCode -ne 0) $installSnapshotRace.Output
     Assert-True "changed snapshot cannot overwrite the installed target" (
@@ -3655,7 +4225,7 @@ exit 0
     $snapshotCommitRaceReceipt = [IO.File]::ReadAllText(
         (Join-Path $snapshotCommitRace.BackupRoot "migration-receipt.json"),
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $snapshotCommitRaceEntry = @($snapshotCommitRaceReceipt.entries)[0]
     Assert-True "final snapshot verification rejects mutation-only drift" ($snapshotCommitRace.ExitCode -ne 0) $snapshotCommitRace.Output
     Assert-True "mutation-only drift never produces an applied receipt" (
@@ -3673,7 +4243,7 @@ exit 0
     $receiptSnapshotRace = Invoke-Installer -CaseRoot $receiptSnapshotRaceCase -Apply -ReplaceExistingWorkflow
     Assert-True "receipt snapshot race fixture installs successfully" ($receiptSnapshotRace.ExitCode -eq 0) $receiptSnapshotRace.Output
     $receiptSnapshotRaceReceiptPath = Join-Path $receiptSnapshotRace.BackupRoot "migration-receipt.json"
-    $receiptSnapshotRaceReceipt = [IO.File]::ReadAllText($receiptSnapshotRaceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $receiptSnapshotRaceReceipt = [IO.File]::ReadAllText($receiptSnapshotRaceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $receiptSnapshotRaceEntry = @($receiptSnapshotRaceReceipt.entries | Where-Object { $_.existed })[0]
     $receiptSnapshotRacePath = Join-Path $receiptSnapshotRace.BackupRoot ([string]$receiptSnapshotRaceEntry.snapshot_name)
     $env:STEADYAGENT_TEST_MODE = "1"
@@ -3695,7 +4265,7 @@ exit 0
     $rollbackRace = Invoke-Installer -CaseRoot $rollbackRaceCase -Apply
     Assert-True "rollback race fixture installs successfully" ($rollbackRace.ExitCode -eq 0) $rollbackRace.Output
     $rollbackRaceReceiptPath = Join-Path $rollbackRace.BackupRoot "migration-receipt.json"
-    $rollbackRaceReceipt = [IO.File]::ReadAllText($rollbackRaceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $rollbackRaceReceipt = [IO.File]::ReadAllText($rollbackRaceReceiptPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
     $firstInstalledEntry = @($rollbackRaceReceipt.entries | Where-Object { $_.action -eq "install" })[0]
     $env:STEADYAGENT_TEST_MODE = "1"
     try {
@@ -3766,7 +4336,7 @@ exit 0
         [IO.File]::ReadAllText(
             $rollbackHardKillJournalPath,
             [Text.Encoding]::UTF8
-        ) | ConvertFrom-Json
+        ) | ConvertFrom-Json -DateKind String
     }
     else { $null }
     Assert-True "hard kill after rollback op1 leaves a rolling-back sidecar journal" (
@@ -3827,11 +4397,11 @@ exit 0
     $finalizeFailureJournalPath = Join-Path $finalizeFailureInstall.BackupRoot "rollback-journal.json"
     $finalizeFailureReceipt = (
         [IO.File]::ReadAllText($finalizeFailureReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     $finalizeFailureJournal = (
         [IO.File]::ReadAllText($finalizeFailureJournalPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     $finalizeFailureSurface = Get-ManagedSurfaceFingerprint `
         -Roots @($finalizeFailureCodex, $finalizeFailureTarget) `
@@ -3905,7 +4475,7 @@ exit 0
         -RollbackPath (Join-Path $testPackageRoot "tools\rollback.ps1")
     $finalizeFailureCompletedJournal = (
         [IO.File]::ReadAllText($finalizeFailureJournalPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "finalizing rollback retry converges to completed" (
         $finalizeFailureRetry.ExitCode -eq 0 -and
@@ -3972,11 +4542,11 @@ exit 0
     $finalizeHardKillJournalPath = Join-Path $finalizeHardKillInstall.BackupRoot "rollback-journal.json"
     $finalizeHardKillReceipt = (
         [IO.File]::ReadAllText($finalizeHardKillReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     $finalizeHardKillJournal = (
         [IO.File]::ReadAllText($finalizeHardKillJournalPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "hard kill after receipt finalize preserves monotonic finalizing state" (
         $finalizeHardKillResult.ExitCode -ne 0 -and
@@ -3988,7 +4558,7 @@ exit 0
         -RollbackPath (Join-Path $testPackageRoot "tools\rollback.ps1")
     $finalizeHardKillCompleted = (
         [IO.File]::ReadAllText($finalizeHardKillJournalPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "receipt-finalize hard-kill retry converges to completed" (
         $finalizeHardKillRecovery.ExitCode -eq 0 -and
@@ -4020,10 +4590,10 @@ exit 0
         $phaseJournalPath = Join-Path $phaseInstall.BackupRoot "rollback-journal.json"
         $phaseReceiptPath = Join-Path $phaseInstall.BackupRoot "migration-receipt.json"
         $phaseJournal = if (Test-Path -LiteralPath $phaseJournalPath -PathType Leaf) {
-            [IO.File]::ReadAllText($phaseJournalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+            [IO.File]::ReadAllText($phaseJournalPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
         } else { $null }
         $phaseReceipt = [IO.File]::ReadAllText($phaseReceiptPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
         $phasePointers = @(
             Get-ChildItem -LiteralPath $phaseCase `
                 -Filter ".steadyagent-active-receipt-*.json" -File -Force
@@ -4069,7 +4639,7 @@ exit 0
     $completedPointerJournal = [IO.File]::ReadAllText(
         (Join-Path $completedPointerInstall.BackupRoot "rollback-journal.json"),
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     Assert-True "completed journal hard kill retains recoverable active pointer" (
         $completedPointerInstall.ExitCode -eq 0 -and
         $completedPointerKill.ExitCode -ne 0 -and
@@ -4101,7 +4671,7 @@ exit 0
     $compensationJournalPath = Join-Path $compensationHardKillInstall.BackupRoot "rollback-journal.json"
     $compensationJournal = (
         [IO.File]::ReadAllText($compensationJournalPath, [Text.Encoding]::UTF8) |
-            ConvertFrom-Json
+            ConvertFrom-Json -DateKind String
     )
     Assert-True "hard kill during rollback compensation leaves compensating journal state" (
         $compensationHardKill.ExitCode -ne 0 -and
@@ -4153,6 +4723,43 @@ exit 0
         "rollback junction fixture installs successfully",
         "rollback mutation blocks a junction swap after validation",
         "blocked rollback junction swap leaves the escape tree byte-identical",
+        "exact v2.0.2 package installs before supported no-Caveman upgrade",
+        "supported no-Caveman v2.0.2 preimages upgrade to v3.0.0",
+        "v3 preserves no-Caveman startup behavior while adding PowerShell 7",
+        "v3 rollback after no-Caveman upgrade succeeds",
+        "v3 rollback restores exact supported no-Caveman preimages",
+        "exact v2.0.2 package installs before AGENTS-only hybrid rejection",
+        "trusted upgrade rejects AGENTS-only no-Caveman hybrid",
+        "AGENTS-only no-Caveman hybrid rejection performs zero managed or evidence writes",
+        "exact v2.0.2 package installs before context-only hybrid rejection",
+        "trusted upgrade rejects context-only no-Caveman hybrid",
+        "context-only no-Caveman hybrid rejection performs zero managed or evidence writes",
+        "exact v2.0.2 package installs before forged receipt test",
+        "trusted upgrade rejects a rehashed duplicate-entry v2.0.2 receipt",
+        "forged v2.0.2 receipt rejection performs zero managed or evidence writes",
+        "exact v2.0.2 package installs before trusted upgrade race test",
+        "trusted upgrade rejects receipt-bound target drift before snapshot",
+        "trusted upgrade target race preserves external drift without publishing v3 evidence",
+        "exact v2.0.2 package installs before trusted upgrade Git race test",
+        "trusted upgrade rejects Git Hook drift before snapshot",
+        "trusted upgrade Git race preserves external drift without publishing v3 evidence",
+        "exact v2.0.2 package installs before post-validation snapshot race test",
+        "trusted upgrade binds every durable snapshot to the v2.0.2 receipt",
+        "post-validation snapshot race preserves drift without v3 authority or evidence",
+        "exact v2.0.2 package installs before takeover cleanup failure test",
+        "trusted upgrade reports takeover CAS plus orphan cleanup failure",
+        "failed pre-takeover cleanup never overwrites the concurrent pointer",
+        "failed pre-takeover cleanup preserves orphan v3 evidence without authority",
+        "exact v2.0.2 package installs before upgrade failure test",
+        "trusted v2.0.2 to v3.0.0 injected failure is reported",
+        "trusted upgrade failure restores exact v2.0.2 bytes and active pointer",
+        "exact v2.0.2 package installs before trusted upgrade",
+        "v3 dry-run reports the installed v2.0.2 replacement surface without writes",
+        "verified v2.0.2 installation upgrades in place to v3.0.0",
+        "trusted upgrade preserves the original v2.0.2 receipt evidence",
+        "v3 rollback after trusted upgrade succeeds",
+        "v3 rollback restores exact v2.0.2 managed bytes",
+        "v3 rollback keeps the original v2.0.2 receipt evidence",
         "fresh install succeeds",
         "fresh install writes one integrity-protected active receipt pointer",
         "second Apply reports already installed",
@@ -4251,7 +4858,7 @@ exit 0
         "rollback fails closed when the machine-wide mutex is unavailable",
         "production migration permits elevated install and rollback",
         "elevated CI probes both production mutex ACL paths",
-        "diagnosis hashes empty receipt collections under PowerShell 5.1",
+        "diagnosis hashes empty receipt collections under PowerShell 7",
         "production migration exposes no protected recovery capsule entry point",
         "simulated elevated install apply succeeds",
         "simulated elevated install apply writes the managed surface",
@@ -4286,7 +4893,7 @@ exit 0
     )
     Write-SemanticCheck -Id "diagnose.strict-installed-contract" -Cases @(
         "strict catalog fixture builds as rollout-file-confirmed",
-        "diagnosis hashes empty receipt collections under PowerShell 5.1",
+        "diagnosis hashes empty receipt collections under PowerShell 7",
         "strict diagnosis keeps rollout timestamps below Live evidence",
         "strict diagnosis accepts a task started after receipt completion",
         "strict diagnosis rejects a task started before receipt completion",

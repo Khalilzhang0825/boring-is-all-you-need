@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [switch]$InternalVerify,
@@ -296,7 +297,7 @@ if (-not $InternalVerify) {
     $oldMode = $env:STEADYAGENT_EQUIVALENCE_TEST_MODE
     try {
         $env:STEADYAGENT_EQUIVALENCE_TEST_MODE = "1"
-        $negativeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectMappingDrift
+        $negativeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectMappingDrift
         $negativeExit = $LASTEXITCODE
         $negativeText = @($negativeOutput) -join "`n"
         Check "deliberate mapping drift makes the equivalence gate red" (
@@ -305,7 +306,7 @@ if (-not $InternalVerify) {
             $negativeText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $negativeText
 
-        $semanticOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSemanticDrift
+        $semanticOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSemanticDrift
         $semanticExit = $LASTEXITCODE
         $semanticText = @($semanticOutput) -join "`n"
         Check "deliberate semantic mapping drift makes the equivalence gate red" (
@@ -314,7 +315,7 @@ if (-not $InternalVerify) {
             $semanticText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticText
 
-        $supportOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSupportSubstitution
+        $supportOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectSupportSubstitution
         $supportExit = $LASTEXITCODE
         $supportText = @($supportOutput) -join "`n"
         Check "deliberate support substitution makes the destination gate red" (
@@ -324,7 +325,7 @@ if (-not $InternalVerify) {
             $supportText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $supportText
 
-        $removalOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectRemovalSubstitution
+        $removalOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectRemovalSubstitution
         $removalExit = $LASTEXITCODE
         $removalText = @($removalOutput) -join "`n"
         Check "equal-count V1 removal substitution makes the frozen projection gate red" (
@@ -334,7 +335,7 @@ if (-not $InternalVerify) {
             $removalText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $removalText
 
-        $byteExactOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectByteExactSubstitution
+        $byteExactOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -InternalVerify -InjectByteExactSubstitution
         $byteExactExit = $LASTEXITCODE
         $byteExactText = @($byteExactOutput) -join "`n"
         Check "injected byte-exact classification makes the empty identity gate red" (
@@ -344,7 +345,7 @@ if (-not $InternalVerify) {
             $byteExactText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $byteExactText
 
-        $semanticCheckOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $semanticCheckOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectSemanticCheckSubstitution
         $semanticCheckExit = $LASTEXITCODE
@@ -356,7 +357,7 @@ if (-not $InternalVerify) {
             $semanticCheckText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticCheckText
 
-        $semanticGateOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $semanticGateOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectSemanticCheckGateSubstitution
         $semanticGateExit = $LASTEXITCODE
@@ -368,7 +369,7 @@ if (-not $InternalVerify) {
             $semanticGateText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $semanticGateText
 
-        $catalogSetOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $catalogSetOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectCatalogCaseSetDrift
         $catalogSetExit = $LASTEXITCODE
@@ -381,7 +382,7 @@ if (-not $InternalVerify) {
             $catalogSetText -match "RESULT pass=\d+ fail=[1-9]\d*"
         ) $catalogSetText
 
-        $hookScopeOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
+        $hookScopeOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath `
             -InternalVerify `
             -InjectHookScopeDrift
         $hookScopeExit = $LASTEXITCODE
@@ -401,7 +402,7 @@ if (-not $InternalVerify) {
     }
 }
 
-$map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$map = Get-Content -LiteralPath $mapPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
 $entries = @($map.entries)
 $legacyRemovalLines = @(
     [IO.File]::ReadAllLines(
@@ -435,7 +436,7 @@ $expectedSemanticChecksByPayload = [ordered]@{
         "hooks.file-guard-nested-protected-failclosed"
     )
     "05-agent-hook-context.ps1" = @(
-        "context.caveman-lite",
+        "context.no-caveman-startup",
         "context.lessons-title-only",
         "context.review-90-day",
         "context.state-restore"
@@ -505,7 +506,7 @@ $expectedSemanticGateAssignments = [ordered]@{
     "hooks.command-guard-wrapper-normalization" = "hooks"
     "hooks.command-guard-bounded-input-tree" = "hooks"
     "hooks.file-guard-nested-protected-failclosed" = "hooks"
-    "context.caveman-lite" = "hooks"
+    "context.no-caveman-startup" = "hooks"
     "context.lessons-title-only" = "hooks"
     "context.review-90-day" = "hooks"
     "context.state-restore" = "hooks"
@@ -576,7 +577,7 @@ if ($InjectHookScopeDrift) {
     Write-Host "MUTATION Hook scope exclusion substituted"
 }
 Check "equivalence schema is v1" ([int]$map.schemaVersion -eq 1)
-Check "release identity is v2.0.2" ([string]$map.release -eq "v2.0.2")
+Check "release identity is v3.0.0" ([string]$map.release -eq "v3.0.0")
 Check "canonical local manifest SHA-256 is frozen" (
     [string]$map.localPostimageManifestSha256 -eq "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF"
 )
@@ -605,9 +606,9 @@ Check "catalog default and rollout-file canary case-set contract matches indepen
 )
 $expectedHookScopeSourceCount = 73
 $expectedHookScopeSourceSha256 = "D8510FD50093292CF978FBE351018C4F28BF7881739FCB661F852BBF484F13A4"
-$expectedHookScopeRetainedCount = 65
-$expectedHookScopeRetainedSha256 = "90F5004A5321EBA6BFC4710CBA4C5185D6CD032E84F9D42FCF53DFED80A49101"
-$expectedHookEvidenceBindingSha256 = "4ADA439151FE6FFC6B0266A4F842ED2143E6094C862FA5862B8F43466CD7E106"
+$expectedHookScopeRetainedCount = 63
+$expectedHookScopeRetainedSha256 = "53162B6F4ECC5B5600AF5E25EF9FAC3FBAAA01604D90B1928D12B6504AA4AC14"
+$expectedHookEvidenceBindingSha256 = "FC998DE48C2393B18620D099D73FCDB09148CE76A53F441D3CCA6A0ECBA779D2"
 $expectedHookScopeExcluded = @(
     [pscustomobject]@{
         name = "startup: Claude review policy unchanged"
@@ -640,12 +641,20 @@ $expectedHookScopeExcluded = @(
     [pscustomobject]@{
         name = "posttool audit: no deny"
         reason = "removed-event:PostToolUse"
+    },
+    [pscustomobject]@{
+        name = "compact: no caveman startup report"
+        reason = "removed-behavior:Caveman"
+    },
+    [pscustomobject]@{
+        name = "resume: no caveman startup report"
+        reason = "removed-behavior:Caveman"
     }
 )
 $expectedHookScopeExcludedRows = @($expectedHookScopeExcluded | ForEach-Object {
     [string]$_.name + "|" + [string]$_.reason
 })
-$expectedHookScopeExcludedSha256 = "DEDE51BCC4B3F64C9A931B03D18603BF9CEEECC79ECD614FCA54AA79E59235F4"
+$expectedHookScopeExcludedSha256 = "FCA49E3088AE6E50B55A5D0D352D40B04798482FC18B0A8F9D35DBCA4EA1C5DB"
 $hookScopeEntry = @($entries | Where-Object {
     [string]$_.payload -ceq "06-agent-hook-smoke-test.ps1"
 }) | Select-Object -First 1
@@ -665,6 +674,11 @@ else { @() }
 Check "payload 06 uses Codex-active scoped equivalence rather than a full behavior superset" (
     $hookScopeEntry -and
     [string]$hookScopeEntry.mode -ceq "scoped-equivalent"
+)
+Check "payload 06 evidence names the frozen ten-item exclusion scope" (
+    $hookScopeEntry -and
+    [string]$hookScopeEntry.evidence -ceq
+        "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; ten Claude, removed-event, or removed-Caveman-behavior assertions are explicitly excluded"
 )
 Check "payload 06 freezes the authoritative local assertion catalog" (
     $hookScopeContract -and
@@ -961,7 +975,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         Copy-PackageFixture -Destination $packageRoot
         $env:STEADYAGENT_TEST_MODE = "1"
         $env:STEADYAGENT_TEST_ROOT = $fixtureRoot
-        $installOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $packageRoot "tools\install.ps1") `
+        $installOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $packageRoot "tools\install.ps1") `
             -TargetRoot $targetRoot `
             -CodexHome $codexHome `
             -ManagedConfigPath $managedConfig `
@@ -1042,7 +1056,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         try {
             $env:STEADYAGENT_EQUIVALENCE_TEST_MODE = "1"
             $installedHookGateOutput = @(
-                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $installedHookSuite
+                & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $installedHookSuite
             )
             $installedHookGateExit = $LASTEXITCODE
         }
@@ -1059,7 +1073,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and
         $receiptExists = Test-Path -LiteralPath $receiptPath -PathType Leaf
         Check "installer writes a transaction receipt" $receiptExists
         if ($receiptExists) {
-            $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            $receipt = Get-Content -LiteralPath $receiptPath -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
             $installs = @($receipt.entries | Where-Object { [string]$_.action -eq "install" })
             $removals = @($receipt.entries | Where-Object { [string]$_.action -eq "remove" })
             Check "receipt explains all 53 installed destinations" ($installs.Count -eq [int]$map.totalInstallCount) ([string]$installs.Count)
@@ -1109,7 +1123,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and -not $InjectSup
             $gateExit = $installedHookGateExit
         }
         else {
-            $gateOutput = & powershell.exe -NoProfile -ExecutionPolicy Bypass `
+            $gateOutput = & pwsh.exe -NoProfile -ExecutionPolicy Bypass `
                 -File (Join-Path $repoRoot ([string]$gate.script))
             $gateExit = $LASTEXITCODE
         }
@@ -1137,7 +1151,7 @@ if (-not $InjectMappingDrift -and -not $InjectSemanticDrift -and -not $InjectSup
                 $expectedHookScopeRetainedSha256 + " binding_sha256=" +
                 $expectedHookEvidenceBindingSha256
             )
-            Check "Hook semantic marker carries the independent 65-assertion binding digest" (
+            Check "Hook semantic marker carries the independent 63-assertion binding digest" (
                 @($gateText -split '\r?\n' | Where-Object {
                     [string]$_ -ceq $expectedHookCaseSetLine
                 }).Count -eq 1

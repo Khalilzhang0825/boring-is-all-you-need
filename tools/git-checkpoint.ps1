@@ -1,4 +1,5 @@
-﻿[CmdletBinding()]
+#requires -Version 7.5
+[CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$Message,
@@ -1314,7 +1315,7 @@ function Read-CheckpointJournal {
     )
 
     try {
-        $journal = Get-Content -LiteralPath $JournalPath -Raw | ConvertFrom-Json
+        $journal = Get-Content -LiteralPath $JournalPath -Raw | ConvertFrom-Json -DateKind String
         if ([int]$journal.schema -ne 1) { throw "Unsupported checkpoint journal schema." }
         if ([string]$journal.real_index_path -ne $ExpectedIndexPath) { throw "Checkpoint journal index path mismatch." }
         if ([string]$journal.index_backup_path -ne $ExpectedBackupPath) { throw "Checkpoint journal backup path mismatch." }

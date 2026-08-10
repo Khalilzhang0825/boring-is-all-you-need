@@ -1,4 +1,5 @@
-﻿[CmdletBinding()]
+#requires -Version 7.5
+[CmdletBinding()]
 param(
     [switch]$AllowDirty,
     [string]$BaseRef
@@ -68,7 +69,7 @@ function Run-Gate {
     )
     Write-Host ("RUN " + $Name)
     $outputLines = New-Object Collections.Generic.List[string]
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Path @Arguments | ForEach-Object {
+    & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $Path @Arguments | ForEach-Object {
         $line = [string]$_
         $outputLines.Add($line) | Out-Null
         Write-Host $line
@@ -164,8 +165,8 @@ try {
     $readmeZh = [IO.File]::ReadAllText((Join-Path $root "README.zh-CN.md"), [Text.Encoding]::UTF8)
     $releaseNotes = [IO.File]::ReadAllText((Join-Path $root "RELEASE_NOTES.md"), [Text.Encoding]::UTF8)
     $securityPolicy = [IO.File]::ReadAllText((Join-Path $root "SECURITY.md"), [Text.Encoding]::UTF8)
-    Check "English README declares v2.0.2" ($readme -match "v2[.]0[.]2")
-    Check "Chinese README declares v2.0.2" ($readmeZh -match "v2[.]0[.]2")
+    Check "English README declares v3.0.0" ($readme -match "v3[.]0[.]0")
+    Check "Chinese README declares v3.0.0" ($readmeZh -match "v3[.]0[.]0")
     Check "English README documents dry-run and explicit replacement" ($readme -match "dry-run" -and $readme -match "ReplaceExistingWorkflow")
     Check "Chinese README documents dry-run and explicit replacement" ($readmeZh -match "dry-run" -and $readmeZh -match "ReplaceExistingWorkflow")
     Check "READMEs document ordinary and elevated migration compatibility" (
@@ -223,16 +224,32 @@ try {
         $readmeZh -match "迁移 tombstone" -and
         $readmeZh -notmatch "账户被封|擦门牌"
     )
-    Check "release notes contain exact v2.0.2 heading" ($releaseNotes -match "(?m)^## v2[.]0[.]2$")
+    Check "release notes contain exact v3.0.0 heading" ($releaseNotes -match "(?m)^## v3[.]0[.]0$")
+    Check "release notes scope in-place upgrade to verified v2.0.2" (
+        $releaseNotes -match 'verified v2[.]0[.]2 installations can upgrade in place' -and
+        $releaseNotes -match 'v2[.]0[.]0 and v2[.]0[.]1 require receipt-bound rollback'
+    )
     Check "release notes use the elevated-compatible V1 replacement command" (
         $releaseNotes -match 'install[.]ps1 -Apply -ReplaceExistingWorkflow' -and
         $releaseNotes -match 'ordinary or administrator PowerShell' -and
         $releaseNotes -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery'
     )
-    Check "security policy targets V2 replacement syntax" (
-        $securityPolicy -match "V2" -and
+    Check "security policy targets the latest stable release line" (
+        $securityPolicy -match "latest stable release line" -and
         $securityPolicy -match "ReplaceExistingWorkflow" -and
-        $securityPolicy -notmatch "-Overwrite|public v1 line"
+        $securityPolicy -notmatch "-Overwrite|public v1 line|current public V2 line"
+    )
+    Check "README documents the verified v2.0.2 upgrade boundary" (
+        $readme -match 'verified v2[.]0[.]2 installation' -and
+        $readme -match 'Direct receipt-bound upgrade from v2[.]0[.]0 or v2[.]0[.]1 is not supported' -and
+        $readmeZh -match '已验证的 v2[.]0[.]2 安装可原地升级' -and
+        $readmeZh -match '不支持从 v2[.]0[.]0 或 v2[.]0[.]1 直接执行 receipt-bound 原地升级'
+    )
+    Check "README binds the v3 candidate snapshot to the final validation date and clean commit layer" (
+        $readme -match '2026-08-10 from a clean committed tree' -and
+        $readme -match 'local clean-commit release-candidate results' -and
+        $readmeZh -match '2026-08-10 在 PowerShell 7[.]6[.]4 的干净已提交工作树上验证' -and
+        $readmeZh -match '本地干净提交态的发行候选结果'
     )
     Check "security policy has a concrete private reporting route" (
         $securityPolicy -match "security/advisories/new" -and
@@ -244,11 +261,17 @@ try {
     $checklistZh = [IO.File]::ReadAllText((Join-Path $root "docs\release-checklist.zh-CN.md"), [Text.Encoding]::UTF8)
     $gettingStarted = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.md"), [Text.Encoding]::UTF8)
     $gettingStartedZh = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.zh-CN.md"), [Text.Encoding]::UTF8)
+    Check "getting-started docs preserve the v2.0.2 direct-upgrade boundary" (
+        $gettingStarted -match 'verified v2[.]0[.]2 installation' -and
+        $gettingStarted -match 'Direct receipt-bound upgrade from v2[.]0[.]0 or v2[.]0[.]1 is not supported' -and
+        $gettingStartedZh -match '已验证的 v2[.]0[.]2 安装' -and
+        $gettingStartedZh -match '不支持从 v2[.]0[.]0 或 v2[.]0[.]1 直接执行 receipt-bound 原地升级'
+    )
     $attestationDocs = @($readme, $readmeZh, $gettingStarted, $gettingStartedZh, $runbook, $runbookZh)
-    Check "publication runbook targets v2.0.2" ($runbook -match "Tag: v2[.]0[.]2" -and $runbook -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
-    Check "Chinese publication runbook targets v2.0.2" ($runbookZh -match "Tag: v2[.]0[.]2" -and $runbookZh -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
-    Check "release checklist targets V2" ($checklist -match "Boring Is All You Need v2" -and $checklist -notmatch "SteadyAgent v1")
-    Check "Chinese release checklist targets V2" ($checklistZh -match "Boring Is All You Need v2" -and $checklistZh -notmatch "SteadyAgent v1")
+    Check "publication runbook targets v3.0.0" ($runbook -match "Tag: v3[.]0[.]0" -and $runbook -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
+    Check "Chinese publication runbook targets v3.0.0" ($runbookZh -match "Tag: v3[.]0[.]0" -and $runbookZh -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
+    Check "release checklist targets v3.0.0" ($checklist -match "Boring Is All You Need v3[.]0[.]0" -and $checklist -notmatch "Boring Is All You Need v2")
+    Check "Chinese release checklist targets v3.0.0" ($checklistZh -match "Boring Is All You Need v3[.]0[.]0" -and $checklistZh -notmatch "Boring Is All You Need v2")
     Check "release checklists require private reporting and Codex Live verification" (
         $checklist -match "Private Vulnerability Reporting" -and
         $checklist -match "Codex managed hooks" -and
@@ -269,7 +292,7 @@ try {
             $_ -match [regex]::Escape('$ReviewedSha') -and
             $_ -match [regex]::Escape('--source-digest $ReviewedSha') -and
             $_ -match '\$ReviewedSha\s*=\s*\[string\]\$Provenance[.]reviewedCommit' -and
-            $_ -match 'boring-is-all-you-need-v2[.]0[.]2[.]provenance[.]json' -and
+            $_ -match 'boring-is-all-you-need-v3[.]0[.]0[.]provenance[.]json' -and
             $_ -notmatch '<recorded reviewed commit>|<记录的已审查 commit>'
         }).Count -eq 6 -and
         $runbook -match 'validate-release-archive[.]ps1' -and
@@ -280,8 +303,8 @@ try {
     Check "all copyable release verification blocks fail closed on gh errors before extraction" (
         @($attestationDocs | Where-Object {
             $_ -match '(?m)^gh attestation verify --help \| Out-Null\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-            $_ -match '(?m)^gh release download v2[.]0[.]2[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
-            $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v2[.]0[.]2[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw [^\r\n]+\}\r?\nExpand-Archive'
+            $_ -match '(?m)^gh release download v3[.]0[.]0[^\r\n]*\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw ' -and
+            $_ -match '(?ms)^gh attestation verify [.]\\boring-is-all-you-need-v3[.]0[.]0[.]zip .*?^  --source-digest \$ReviewedSha\r?\nif \(\$LASTEXITCODE -ne 0\) \{ throw [^\r\n]+\}\r?\nExpand-Archive'
         }).Count -eq $attestationDocs.Count
     )
     Check "public receipt examples contain no angle-bracket receipt or backup placeholders" (
@@ -289,9 +312,9 @@ try {
             $_ -notmatch '<[^>\r\n]*(receipt|backup|收据|备份)[^>\r\n]*>'
         }).Count -eq $attestationDocs.Count
     )
-    Check "release docs preserve V1 history and reject unsupported rewrite paths" (
-        $runbook -match 'V2 preserves the public V1 history' -and
-        $runbookZh -match 'V2 保留公开的 V1 历史' -and
+    Check "release docs preserve V1 and V2 history and reject unsupported rewrite paths" (
+        $runbook -match 'V3 preserves the public V1 and V2 history' -and
+        $runbookZh -match 'V3 保留公开的 V1 与 V2 历史' -and
         $runbook -notmatch 'Clean-History Rewrite|orphan/root|force-update' -and
         $runbookZh -notmatch 'Clean-History Rewrite|orphan/root|force-update'
     )
@@ -503,7 +526,7 @@ try {
     )
     $diagnoseText = [IO.File]::ReadAllText((Join-Path $root "tools\diagnose-install.ps1"), [Text.Encoding]::UTF8)
     Check "diagnosis requires the exact rendered managed matrix" (
-        $diagnoseText -match "active managed config exactly matches the rendered V2 matrix" -and
+        $diagnoseText -match "active managed config exactly matches the rendered V3 matrix" -and
         $diagnoseText -match "codex-requirements[.]expected[.]toml"
     )
     Check "diagnosis supports receipt-bound verification of all installed bytes" (
@@ -557,7 +580,7 @@ try {
     $equivalenceMap = [IO.File]::ReadAllText(
         (Join-Path $root "manifests\local-postimage-equivalence.json"),
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     Check "V1-owned removal projection matches the independent frozen digest" (
         $legacyRemovalProjectionHash -ceq $expectedLegacyRemovalProjectionHash -and
         [string]$equivalenceMap.legacyRemovalProjectionSha256 -ceq $expectedLegacyRemovalProjectionHash
@@ -615,18 +638,20 @@ try {
 
     $parseFailures = New-Object Collections.Generic.List[string]
     $encodingFailures = New-Object Collections.Generic.List[string]
+    $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
     foreach ($scriptFile in @(Get-ChildItem -LiteralPath $root -Recurse -Filter "*.ps1" -File | Where-Object { $_.FullName -notmatch '[\\/][.]git[\\/]' })) {
         $scriptBytes = [IO.File]::ReadAllBytes($scriptFile.FullName)
         $scriptHasBom = $scriptBytes.Length -ge 3 -and $scriptBytes[0] -eq 0xEF -and $scriptBytes[1] -eq 0xBB -and $scriptBytes[2] -eq 0xBF
-        $scriptHasNonAscii = @($scriptBytes | Where-Object { $_ -gt 0x7F }).Count -gt 0
-        if ($scriptHasNonAscii -and -not $scriptHasBom) { $encodingFailures.Add($scriptFile.FullName) }
+        try { $strictUtf8.GetString($scriptBytes) | Out-Null }
+        catch { $encodingFailures.Add($scriptFile.FullName) }
+        if ($scriptHasBom) { $encodingFailures.Add($scriptFile.FullName) }
         $tokens = $null
         $errors = $null
         [Management.Automation.Language.Parser]::ParseFile($scriptFile.FullName, [ref]$tokens, [ref]$errors) | Out-Null
         if ($errors.Count -gt 0) { $parseFailures.Add($scriptFile.FullName) }
     }
-    Check "all PowerShell files parse under Windows PowerShell" ($parseFailures.Count -eq 0) ($parseFailures -join ", ")
-    Check "PowerShell files with non-ASCII text use UTF-8 BOM" ($encodingFailures.Count -eq 0) ($encodingFailures -join ", ")
+    Check "all PowerShell files parse under PowerShell 7.5+" ($parseFailures.Count -eq 0) ($parseFailures -join ", ")
+    Check "PowerShell files use strict UTF-8 without BOM" ($encodingFailures.Count -eq 0) ($encodingFailures -join ", ")
 
     $linkFailures = New-Object Collections.Generic.List[string]
     foreach ($markdown in @(Get-ChildItem -LiteralPath $root -Recurse -Filter "*.md" -File | Where-Object { $_.FullName -notmatch '[\\/][.]git[\\/]|[\\/][.]agent[\\/]' })) {
@@ -674,7 +699,9 @@ try {
         $workflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
         $releaseWorkflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
-    Check "GitHub Actions release gate has a bounded timeout" ($workflow -match "timeout-minutes:\s*\d+")
+    Check "GitHub Actions release gate has one reviewed 60-minute timeout" (
+        ([regex]::Matches($workflow, '(?m)^\s*timeout-minutes:\s*60\s*$')).Count -eq 1
+    )
     Check "GitHub Actions fetches history and supplies a release base" (
         $workflow -match "fetch-depth:\s*0" -and
         $workflow -match "STEADYAGENT_RELEASE_BASE_REF" -and
@@ -682,7 +709,7 @@ try {
         $workflow -match '(?m)^\s*FORCE_JAVASCRIPT_ACTIONS_TO_NODE24:\s*["'']?true["'']?\s*$'
     )
     Check "release workflow is exact-tag and draft-only" (
-        $releaseWorkflow -match '(?m)^\s+- v2[.]0[.]2\s*$' -and
+        $releaseWorkflow -match '(?m)^\s+- v3[.]0[.]0\s*$' -and
         $releaseWorkflow -match 'gh api --method POST "repos/\$env:GH_REPO/releases"' -and
         $releaseWorkflow -match 'draft\s*=\s*\$true' -and
         $releaseWorkflow -match 'exact draft already exists' -and
@@ -724,9 +751,9 @@ try {
         $releaseWorkflow -match 'validate-release-archive[.]ps1' -and
         $releaseWorkflow -match 'git archive' -and
         $releaseWorkflow -match 'refs/remotes/origin/main' -and
-        $releaseWorkflow -match 'subject-path:\s*dist/boring-is-all-you-need-v2[.]0[.]2[.]zip' -and
-        $releaseWorkflow -match '[.]\\dist\\boring-is-all-you-need-v2[.]0[.]2[.]zip' -and
-        $releaseWorkflow -match 'boring-is-all-you-need-v2[.]0[.]2[.]provenance[.]json' -and
+        $releaseWorkflow -match 'subject-path:\s*dist/boring-is-all-you-need-v3[.]0[.]0[.]zip' -and
+        $releaseWorkflow -match '[.]\\dist\\boring-is-all-you-need-v3[.]0[.]0[.]zip' -and
+        $releaseWorkflow -match 'boring-is-all-you-need-v3[.]0[.]0[.]provenance[.]json' -and
         $releaseWorkflow -match 'releaseBodySha256' -and
         $releaseWorkflow -match 'RELEASE_BODY[.]md'
     )

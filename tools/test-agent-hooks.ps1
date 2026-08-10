@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -56,7 +57,7 @@ function New-Event {
 function Invoke-Hook {
     param([string]$Name, [string]$InputText, [string[]]$Arguments = @())
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell.exe"
+    $psi.FileName = "pwsh.exe"
     $hookPath = if ([IO.Path]::IsPathRooted($Name)) { $Name } else { Join-Path $hooks $Name }
     $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"" + $hookPath + "`""
     foreach ($argument in $Arguments) {
@@ -154,7 +155,7 @@ function Invoke-ManagedPreToolUse {
         [Collections.Generic.List[string]]$Ledger
     )
 
-    $event = $InputText | ConvertFrom-Json
+    $event = $InputText | ConvertFrom-Json -DateKind String
     $toolName = [string]$event.tool_name
     $results = New-Object Collections.Generic.List[object]
     foreach ($block in $Blocks) {
@@ -227,7 +228,7 @@ function Assert-Deny {
     param([string]$Name, [object]$Result)
     $ok = $false
     try {
-        $json = $Result.Output | ConvertFrom-Json
+        $json = $Result.Output | ConvertFrom-Json -DateKind String
         $hook = $json.hookSpecificOutput
         $ok = ($Result.ExitCode -eq 0 -and -not $Result.Error -and
             $hook.hookEventName -eq "PreToolUse" -and
@@ -372,25 +373,23 @@ try {
         [Text.Encoding]::UTF8
     )
     Assert-True "diagnosis is Codex-only" (
-        $diagnoseText -match 'Boring Is All You Need v2[.]0[.]2 Codex diagnosis' -and
+        $diagnoseText -match 'Boring Is All You Need v3[.]0[.]0 Codex diagnosis' -and
         $diagnoseText -notmatch '[.]claude'
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')
     Assert-True "diagnosis checks the exact managed matrix" (
-        $diagnoseText -match 'active managed config exactly matches the rendered V2 matrix'
+        $diagnoseText -match 'active managed config exactly matches the rendered V3 matrix'
     )
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "startup"; cwd = $fixtureRoot })
-    Assert-True "SessionStart emits compact Codex context" ($result.ExitCode -eq 0 -and -not $result.Error -and $result.Output -match "Caveman startup status report")
-    Assert-True "startup reports Caveman lite exactly once" (
-        ([regex]::Matches($result.Output, [regex]::Escape("Caveman startup status report: ON, mode lite"))).Count -eq 1
-    )
-    Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 5.1 encoding")
+    Assert-True "SessionStart emits compact Codex context" ($result.ExitCode -eq 0 -and -not $result.Error)
+    Assert-True "startup omits Caveman behavior" ($result.Output -notmatch 'Caveman')
+    Assert-True "startup injects lesson titles" ($result.Output -match "Known pitfalls to avoid" -and $result.Output -match "PowerShell 7 encoding")
     Assert-True "fresh install without review marker suppresses due notice" (
         $result.Output -notmatch "HARNESS-REVIEW DUE"
     )
     Assert-True "startup does not inject stale state" ($result.Output -notmatch "TASK STATE")
-    $startupObject = $result.Output | ConvertFrom-Json
+    $startupObject = $result.Output | ConvertFrom-Json -DateKind String
     $startupContext = [string]$startupObject.hookSpecificOutput.additionalContext
     $duplicatedHostContractFragments = @(
         "Read the closest AGENTS.md plus project state before editing.",
@@ -408,7 +407,7 @@ try {
     Assert-True "startup output has no known mojibake marker" ($result.Output -notmatch [string][char]0x951B)
 
     $reviewedHome = Join-Path $fixtureRoot "reviewed-home"
-    New-Item -ItemType Directory -Path (Join-Path $reviewedHome "rules"), (Join-Path $reviewedHome "config") -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $reviewedHome "rules") -Force | Out-Null
     $lessonBodyMarker = "LESSON_BODY_MUST_NOT_BE_INJECTED"
     [IO.File]::WriteAllText(
         (Join-Path $reviewedHome "rules\lessons.md"),
@@ -417,12 +416,10 @@ try {
     )
     $reviewMarker = Join-Path $reviewedHome ".harness-last-review"
     [IO.File]::WriteAllText($reviewMarker, [datetime]::UtcNow.ToString("yyyy-MM-dd"), [Text.Encoding]::UTF8)
-    [IO.File]::WriteAllText((Join-Path $reviewedHome "config\caveman.json"), '{"defaultMode":"off"}', [Text.Encoding]::UTF8)
     $result = Invoke-Hook "agent-hook-context.ps1" `
         (New-Event @{ source = "startup"; cwd = $fixtureRoot }) `
         @("-SteadyAgentHome", $reviewedHome)
     Assert-True "current review marker suppresses due notice" ($result.Output -notmatch "HARNESS-REVIEW DUE")
-    Assert-True "local Caveman config can disable mode" ($result.Output -match "Caveman startup status report: OFF, mode off")
     Assert-True "fixture lesson title is injected" ($result.Output -match "Fixture lesson")
     Assert-True "lesson body is not injected" ($result.Output -notmatch [regex]::Escape($lessonBodyMarker))
     Assert-True "placeholder lesson title is excluded" ($result.Output -notmatch [regex]::Escape("<placeholder>"))
@@ -435,7 +432,7 @@ try {
     $result = Invoke-Hook "agent-hook-context.ps1" `
         (New-Event @{ source = "startup"; cwd = $fixtureRoot }) `
         @("-SteadyAgentHome", $reviewedHome)
-    $manyLessonsObject = $result.Output | ConvertFrom-Json
+    $manyLessonsObject = $result.Output | ConvertFrom-Json -DateKind String
     $manyLessonsContext = [string]$manyLessonsObject.hookSpecificOutput.additionalContext
     Assert-True "startup many-lessons context stays within 800 characters" (
         $manyLessonsContext.Length -le 800
@@ -485,14 +482,8 @@ try {
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "compact"; cwd = $stateRoot })
     Assert-True "compact restores PROJECT_STATE" ($result.Output -match "SMOKE_PROJECT_STATE")
-    Assert-True "compact context omits the Caveman startup report" (
-        $result.Output -notmatch 'Caveman startup status report'
-    )
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "resume"; cwd = $agentStateRoot })
     Assert-True "resume restores .agent state" ($result.Output -match "SMOKE_AGENT_STATE")
-    Assert-True "resume context omits the Caveman startup report" (
-        $result.Output -notmatch 'Caveman startup status report'
-    )
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "resume"; cwd = $fixtureRoot })
     Assert-True "resume without state emits a bounded fallback" (
         $result.Output -match 'No PROJECT_STATE'
@@ -1336,10 +1327,9 @@ try {
         $fileGuardEvidence += "file guard denies ambiguous Windows protected path: " + $ambiguousProtectedPath
     }
     Write-SemanticPass "hooks.file-guard-nested-protected-failclosed" $fileGuardEvidence
-    Write-SemanticPass "context.caveman-lite" @(
+    Write-SemanticPass "context.no-caveman-startup" @(
         "SessionStart emits compact Codex context",
-        "startup reports Caveman lite exactly once",
-        "local Caveman config can disable mode"
+        "startup omits Caveman behavior"
     )
     Write-SemanticPass "context.lessons-title-only" @(
         "startup injects lesson titles",
@@ -1364,7 +1354,7 @@ try {
     $scopeManifest = [IO.File]::ReadAllText(
         $scopeManifestPath,
         [Text.Encoding]::UTF8
-    ) | ConvertFrom-Json
+    ) | ConvertFrom-Json -DateKind String
     $scopeEntry = @($scopeManifest.entries | Where-Object {
         [string]$_.payload -ceq "06-agent-hook-smoke-test.ps1"
     })

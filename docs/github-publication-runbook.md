@@ -4,7 +4,7 @@ Use this runbook after local release-readiness passes and before any public push
 
 Prerequisites: authenticated `git` and current `gh`, `origin` set to
 `Khalilzhang0825/boring-is-all-you-need`, permission to push the reviewed branch and create
-the protected `v2.0.2` tag, and repository Actions allowed to write contents,
+the protected `v3.0.0` tag, and repository Actions allowed to write contents,
 OIDC tokens, and attestations.
 
 ## Required Local Evidence
@@ -12,14 +12,14 @@ OIDC tokens, and attestations.
 Run from a clean working tree:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
 This aggregate gate owns the single installed Hook-suite invocation and includes the phase, runtime, migration, equivalence, checkpoint, pre-commit, and skill-catalog child gates. Do not rerun child gates as separate release requirements.
 
 Record the command output, GitHub Actions run URL, release URL, tag, target commit, and repository metadata update notes.
 
-The release artifact must be built by `.github/workflows/release.yml` from the exact `v2.0.2` tag. Do not upload a locally assembled replacement archive.
+The release artifact must be built by `.github/workflows/release.yml` from the exact `v3.0.0` tag. Do not upload a locally assembled replacement archive.
 
 ## Maintainer Approval
 
@@ -50,9 +50,9 @@ if ($LASTEXITCODE -ne 0) { throw "Branch push failed." }
 
 For normal changes, open a PR and let GitHub Actions run before merge.
 
-V2 preserves the public V1 history. History rewrite, orphan commits, force-push, release replacement, and tag replacement are outside this release procedure.
+V3 preserves the public V1 and V2 history. History rewrite, orphan commits, force-push, release replacement, and tag replacement are outside this release procedure.
 The workflow freezes `v1.0.0` at
-`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`, requires it to be a V2 ancestor,
+`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`, requires it to be an ancestor of the release candidate,
 and requires the single repository root
 `7641ff9ff8c372036766541d565b81e44e1f8704`.
 
@@ -77,8 +77,8 @@ Do not create or replace a tag or GitHub release until explicit maintainer appro
 Release template:
 
 ```text
-Tag: v2.0.2
-Title: Boring Is All You Need v2.0.2
+Tag: v3.0.0
+Title: Boring Is All You Need v3.0.0
 Target commit: the exact `$ReviewedSha` resolved and verified below
 ```
 
@@ -86,7 +86,7 @@ After the reviewed commit is merged to and is the current tip of `main`, create
 and push the exact tag:
 
 ```powershell
-$Tag = "v2.0.2"
+$Tag = "v3.0.0"
 $ReviewedSha = git rev-parse origin/main
 if ($LASTEXITCODE -ne 0 -or $ReviewedSha.Trim() -notmatch '^[0-9a-f]{40}$') { throw "Could not resolve origin/main." }
 $ReviewedSha = ([string]$ReviewedSha).Trim()
@@ -131,38 +131,38 @@ if ($null -eq $RemoteTagCommit) {
 }
 ```
 
-The tag triggers three pinned, Node-24-native, least-privilege jobs serialized by an exact-release concurrency group. The read-only build job reruns the clean tag-checkout gate from the frozen V1 whitespace baseline, creates `boring-is-all-you-need-v2.0.2.zip`, validates the exact extracted archive without `.git`, and transfers its SHA-256-bound bundle. The attestation job has only read, OIDC, and attestation permissions and attests that reviewed archive. The contents-write job creates only a **draft** GitHub release whose generated body displays the reviewed commit. It re-resolves the live lightweight or annotated tag and `main` immediately before and after creation. On retry it accepts only a non-prerelease draft with the exact title/body and three byte-exact assets: archive, checksum, and machine-readable provenance. Every other existing release is preserved for manual review. After upload it reads the live release back and requires the captured release ID, exact draft state, body, assets, digests, tag, and `main`. If refs drift after creation, automatic cleanup is allowed only when the live draft still has the release ID captured from that run and remains exact.
+The tag triggers three pinned, Node-24-native, least-privilege jobs serialized by an exact-release concurrency group. The read-only build job reruns the clean tag-checkout gate from the frozen V1 whitespace baseline, creates `boring-is-all-you-need-v3.0.0.zip`, validates the exact extracted archive without `.git`, and transfers its SHA-256-bound bundle. The attestation job has only read, OIDC, and attestation permissions and attests that reviewed archive. The contents-write job creates only a **draft** GitHub release whose generated body displays the reviewed commit. It re-resolves the live lightweight or annotated tag and `main` immediately before and after creation. On retry it accepts only a non-prerelease draft with the exact title/body and three byte-exact assets: archive, checksum, and machine-readable provenance. Every other existing release is preserved for manual review. After upload it reads the live release back and requires the captured release ID, exact draft state, body, assets, digests, tag, and `main`. If refs drift after creation, automatic cleanup is allowed only when the live draft still has the release ID captured from that run and remains exact.
 
 Before publishing that draft:
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v2.0.2 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v2.0.2.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v2.0.2 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.2.provenance.json | ConvertFrom-Json
+gh release download v3.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.0.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v3.0.0 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v2.0.2.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v2.0.2.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v2.0.2" -or
+    [string]$Provenance.releaseTag -cne "v3.0.0" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v2.0.2.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v2.0.2" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.0" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v2.0.2.zip `
+gh attestation verify .\boring-is-all-you-need-v3.0.0.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v2.0.2 `
+  --source-ref refs/tags/v3.0.0 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v2.0.2.zip .\release-check
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\boring-is-all-you-need-v2.0.2\tools\validate-release-archive.ps1
+Expand-Archive .\boring-is-all-you-need-v3.0.0.zip .\release-check
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\release-check\boring-is-all-you-need-v3.0.0\tools\validate-release-archive.ps1
 ```
 
 Install or update the current [GitHub CLI](https://cli.github.com/) if `gh attestation verify --help` fails. Online attestation verification requires network access to GitHub; do not substitute the sidecar alone as provenance.
@@ -176,14 +176,14 @@ confirms that ID is absent while preserving any concurrent replacement:
 
 ```powershell
 $Repository = "Khalilzhang0825/boring-is-all-you-need"
-$Tag = "v2.0.2"
+$Tag = "v3.0.0"
 $RunIdText = Read-Host "Paste the failed release workflow run ID"
 $RunId = 0L
 if (-not [long]::TryParse($RunIdText, [ref]$RunId) -or $RunId -le 0) { throw "The workflow run ID is invalid." }
 $ExpectedRoot = Join-Path $env:TEMP ("steadyagent-release-recovery-" + [guid]::NewGuid().ToString("N"))
 $RemoteRoot = Join-Path $ExpectedRoot "remote"
 New-Item -ItemType Directory -Path $RemoteRoot -Force | Out-Null
-gh run download $RunId -R $Repository -n boring-is-all-you-need-v2.0.2-release-bundle -D $ExpectedRoot
+gh run download $RunId -R $Repository -n boring-is-all-you-need-v3.0.0-release-bundle -D $ExpectedRoot
 if ($LASTEXITCODE -ne 0) { throw "Could not download the failed run's reviewed bundle." }
 
 function Get-ReleaseById {
@@ -209,13 +209,13 @@ $CapturedDraft = $tagJson | ConvertFrom-Json
 $CapturedReleaseId = [long]$CapturedDraft.id
 $ExpectedBody = [IO.File]::ReadAllText((Join-Path $ExpectedRoot "RELEASE_BODY.md"), [Text.Encoding]::UTF8)
 $ExpectedAssetNames = @(
-  "boring-is-all-you-need-v2.0.2.provenance.json",
-  "boring-is-all-you-need-v2.0.2.zip",
-  "boring-is-all-you-need-v2.0.2.zip.sha256"
+  "boring-is-all-you-need-v3.0.0.provenance.json",
+  "boring-is-all-you-need-v3.0.0.zip",
+  "boring-is-all-you-need-v3.0.0.zip.sha256"
 )
 $CapturedAssetNames = @($CapturedDraft.assets | ForEach-Object { [string]$_.name } | Sort-Object)
 if ($CapturedReleaseId -le 0 -or -not [bool]$CapturedDraft.draft -or [bool]$CapturedDraft.prerelease -or
-    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "Boring Is All You Need v2.0.2" -or
+    [string]$CapturedDraft.tag_name -cne $Tag -or [string]$CapturedDraft.name -cne "Boring Is All You Need v3.0.0" -or
     [string]$CapturedDraft.body -cne $ExpectedBody -or $CapturedAssetNames.Count -ge 3 -or
     @($CapturedAssetNames | Where-Object { $ExpectedAssetNames -notcontains $_ }).Count -ne 0 -or
     @($CapturedAssetNames | Sort-Object -Unique).Count -ne $CapturedAssetNames.Count) {
@@ -259,16 +259,16 @@ Publish only after the workflow is green, attestation verification succeeds, the
 
 ```powershell
 $Repository = "Khalilzhang0825/boring-is-all-you-need"
-$Tag = "v2.0.2"
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v2.0.2.provenance.json | ConvertFrom-Json
+$Tag = "v3.0.0"
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
 $ExpectedAssetNames = @(
-  "boring-is-all-you-need-v2.0.2.provenance.json",
-  "boring-is-all-you-need-v2.0.2.zip",
-  "boring-is-all-you-need-v2.0.2.zip.sha256"
+  "boring-is-all-you-need-v3.0.0.provenance.json",
+  "boring-is-all-you-need-v3.0.0.zip",
+  "boring-is-all-you-need-v3.0.0.zip.sha256"
 )
 $ReleaseNotes = [IO.File]::ReadAllText((Resolve-Path .\RELEASE_NOTES.md), [Text.Encoding]::UTF8).TrimEnd([char[]]"`r`n")
-$ExpectedBody = $ReleaseNotes + "`n`n## Verified provenance`n`nReviewed commit: $ReviewedSha`nSource ref: refs/tags/v2.0.2`n"
+$ExpectedBody = $ReleaseNotes + "`n`n## Verified provenance`n`nReviewed commit: $ReviewedSha`nSource ref: refs/tags/v3.0.0`n"
 $ExpectedBodyHash = [BitConverter]::ToString(
   [Security.Cryptography.SHA256]::Create().ComputeHash((New-Object Text.UTF8Encoding($false)).GetBytes($ExpectedBody))
 ).Replace("-", "").ToLowerInvariant()
@@ -294,9 +294,9 @@ function Assert-ExactReleaseDraft {
   param([object]$State, [long]$ReleaseId)
   $assetNames = @($State.assets | ForEach-Object { [string]$_.name } | Sort-Object)
   if ([long]$State.id -ne $ReleaseId -or -not [bool]$State.draft -or [bool]$State.prerelease -or
-      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "Boring Is All You Need v2.0.2" -or
+      [string]$State.tag_name -cne $Tag -or [string]$State.name -cne "Boring Is All You Need v3.0.0" -or
       [string]$State.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "boring-is-all-you-need-v2.0.2.provenance.json|boring-is-all-you-need-v2.0.2.zip|boring-is-all-you-need-v2.0.2.zip.sha256") {
+      "boring-is-all-you-need-v3.0.0.provenance.json|boring-is-all-you-need-v3.0.0.zip|boring-is-all-you-need-v3.0.0.zip.sha256") {
     throw "The captured release is not the exact reviewed draft."
   }
 }
@@ -370,7 +370,7 @@ $LiveMainSha = gh api "repos/$Repository/commits/main" --jq .sha
 $LiveMainSha = [string]$LiveMainSha
 if ($LASTEXITCODE -ne 0) { throw "Could not resolve live main." }
 if ($LiveTagSha.Trim() -ne $ReviewedSha -or $LiveMainSha.Trim() -ne $ReviewedSha) {
-  throw "Live v2.0.2 or main moved away from the reviewed commit."
+  throw "Live v3.0.0 or main moved away from the reviewed commit."
 }
 $publishedJson = gh api --method PATCH "repos/$Repository/releases/$CapturedReleaseId" -F draft=false
 if ($LASTEXITCODE -ne 0) { throw "Could not publish the captured release ID." }
@@ -391,16 +391,16 @@ foreach ($state in @($Published, $Readback)) {
   }) | ConvertTo-Json -Depth 4 -Compress
   if ([long]$state.id -ne $CapturedReleaseId -or [bool]$state.draft -or [bool]$state.prerelease -or
       -not [bool]$state.immutable -or
-      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "Boring Is All You Need v2.0.2" -or
+      [string]$state.tag_name -cne $Tag -or [string]$state.name -cne "Boring Is All You Need v3.0.0" -or
       [string]$state.body -cne $ExpectedBody -or ($assetNames -join "|") -cne
-      "boring-is-all-you-need-v2.0.2.provenance.json|boring-is-all-you-need-v2.0.2.zip|boring-is-all-you-need-v2.0.2.zip.sha256" -or
+      "boring-is-all-you-need-v3.0.0.provenance.json|boring-is-all-you-need-v3.0.0.zip|boring-is-all-you-need-v3.0.0.zip.sha256" -or
       $assetProjection -cne $CapturedAssetProjection) {
     throw "Published release readback is not exact."
   }
 }
 ```
 
-Publication is blocked unless GitHub Live proves both repository immutable releases and an exact, active, no-bypass tag ruleset that rejects updates and deletion of `refs/tags/v2.0.2`. The same guards, tag SHA, main SHA, immutable flag, captured release ID, body, and assets are read back immediately after publication. Do not weaken or bypass these guards; if the post-publication readback fails, preserve the immutable release and open incident review instead of deleting or reusing the tag.
+Publication is blocked unless GitHub Live proves both repository immutable releases and an exact, active, no-bypass tag ruleset that rejects updates and deletion of `refs/tags/v3.0.0`. The same guards, tag SHA, main SHA, immutable flag, captured release ID, body, and assets are read back immediately after publication. Do not weaken or bypass these guards; if the post-publication readback fails, preserve the immutable release and open incident review instead of deleting or reusing the tag.
 
 ## Post-Publish Checks
 

@@ -1,29 +1,29 @@
 # Boring Is All You Need 工具
 
-所有命令面向 Windows PowerShell 5.1。
+所有命令均要求 PowerShell 7.5 或更高版本，并通过 `pwsh.exe` 运行。
 
 ```powershell
-.\tools\install.ps1
-.\tools\install.ps1 -Apply
-.\tools\install.ps1 -Apply -ReplaceExistingWorkflow
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 # 先粘贴成功 Apply 时 installer 精确输出的 $SteadyAgentRoot 与 $ReceiptPath 赋值。
 if (-not (Test-Path variable:SteadyAgentRoot) -or -not (Test-Path variable:ReceiptPath)) { throw "请先粘贴 installer 输出的精确审计赋值。" }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { throw "请从新启动的 Codex 任务运行此审计。" }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
-.\tools\test-v2-migration.ps1
-.\tools\test-agent-hooks.ps1
-.\tools\test-git-checkpoint.ps1
-.\tools\test-pre-commit.ps1
-.\tools\skill-index.ps1
-.\tools\skill-search.ps1 -Query "代码审查"
-.\tools\test-skill-catalog.ps1
-.\tools\test-protected-path-policy.ps1
-.\tools\test-local-equivalence.ps1
-.\tools\validate-release-readiness.ps1
-.\tools\validate-release-archive.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-v2-migration.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-agent-hooks.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-git-checkpoint.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-pre-commit.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\skill-index.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\skill-search.ps1 -Query "代码审查"
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-skill-catalog.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-protected-path-policy.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-local-equivalence.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1
 ```
 
 `install.ps1` 默认 dry-run。Apply 同时支持普通和提权会话；当前 token 无法更新任一目标时 fail closed，不请求 UAC，也不修改 ACL 或接管 owner。已加载的 installer 会在 staging 前验证规范化的 52 项源资产 `package-assets.sha256` 摘要。自定义根路径只用于隔离测试：必须同时设置 `STEADYAGENT_TEST_MODE=1`，并把 `STEADYAGENT_TEST_ROOT` 指向系统临时目录下现有、basename 严格为 `steadyagent-v2-migration-<32 位小写十六进制>` 的隔离根。发行包源目录、目标、Codex、managed 配置、备份、显式 Git 配置及实际调用工具路径均须位于该测试根中，并在适用处保持两两分离。

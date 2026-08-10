@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [switch]$IntegrityOnly
@@ -39,7 +40,7 @@ function Remove-MarkdownFencedCode {
 
 function Run-Gate {
     param([string]$Name, [string]$Path, [string]$Expected)
-    $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $Path
+    $output = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $Path
     $code = $LASTEXITCODE
     $text = @($output) -join "`n"
     Check $Name ($code -eq 0 -and $text -match $Expected) $text
@@ -151,11 +152,13 @@ try {
 
     $parseFailures = New-Object Collections.Generic.List[string]
     $encodingFailures = New-Object Collections.Generic.List[string]
+    $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
     foreach ($scriptFile in @(Get-ChildItem -LiteralPath $root -Recurse -Filter "*.ps1" -File)) {
         $bytes = [IO.File]::ReadAllBytes($scriptFile.FullName)
         $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
-        $hasNonAscii = @($bytes | Where-Object { $_ -gt 0x7F }).Count -gt 0
-        if ($hasNonAscii -and -not $hasBom) {
+        try { $strictUtf8.GetString($bytes) | Out-Null }
+        catch { $encodingFailures.Add($scriptFile.FullName.Substring($root.Length + 1)) | Out-Null }
+        if ($hasBom) {
             $encodingFailures.Add($scriptFile.FullName.Substring($root.Length + 1)) | Out-Null
         }
         $tokens = $null
@@ -169,10 +172,10 @@ try {
             $parseFailures.Add($scriptFile.FullName.Substring($root.Length + 1)) | Out-Null
         }
     }
-    Check "archive PowerShell parses in Windows PowerShell 5.1" ($parseFailures.Count -eq 0) (
+    Check "archive PowerShell parses in PowerShell 7.5+" ($parseFailures.Count -eq 0) (
         $parseFailures.ToArray() -join "; "
     )
-    Check "non-ASCII PowerShell uses UTF-8 BOM" ($encodingFailures.Count -eq 0) (
+    Check "archive PowerShell is strict UTF-8 without BOM" ($encodingFailures.Count -eq 0) (
         $encodingFailures.ToArray() -join "; "
     )
 

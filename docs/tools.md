@@ -1,29 +1,29 @@
 # Boring Is All You Need Tools
 
-All commands target Windows PowerShell 5.1.
+All commands require PowerShell 7.5 or newer and run through `pwsh.exe`.
 
 ```powershell
-.\tools\install.ps1
-.\tools\install.ps1 -Apply
-.\tools\install.ps1 -Apply -ReplaceExistingWorkflow
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 # Paste the exact $SteadyAgentRoot and $ReceiptPath assignments printed by a successful Apply.
 if (-not (Test-Path variable:SteadyAgentRoot) -or -not (Test-Path variable:ReceiptPath)) { throw "Paste the installer's exact audit assignments first." }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\rollback.ps1" -ReceiptPath $ReceiptPath -Apply
 if ([string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { throw "Run this audit from a newly started Codex task." }
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
-.\tools\test-v2-migration.ps1
-.\tools\test-agent-hooks.ps1
-.\tools\test-git-checkpoint.ps1
-.\tools\test-pre-commit.ps1
-.\tools\skill-index.ps1
-.\tools\skill-search.ps1 -Query "code review"
-.\tools\test-skill-catalog.ps1
-.\tools\test-protected-path-policy.ps1
-.\tools\test-local-equivalence.ps1
-.\tools\validate-release-readiness.ps1
-.\tools\validate-release-archive.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\skill-index.ps1" -ThreadId $env:CODEX_THREAD_ID
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File "$SteadyAgentRoot\tools\diagnose-install.ps1" -ReceiptPath $ReceiptPath -RequireInstalledBytes -RequireHooksActive -RequireRuntimeCatalog -RequireGitIdentity
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-v2-migration.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-agent-hooks.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-git-checkpoint.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-pre-commit.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\skill-index.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\skill-search.ps1 -Query "code review"
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-skill-catalog.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-protected-path-policy.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-local-equivalence.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1
 ```
 
 `install.ps1` is dry-run by default. Apply supports ordinary and elevated tokens and fails closed if the active token cannot update a target; it never requests UAC, changes ACLs, or takes ownership. The loaded installer verifies the canonical 52-source `package-assets.sha256` digest before staging. Custom roots are isolated-test-only: both `STEADYAGENT_TEST_MODE=1` and an existing `STEADYAGENT_TEST_ROOT` below the system temp directory, named exactly `steadyagent-v2-migration-<32 lowercase hex>`, are required. The package source, target, Codex, managed-config, backup, explicit Git-config, and invoked tool paths must stay inside that test root and remain pairwise disjoint where required.

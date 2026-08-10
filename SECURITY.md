@@ -4,7 +4,7 @@ Boring Is All You Need is a workflow harness, not a security product. Its hooks 
 
 ## Supported Versions
 
-The current public V2 line is the only supported release line.
+The latest stable release line is the only supported release line.
 
 ## Reporting A Security Issue
 

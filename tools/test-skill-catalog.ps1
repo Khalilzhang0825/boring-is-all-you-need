@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param()
 
@@ -155,7 +156,7 @@ function Start-ScriptProcess {
     param([string]$ScriptPath, [string[]]$Arguments)
     $quoted = @($Arguments | ForEach-Object { '"' + ([string]$_).Replace('"', '\"') + '"' })
     $psi = New-Object Diagnostics.ProcessStartInfo
-    $psi.FileName = "powershell.exe"
+    $psi.FileName = "pwsh.exe"
     $psi.Arguments = '-NoProfile -ExecutionPolicy Bypass -File "' + $ScriptPath + '" ' + ($quoted -join " ")
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
@@ -580,7 +581,7 @@ try {
     $result = Invoke-Script -ScriptPath $indexScript -Arguments $indexArgs
     Assert-True "catalog fixture builds" ($result.ExitCode -eq 0)
 
-    $catalog = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json
+    $catalog = Get-Content -LiteralPath $jsonPath -Raw | ConvertFrom-Json -DateKind String
     Assert-True "schema v2" ([int]$catalog.schema_version -eq 2)
     Assert-True "snapshot id present" ([string]$catalog.snapshot_id -match "^codex-desktop:fixture-thread:[A-F0-9]{64}$")
     Assert-True "fixture visibility is explicit" ([string]$catalog.visibility -eq "fixture-confirmed")
@@ -645,7 +646,7 @@ try {
                 [string]$expectedMatchContent[$matchPath]
     }
 
-    $missingPathCatalog = $catalog | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    $missingPathCatalog = $catalog | ConvertTo-Json -Depth 8 | ConvertFrom-Json -DateKind String
     $missingPathCatalog.skills[0].path = Join-Path $testRoot "missing\SKILL.md"
     $missingPathCatalog.skills_sha256 = Get-CatalogSkillsDigest -Skills @($missingPathCatalog.skills)
     $missingPathJson = Join-Path $testRoot "missing-path.json"
@@ -933,7 +934,7 @@ try {
         Get-ChildItem -LiteralPath $syntheticCatalogRoot -Recurse -Filter "skill-index.json" -File -ErrorAction SilentlyContinue
     )
     $syntheticProductionCatalog = if ($syntheticProductionJson.Count -eq 1) {
-        Get-Content -LiteralPath $syntheticProductionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        Get-Content -LiteralPath $syntheticProductionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
     } else { $null }
     Assert-True "synthetic rollout file is labeled rollout-file-confirmed" (
         $syntheticProduction.ExitCode -eq 0 -and
@@ -1115,7 +1116,7 @@ try {
         $productionJson = @(Get-ChildItem -LiteralPath $productionRoot -Recurse -Filter "skill-index.json" -File)
         if ($productionBuild.ExitCode -ne 0) { Write-Host ("TRACE production build error: " + $productionBuild.Error) }
         $productionCatalog = if ($productionJson.Count -eq 1) {
-            Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+            Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
         } else { $null }
         Assert-True "actual rollout publishes rollout-file-confirmed evidence" (
             $productionBuild.ExitCode -eq 0 -and
@@ -1152,7 +1153,7 @@ try {
         $restoredSearch = Invoke-Script -ScriptPath $searchScript -Arguments $repairArgs
         Assert-True "restoring canonical Markdown restores search" ($restoredSearch.ExitCode -eq 0)
 
-        $damaged = Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $damaged = Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
         $damaged.skills[0].name = "tampered-name"
         [IO.File]::WriteAllText($productionJson[0].FullName, ($damaged | ConvertTo-Json -Depth 6), (New-Object Text.UTF8Encoding($true)))
         $repairSearch = Invoke-Script -ScriptPath $searchScript -Arguments @(
@@ -1163,7 +1164,7 @@ try {
         )
         if ($repairSearch.ExitCode -eq 0) { Write-Host ("TRACE damaged search unexpectedly succeeded") }
         $quarantined = @(Get-ChildItem -LiteralPath $threadRoot -Directory | Where-Object { $_.Name -match "[.]corrupt[.]" })
-        $stillDamaged = Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+        $stillDamaged = Get-Content -LiteralPath $productionJson[0].FullName -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
         Assert-True "damaged snapshot fails closed" ($repairSearch.ExitCode -ne 0)
         Assert-True "damaged snapshot is not rewritten or quarantined" (
             $quarantined.Count -eq 0 -and [string]$stillDamaged.skills[0].name -eq "tampered-name"

@@ -20,15 +20,15 @@ Boring Is All You Need is a local-first harness for AI coding agents. It package
 Run the smallest relevant gate before committing:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
 Focused checks:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-agent-hooks.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\test-agent-hooks.ps1
 ```
 
 Use `-AllowDirty` with `validate-release-readiness.ps1` only while reviewing an intentional work-in-progress tree.

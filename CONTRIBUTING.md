@@ -7,20 +7,20 @@ Boring Is All You Need is a local-first harness for AI coding workflows. Contrib
 Run the release gate from the repository root:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1
 ```
 
 While preparing an uncommitted change, use the WIP mode so the gate validates staged and untracked files explicitly:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1 -AllowDirty
 ```
 
 For focused changes, also run the smaller gate that matches the touched area:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-phase3.ps1
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-runtime-slice.ps1
 ```
 
 ## Pull Request Expectations

@@ -1,3 +1,4 @@
+#requires -Version 7.5
 [CmdletBinding()]
 param(
     [string]$TargetRoot = (Join-Path $HOME ".steadyagent"),
@@ -339,7 +340,7 @@ function Invoke-GitIdentityVars {
     try {
         foreach ($name in $isolatedNames) {
             $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
-            [Environment]::SetEnvironmentVariable($name, $null, "Process")
+            Remove-Item -LiteralPath ("Env:\" + $name) -ErrorAction SilentlyContinue
         }
         if ($ConfigPath) {
             [Environment]::SetEnvironmentVariable(
@@ -366,11 +367,16 @@ function Invoke-GitIdentityVars {
     }
     finally {
         foreach ($name in $isolatedNames) {
-            [Environment]::SetEnvironmentVariable(
-                $name,
-                $savedEnvironment[$name],
-                "Process"
-            )
+            if ($null -eq $savedEnvironment[$name]) {
+                Remove-Item -LiteralPath ("Env:\" + $name) -ErrorAction SilentlyContinue
+            }
+            else {
+                [Environment]::SetEnvironmentVariable(
+                    $name,
+                    $savedEnvironment[$name],
+                    "Process"
+                )
+            }
         }
     }
     return [pscustomobject]@{
@@ -398,7 +404,7 @@ function Invoke-ReceiptBoundByteVerification {
             throw "Migration receipt must not contain a UTF-8 BOM."
         }
         $strictUtf8 = New-Object Text.UTF8Encoding($false, $true)
-        $receipt = $strictUtf8.GetString($receiptLease.Bytes) | ConvertFrom-Json
+        $receipt = $strictUtf8.GetString($receiptLease.Bytes) | ConvertFrom-Json -DateKind String
         $receiptIntegrity = [string]$receipt.receipt_integrity_sha256
         if ($receiptIntegrity -notmatch '^[0-9A-F]{64}$' -or
             $receiptIntegrity -cne (Get-ReceiptIntegritySha256 -Receipt $receipt)) {
@@ -406,7 +412,7 @@ function Invoke-ReceiptBoundByteVerification {
         }
         $targetFull = [IO.Path]::GetFullPath($ExpectedTargetRoot)
         if ([int]$receipt.schema_version -ne 2 -or
-            [string]$receipt.steadyagent_version -ne "2.0.2" -or
+            [string]$receipt.steadyagent_version -ne "3.0.0" -or
             [string]$receipt.status -ne "applied" -or
             -not [string]$receipt.completed_utc -or
             $null -ne $receipt.failure -or
@@ -506,7 +512,7 @@ function Invoke-ReceiptBoundByteVerification {
         }
 
         $startInfo = New-Object Diagnostics.ProcessStartInfo
-        $startInfo.FileName = Join-Path $PSHOME "powershell.exe"
+        $startInfo.FileName = Join-Path $PSHOME "pwsh.exe"
         $arguments = @(
             "-NoProfile",
             "-ExecutionPolicy", "Bypass",
@@ -534,7 +540,7 @@ function Invoke-ReceiptBoundByteVerification {
         $passed = (
             $process.ExitCode -eq 0 -and
             $stdout -match '(?m)^STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0\r?$' -and
-            $stdout -match 'DRY-RUN Boring Is All You Need v2[.]0[.]2 rollback: 80 files; 0 writes[.]' -and
+            $stdout -match 'DRY-RUN Boring Is All You Need v3[.]0[.]0 rollback: 80 files; 0 writes[.]' -and
             $stdout -notmatch '(?m)^PENDING BOUND RECOVERY '
         )
         return [pscustomobject]@{
@@ -588,7 +594,7 @@ function Test-ManagedConfig {
     }
     else {
         $expectedText = [IO.File]::ReadAllText($ExpectedPath, [Text.Encoding]::UTF8)
-        Add-Result $(if ($text -eq $expectedText) { "PASS" } else { "FAIL" }) "active managed config exactly matches the rendered V2 matrix"
+        Add-Result $(if ($text -eq $expectedText) { "PASS" } else { "FAIL" }) "active managed config exactly matches the rendered V3 matrix"
     }
     $blocks = ([regex]::Matches($text, '(?m)^\[\[hooks[.][A-Za-z]+[.]hooks\]\]$')).Count
     Add-Result $(if ($blocks -eq 3) { "PASS" } else { "FAIL" }) "exact three managed hook blocks" ("blocks=" + $blocks)
@@ -613,7 +619,7 @@ $targetFull = [IO.Path]::GetFullPath($TargetRoot)
 $codexFull = [IO.Path]::GetFullPath($CodexHome)
 $managedFull = [IO.Path]::GetFullPath($ManagedConfigPath)
 
-Write-Host "Boring Is All You Need v2.0.2 Codex diagnosis"
+Write-Host "Boring Is All You Need v3.0.0 Codex diagnosis"
 Write-Host ("TargetRoot: " + $targetFull)
 Write-Host ("CodexHome: " + $codexFull)
 Write-Host ("ManagedConfigPath: " + $managedFull)
@@ -759,11 +765,9 @@ if ((Test-Path -LiteralPath $contextHookPath -PathType Leaf) -and
     $contextText = [IO.File]::ReadAllText($contextHookPath, [Text.Encoding]::UTF8)
     $agentsText = [IO.File]::ReadAllText($agentsPath, [Text.Encoding]::UTF8)
     Add-Result $(if (
-        $contextText -match "Caveman startup status report" -and
-        $contextText -match "first assistant response" -and
-        $contextText -match "mode = `"lite`"" -and
-        $agentsText -match "Caveman.*lite"
-    ) { "PASS" } else { "FAIL" }) "Caveman lite startup contract is installed"
+        $contextText -notmatch "Caveman startup status report|CAVEMAN STARTUP STATUS|Get-CavemanStatusLine" -and
+        $agentsText -notmatch "Use Caveman|current Caveman state"
+    ) { "PASS" } else { "FAIL" }) "Caveman startup behavior is absent"
     Add-Result $(if (
         $contextText -match "Known pitfalls to avoid" -and
         $contextText -match "HARNESS-REVIEW DUE" -and
@@ -825,7 +829,7 @@ $equivalenceManifest = Join-Path $targetFull "manifests\local-postimage-equivale
 Test-File "23-item local equivalence manifest installed" $equivalenceManifest
 if (Test-Path -LiteralPath $equivalenceManifest -PathType Leaf) {
     try {
-        $equivalence = Get-Content -LiteralPath $equivalenceManifest -Raw -Encoding UTF8 | ConvertFrom-Json
+        $equivalence = Get-Content -LiteralPath $equivalenceManifest -Raw -Encoding UTF8 | ConvertFrom-Json -DateKind String
         Add-Result $(if (@($equivalence.entries).Count -eq 23) { "PASS" } else { "FAIL" }) `
             "local equivalence manifest maps all 23 entries" ("count=" + @($equivalence.entries).Count)
         Add-Result $(if ([string]$equivalence.localPostimageManifestSha256 -eq "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF") { "PASS" } else { "FAIL" }) `
@@ -908,7 +912,7 @@ if (Test-Path -LiteralPath $legacyManifest -PathType Leaf) {
 $hooksJsonPath = Join-Path $codexFull "hooks.json"
 if (Test-Path -LiteralPath $hooksJsonPath -PathType Leaf) {
     try {
-        $hooksData = [IO.File]::ReadAllText($hooksJsonPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+        $hooksData = [IO.File]::ReadAllText($hooksJsonPath, [Text.Encoding]::UTF8) | ConvertFrom-Json -DateKind String
         $hookPropertyCount = if ($hooksData.PSObject.Properties.Name -contains "hooks") {
             @($hooksData.hooks.PSObject.Properties).Count
         }
@@ -1002,7 +1006,7 @@ else {
         Add-Result "FAIL" "installed hook smoke" ("missing " + $smoke)
     }
     else {
-        $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $smoke
+        $output = & pwsh.exe -NoProfile -ExecutionPolicy Bypass -File $smoke
         $code = $LASTEXITCODE
         Add-Result $(if ($code -eq 0 -and ($output | Out-String) -match "fail=0") { "PASS" } else { "FAIL" }) "installed hook smoke" ($output | Out-String).Trim()
     }
