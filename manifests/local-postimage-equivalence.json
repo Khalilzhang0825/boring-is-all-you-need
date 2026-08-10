@@ -92,7 +92,7 @@
       "publicSha256": "5BA08C54810E5153032452B95F6C45C29DDCC400E6A5A04AB101AFE0092D8BD6",
       "installedDestination": "tools/test-agent-hooks.ps1",
       "mode": "scoped-equivalent",
-      "evidence": "public Hook suite executes the frozen Codex-active baseline plus adversarial cases; ten Claude, removed-event, or removed-Caveman-behavior assertions are explicitly excluded",
+      "evidence": "public Hook suite executes the frozen Codex-active V2 subset plus adversarial cases; ten Claude, removed-event, or removed-Caveman-behavior assertions are explicitly excluded",
       "scopeContract": {
         "scope": "codex-active-v2",
         "sourceAssertionCount": 73,
