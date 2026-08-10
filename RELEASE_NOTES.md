@@ -9,7 +9,7 @@ Boring Is All You Need v3.0.0 moves every owned Windows runtime entrypoint to Po
 - preserves timestamp strings during JSON deserialization so receipt and journal integrity hashes remain stable under PowerShell 7;
 - fixes PowerShell 7 overload binding for the V1 removal manifest and process-environment deletion for isolated Git identity checks;
 - standardizes PowerShell sources on strict UTF-8 without BOM and keeps extensionless shell Hook entrypoints LF/BOM-free;
-- retains the `.steadyagent` installation root, receipt schema, transactional migration, rollback, and legacy-install detection so existing installations can upgrade in place.
+- retains the `.steadyagent` installation root, receipt schema, transactional migration, rollback, and legacy-install detection so verified v2.0.2 installations can upgrade in place; v2.0.0 and v2.0.1 require receipt-bound rollback before a fresh v3.0.0 install.
 
 ## v2.0.2
 

@@ -82,11 +82,11 @@ Maintainers who want deterministic command blocking can explicitly opt into `-En
 
 ## Local validation snapshot
 
-The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-07. The aggregate entrypoint is `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`; the candidate must rerun the same gate from a clean committed tree before push, and the exact-tag workflow reruns it plus the extracted `git archive` validation before it can create a draft release.
+The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-10 from a clean committed tree. The aggregate entrypoint is `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`; the exact-tag workflow reruns the same gate plus the extracted `git archive` validation before it can create a draft release.
 
 | Gate | Result |
 | --- | ---: |
-| Complete release readiness | `149/0` |
+| Complete release readiness | `153/0` |
 | Installed local-postimage equivalence | `430/0` |
 | Transactional migration and rollback | `344/0` |
 | Crash-recoverable Git checkpoint | `333/0` |
@@ -97,7 +97,7 @@ The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-07. The
 
 The daily runtime remains deliberately small: one unified `PreToolUse` PowerShell process per matched event and a SessionStart payload around 610 characters with an enforced 800-character ceiling. On the v3.0.0 candidate, `tools\test-agent-hooks.ps1` measured five end-to-end cold starts at a 1,425.6 ms median and 1,726.7 ms maximum on the maintainer's machine, including PowerShell 7 process startup; this is not a cross-machine latency guarantee. Heavy equivalence and archive suites run only in maintainer/CI release gates, not during ordinary prompts.
 
-These are local WIP candidate results, not a committed-state claim and not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
+These are local clean-commit release-candidate results, not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
 
 GitHub-hosted Windows runners execute with an administrator token. Install, rollback, and CI fixtures therefore exercise the same supported elevated-token path; isolated custom fixture roots still require `STEADYAGENT_TEST_MODE=1` and a strict system-temp test root.
 
@@ -189,6 +189,14 @@ After reviewing the plan, perform a fresh installation:
 ```powershell
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
+
+To upgrade a verified v2.0.2 installation in place, review the default dry-run first, then explicitly authorize replacement:
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
+```
+
+Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's `rollback.ps1` with its active receipt, verify the restoration, and then perform a fresh v3.0.0 installation; preserve the receipt and backup evidence.
 
 To replace an existing legacy SteadyAgent v1 or custom Codex workflow:
 

@@ -1,6 +1,6 @@
 # Codex 启用与迁移
 
-V2 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
+V3 的 `install.ps1` 同时负责资产安装和 Codex managed Hook 启用。
 
 > 安装同时支持普通和管理员 PowerShell，也支持使用 `[windows] sandbox = "elevated"` 的 Codex 任务。脚本只使用当前已有 token，不会主动请求 UAC、修改 ACL 或接管 owner。
 

@@ -49,9 +49,9 @@ if ($LASTEXITCODE -ne 0) { throw "分支 push 失败。" }
 
 普通改动应先开 PR，等待 GitHub Actions 通过后再 merge。
 
-V2 保留公开的 V1 历史。history rewrite、orphan commit、force-push、release replacement 与 tag replacement 均不属于本次发布流程。
+V3 保留公开的 V1 与 V2 历史。history rewrite、orphan commit、force-push、release replacement 与 tag replacement 均不属于本次发布流程。
 workflow 将 `v1.0.0` 冻结到
-`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`，要求它是 V2 的祖先，并要求
+`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`，要求它是发行候选的祖先，并要求
 仓库只有一个固定 root：`7641ff9ff8c372036766541d565b81e44e1f8704`。
 
 ## Repository Metadata

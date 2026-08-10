@@ -378,7 +378,7 @@ try {
     )
     Assert-True "diagnosis contains no Claude hard gate" ($diagnoseText -notmatch '(?i)claude')
     Assert-True "diagnosis checks the exact managed matrix" (
-        $diagnoseText -match 'active managed config exactly matches the rendered V2 matrix'
+        $diagnoseText -match 'active managed config exactly matches the rendered V3 matrix'
     )
 
     $result = Invoke-Hook "agent-hook-context.ps1" (New-Event @{ source = "startup"; cwd = $fixtureRoot })

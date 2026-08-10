@@ -66,11 +66,13 @@ Fresh installation:
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
 
-Replace an existing workflow:
+Upgrade a verified v2.0.2 installation, or replace a legacy V1/custom workflow:
 
 ```powershell
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
+
+Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's receipt-bound rollback first, verify restoration, and then perform a fresh v3.0.0 installation. Preserve the receipt and backup evidence.
 
 Use ordinary or administrator PowerShell. Apply and rollback accept an elevated token but do not request UAC, change ACLs, or take ownership. The active token must be able to update the default `%ProgramData%\OpenAI\Codex\requirements.toml`.
 

@@ -8,7 +8,7 @@ Codex runtime 精确包含 3 个 managed Hook block：
 | `PreToolUse` | 在一个 PowerShell 进程内递归检查匹配的 shell 与文件编辑叶子。标准 managed 命令使用 `-EnforcementMode Audit`，尽力记录已识别风险，但永远不返回 deny。 |
 | `PreCompact` | 提醒 Agent 固化当前状态。 |
 
-V2 没有每轮 prompt、权限请求或工具后审计 Hook。
+V3 没有每轮 prompt、权限请求或工具后审计 Hook。
 
 标准 managed Audit 模式下，匹配事件中的 malformed 输入、不完整相关 leaf 和未知嵌套 parallel schema 均不会返回 deny；维护者可显式选择 `-EnforcementMode Enforce`，此时同类输入 fail closed。明确命名的无关工具不作决定。Hook 套件会记录普通 shell、文件编辑和 mixed parallel 的精确 managed 调用次数，并报告宽松的 PowerShell 7 冷启动预算，用来捕获重复启动或明显退化，而不是设置容易抖动的紧墙钟阈值。
 

@@ -66,11 +66,13 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
 
-替换已有工作流：
+升级已验证的 v2.0.2 安装，或替换 legacy V1/自定义工作流：
 
 ```powershell
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
+
+不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请先使用对应已安装版本的收据完成 receipt-bound rollback 并核验恢复，再全新安装 v3.0.0；保留原 receipt 与备份证据。
 
 可以使用普通或管理员 PowerShell。Apply 与 rollback 接受提权 token，但不会主动请求 UAC、修改 ACL 或接管 owner。当前 token 必须能够更新默认 `%ProgramData%\OpenAI\Codex\requirements.toml`。
 

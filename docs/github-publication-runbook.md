@@ -50,9 +50,9 @@ if ($LASTEXITCODE -ne 0) { throw "Branch push failed." }
 
 For normal changes, open a PR and let GitHub Actions run before merge.
 
-V2 preserves the public V1 history. History rewrite, orphan commits, force-push, release replacement, and tag replacement are outside this release procedure.
+V3 preserves the public V1 and V2 history. History rewrite, orphan commits, force-push, release replacement, and tag replacement are outside this release procedure.
 The workflow freezes `v1.0.0` at
-`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`, requires it to be a V2 ancestor,
+`f80c05c4b79e069ee3a35db3c09a8f870bca0b59`, requires it to be an ancestor of the release candidate,
 and requires the single repository root
 `7641ff9ff8c372036766541d565b81e44e1f8704`.
 

@@ -1,6 +1,6 @@
 # Codex Activation and Migration
 
-`install.ps1` is both the asset installer and the Codex managed-Hook activator in V2.
+`install.ps1` is both the asset installer and the Codex managed-Hook activator in V3.
 
 > Installation supports both ordinary and administrator PowerShell, including a Codex task using `[windows] sandbox = "elevated"`. The scripts use the current token as-is and do not request UAC, change ACLs, or take ownership.
 

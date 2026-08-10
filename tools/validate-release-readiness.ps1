@@ -225,15 +225,31 @@ try {
         $readmeZh -notmatch "账户被封|擦门牌"
     )
     Check "release notes contain exact v3.0.0 heading" ($releaseNotes -match "(?m)^## v3[.]0[.]0$")
+    Check "release notes scope in-place upgrade to verified v2.0.2" (
+        $releaseNotes -match 'verified v2[.]0[.]2 installations can upgrade in place' -and
+        $releaseNotes -match 'v2[.]0[.]0 and v2[.]0[.]1 require receipt-bound rollback'
+    )
     Check "release notes use the elevated-compatible V1 replacement command" (
         $releaseNotes -match 'install[.]ps1 -Apply -ReplaceExistingWorkflow' -and
         $releaseNotes -match 'ordinary or administrator PowerShell' -and
         $releaseNotes -notmatch 'AcknowledgeTrustedElevationSession|RequireProtectedRecovery'
     )
-    Check "security policy targets V2 replacement syntax" (
-        $securityPolicy -match "V2" -and
+    Check "security policy targets the latest stable release line" (
+        $securityPolicy -match "latest stable release line" -and
         $securityPolicy -match "ReplaceExistingWorkflow" -and
-        $securityPolicy -notmatch "-Overwrite|public v1 line"
+        $securityPolicy -notmatch "-Overwrite|public v1 line|current public V2 line"
+    )
+    Check "README documents the verified v2.0.2 upgrade boundary" (
+        $readme -match 'verified v2[.]0[.]2 installation' -and
+        $readme -match 'Direct receipt-bound upgrade from v2[.]0[.]0 or v2[.]0[.]1 is not supported' -and
+        $readmeZh -match '已验证的 v2[.]0[.]2 安装可原地升级' -and
+        $readmeZh -match '不支持从 v2[.]0[.]0 或 v2[.]0[.]1 直接执行 receipt-bound 原地升级'
+    )
+    Check "README binds the v3 candidate snapshot to the final validation date and clean commit layer" (
+        $readme -match '2026-08-10 from a clean committed tree' -and
+        $readme -match 'local clean-commit release-candidate results' -and
+        $readmeZh -match '2026-08-10 在 PowerShell 7[.]6[.]4 的干净已提交工作树上验证' -and
+        $readmeZh -match '本地干净提交态的发行候选结果'
     )
     Check "security policy has a concrete private reporting route" (
         $securityPolicy -match "security/advisories/new" -and
@@ -245,6 +261,12 @@ try {
     $checklistZh = [IO.File]::ReadAllText((Join-Path $root "docs\release-checklist.zh-CN.md"), [Text.Encoding]::UTF8)
     $gettingStarted = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.md"), [Text.Encoding]::UTF8)
     $gettingStartedZh = [IO.File]::ReadAllText((Join-Path $root "docs\getting-started.zh-CN.md"), [Text.Encoding]::UTF8)
+    Check "getting-started docs preserve the v2.0.2 direct-upgrade boundary" (
+        $gettingStarted -match 'verified v2[.]0[.]2 installation' -and
+        $gettingStarted -match 'Direct receipt-bound upgrade from v2[.]0[.]0 or v2[.]0[.]1 is not supported' -and
+        $gettingStartedZh -match '已验证的 v2[.]0[.]2 安装' -and
+        $gettingStartedZh -match '不支持从 v2[.]0[.]0 或 v2[.]0[.]1 直接执行 receipt-bound 原地升级'
+    )
     $attestationDocs = @($readme, $readmeZh, $gettingStarted, $gettingStartedZh, $runbook, $runbookZh)
     Check "publication runbook targets v3.0.0" ($runbook -match "Tag: v3[.]0[.]0" -and $runbook -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
     Check "Chinese publication runbook targets v3.0.0" ($runbookZh -match "Tag: v3[.]0[.]0" -and $runbookZh -notmatch "Tag: v1[.]0[.]0|Title: SteadyAgent v1[.]0[.]0")
@@ -290,9 +312,9 @@ try {
             $_ -notmatch '<[^>\r\n]*(receipt|backup|收据|备份)[^>\r\n]*>'
         }).Count -eq $attestationDocs.Count
     )
-    Check "release docs preserve V1 history and reject unsupported rewrite paths" (
-        $runbook -match 'V2 preserves the public V1 history' -and
-        $runbookZh -match 'V2 保留公开的 V1 历史' -and
+    Check "release docs preserve V1 and V2 history and reject unsupported rewrite paths" (
+        $runbook -match 'V3 preserves the public V1 and V2 history' -and
+        $runbookZh -match 'V3 保留公开的 V1 与 V2 历史' -and
         $runbook -notmatch 'Clean-History Rewrite|orphan/root|force-update' -and
         $runbookZh -notmatch 'Clean-History Rewrite|orphan/root|force-update'
     )
@@ -504,7 +526,7 @@ try {
     )
     $diagnoseText = [IO.File]::ReadAllText((Join-Path $root "tools\diagnose-install.ps1"), [Text.Encoding]::UTF8)
     Check "diagnosis requires the exact rendered managed matrix" (
-        $diagnoseText -match "active managed config exactly matches the rendered V2 matrix" -and
+        $diagnoseText -match "active managed config exactly matches the rendered V3 matrix" -and
         $diagnoseText -match "codex-requirements[.]expected[.]toml"
     )
     Check "diagnosis supports receipt-bound verification of all installed bytes" (

@@ -81,11 +81,11 @@ Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked�
 
 ## 本地验证快照
 
-v3.0.0 发行候选于 2026-08-07 在 PowerShell 7.6.4 上验证。聚合入口为 `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；候选在 push 前必须从干净 committed tree 重跑同一门禁，精确 tag workflow 还会在创建 draft release 前再次运行，并验证解压后的 `git archive`。
+v3.0.0 发行候选于 2026-08-10 在 PowerShell 7.6.4 的干净已提交工作树上验证。聚合入口为 `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；精确 tag workflow 还会在创建 draft release 前再次运行同一门禁，并验证解压后的 `git archive`。
 
 | 门禁 | 结果 |
 | --- | ---: |
-| 完整 release readiness | `149/0` |
+| 完整 release readiness | `153/0` |
 | 安装后本机 postimage 等价性 | `430/0` |
 | 事务式迁移与回滚 | `344/0` |
 | 可崩溃恢复的 Git checkpoint | `333/0` |
@@ -96,7 +96,7 @@ v3.0.0 发行候选于 2026-08-07 在 PowerShell 7.6.4 上验证。聚合入口�
 
 日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。v3.0.0 候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 1,425.6 ms、最大值 1,726.7 ms，包含 PowerShell 7 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
 
-这些是本地 WIP 候选结果，不是 committed-state 声明，也不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
+这些是本地干净提交态的发行候选结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
 GitHub-hosted Windows runner 使用管理员 token。安装、rollback 与 CI fixture 现在都允许在提权 token 下运行；测试路径覆盖仍必须同时满足 `STEADYAGENT_TEST_MODE=1` 与严格隔离的系统临时目录测试根。
 
@@ -188,6 +188,14 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1
 ```powershell
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 ```
+
+已验证的 v2.0.2 安装可原地升级：先检查默认 dry-run，再显式授权替换：
+
+```powershell
+pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
+```
+
+不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请使用对应已安装版本的 `rollback.ps1` 和 active receipt 完成回滚并核验恢复，再全新安装 v3.0.0；保留原 receipt 与备份证据。
 
 替换 legacy SteadyAgent v1 或已有自定义 Codex 工作流：
 

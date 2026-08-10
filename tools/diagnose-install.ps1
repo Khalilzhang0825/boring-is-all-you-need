@@ -594,7 +594,7 @@ function Test-ManagedConfig {
     }
     else {
         $expectedText = [IO.File]::ReadAllText($ExpectedPath, [Text.Encoding]::UTF8)
-        Add-Result $(if ($text -eq $expectedText) { "PASS" } else { "FAIL" }) "active managed config exactly matches the rendered V2 matrix"
+        Add-Result $(if ($text -eq $expectedText) { "PASS" } else { "FAIL" }) "active managed config exactly matches the rendered V3 matrix"
     }
     $blocks = ([regex]::Matches($text, '(?m)^\[\[hooks[.][A-Za-z]+[.]hooks\]\]$')).Count
     Add-Result $(if ($blocks -eq 3) { "PASS" } else { "FAIL" }) "exact three managed hook blocks" ("blocks=" + $blocks)
