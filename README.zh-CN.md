@@ -6,7 +6,7 @@
 
 **让 Agent 的工作变得无聊：用证据交付，而不是凭感觉相信 AI。**
 
-Boring Is All You Need `v3.0.0` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
+Boring Is All You Need `v3.0.1` 是面向 Windows 的本地优先 Codex Desktop Harness。它用一个小而可恢复的闭环替换现有 Codex 工作流：理解、计划、测试、修改、验证、只审查真实风险，最后对显式文件创建 checkpoint。
 
 这里的“无聊”就是功能：Agent 不应临场发明权限、静默扩大范围、凭一句“测试通过”宣布完成，或把工作流留在半迁移状态。本项目把这些决定固化成确定性脚本、收据、哈希、回滚路径与发行门禁。
 
@@ -81,7 +81,7 @@ Git：已创建 checkpoint 8f31c2a；用户原有 notes.md 仍保持 untracked�
 
 ## 本地验证快照
 
-v3.0.0 发行候选于 2026-08-10 在 PowerShell 7.6.4 的干净已提交工作树上验证。聚合入口为 `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；精确 tag workflow 还会在创建 draft release 前再次运行同一门禁，并验证解压后的 `git archive`。
+v3.0.1 发行候选于 2026-08-10 在 PowerShell 7.6.4 的干净已提交工作树上验证。聚合入口为 `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`；精确 tag workflow 还会在创建 draft release 前再次运行同一门禁，并验证解压后的 `git archive`。
 
 | 门禁 | 结果 |
 | --- | ---: |
@@ -94,13 +94,13 @@ v3.0.0 发行候选于 2026-08-10 在 PowerShell 7.6.4 的干净已提交工作�
 | Release workflow 状态机 | `43/0` |
 | 精确无 Git release archive | `33/0` |
 
-日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。v3.0.0 候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 1,425.6 ms、最大值 1,726.7 ms，包含 PowerShell 7 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
+日常 runtime 仍刻意保持轻量：每个匹配事件只启动一个统一 `PreToolUse` PowerShell 进程；SessionStart 实际约 610 字符，并有 800 字符硬上限。v3.0.1 候选通过 `tools\test-agent-hooks.ps1` 在维护者机器上取得 5 次端到端冷启动中位数 1,425.6 ms、最大值 1,726.7 ms，包含 PowerShell 7 进程启动；这不是跨机器延迟承诺。重型等价和 archive 套件只在维护者/CI 发行门中运行，不会塞进普通对话热路径。
 
 这些是本地干净提交态的发行候选结果，不代表 GitHub Actions、attestation 或用户重启后的 Codex runtime 已经 Live。发行 workflow 与下方安装后诊断分别验证这些层级。
 
 GitHub-hosted Windows runner 使用管理员 token。安装、rollback 与 CI fixture 现在都允许在提权 token 下运行；测试路径覆盖仍必须同时满足 `STEADYAGENT_TEST_MODE=1` 与严格隔离的系统临时目录测试根。
 
-## 3.0.0 的核心变化
+## 3.0.1 的核心变化
 
 - 唯一支持宿主为 Codex Desktop。
 - 常驻 runtime 精简为 3 个 managed hook block：一个 `SessionStart`、一个仅审计的统一 `PreToolUse`、一个 `PreCompact`。
@@ -132,38 +132,38 @@ V1 与 V2 历史版本仍保留在 Git 历史中。V3 归档只保留证明替�
 
 ## 运行前验证发行包
 
-v3.0.0 正式发布后，受支持的发行输入将是该 GitHub Release 附带的 `boring-is-all-you-need-v3.0.0.zip`。三个最小权限 GitHub Actions job 会从精确的 `v3.0.0` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
+v3.0.1 正式发布后，受支持的发行输入将是该 GitHub Release 附带的 `boring-is-all-you-need-v3.0.1.zip`。三个最小权限 GitHub Actions job 会从精确的 `v3.0.1` tag 构建并做无 Git 验证、为已审查 archive digest 生成 attestation，再创建 draft release。重跑只接受显示 reviewed commit 的正文和三个 asset 文件均字节一致、且不是 prerelease 的 draft；创建后 ref 竞态只按本次 run 捕获的 release ID 清理。
 
 同时下载 archive、checksum 与机器可读 provenance 三个资产，解压或运行 `install.ps1` 前直接运行以下可复制验证：
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v3.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v3.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
+gh release download v3.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v3.0.1 release assets。" }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v3.0.0" -or
+    [string]$Provenance.releaseTag -cne "v3.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v3.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v3.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v3.0.0 `
+  --source-ref refs/tags/v3.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\boring-is-all-you-need-v3.0.0.zip .\boring-is-all-you-need-v3.0.0-release
-Set-Location .\boring-is-all-you-need-v3.0.0-release\boring-is-all-you-need-v3.0.0
+Expand-Archive .\boring-is-all-you-need-v3.0.1.zip .\boring-is-all-you-need-v3.0.1-release
+Set-Location .\boring-is-all-you-need-v3.0.1-release\boring-is-all-you-need-v3.0.1
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -195,7 +195,7 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请使用对应已安装版本的 `rollback.ps1` 和 active receipt 完成回滚并核验恢复，再全新安装 v3.0.0；保留原 receipt 与备份证据。
+不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请使用对应已安装版本的 `rollback.ps1` 和 active receipt 完成回滚并核验恢复，再全新安装 v3.0.1；保留原 receipt 与备份证据。
 
 替换 legacy SteadyAgent v1 或已有自定义 Codex 工作流：
 

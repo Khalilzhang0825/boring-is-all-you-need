@@ -11,31 +11,31 @@ Release workflow 将 build/validation、attestation 与 draft 创建拆为三个
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "当前 GitHub CLI 不提供 attestation verify。" }
-gh release download v3.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v3.0.0 release assets。" }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
+gh release download v3.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "无法下载精确的 v3.0.1 release assets。" }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v3.0.0" -or
+    [string]$Provenance.releaseTag -cne "v3.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v3.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v3.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v3.0.0 `
+  --source-ref refs/tags/v3.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation 验证失败；不得解压或运行该 archive。" }
-Expand-Archive .\boring-is-all-you-need-v3.0.0.zip .\boring-is-all-you-need-v3.0.0-release
-Set-Location .\boring-is-all-you-need-v3.0.0-release\boring-is-all-you-need-v3.0.0
+Expand-Archive .\boring-is-all-you-need-v3.0.1.zip .\boring-is-all-you-need-v3.0.1-release
+Set-Location .\boring-is-all-you-need-v3.0.1-release\boring-is-all-you-need-v3.0.1
 ```
 
 若 GitHub CLI 不提供 `attestation verify`、provenance 字段未绑定 reviewed commit 与 archive digest、来源验证失败或 checksum 不同，立即停止。
@@ -72,7 +72,7 @@ pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请先使用对应已安装版本的收据完成 receipt-bound rollback 并核验恢复，再全新安装 v3.0.0；保留原 receipt 与备份证据。
+不支持从 v2.0.0 或 v2.0.1 直接执行 receipt-bound 原地升级。请先使用对应已安装版本的收据完成 receipt-bound rollback 并核验恢复，再全新安装 v3.0.1；保留原 receipt 与备份证据。
 
 可以使用普通或管理员 PowerShell。Apply 与 rollback 接受提权 token，但不会主动请求 UAC、修改 ACL 或接管 owner。当前 token 必须能够更新默认 `%ProgramData%\OpenAI\Codex\requirements.toml`。
 

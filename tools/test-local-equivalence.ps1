@@ -577,7 +577,7 @@ if ($InjectHookScopeDrift) {
     Write-Host "MUTATION Hook scope exclusion substituted"
 }
 Check "equivalence schema is v1" ([int]$map.schemaVersion -eq 1)
-Check "release identity is v3.0.0" ([string]$map.release -eq "v3.0.0")
+Check "release identity is v3.0.1" ([string]$map.release -eq "v3.0.1")
 Check "canonical local manifest SHA-256 is frozen" (
     [string]$map.localPostimageManifestSha256 -eq "A76846A184673C176F2FE2FE22B14835D216CA79824CB2F0ABF583B0F91D89FF"
 )

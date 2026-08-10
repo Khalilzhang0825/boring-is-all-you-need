@@ -1,9 +1,9 @@
-name: Build and attest v3.0.0 release
+name: Build and attest v3.0.1 release
 
 on:
   push:
     tags:
-      - v3.0.0
+      - v3.0.1
 
 permissions: {}
 
@@ -11,7 +11,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 concurrency:
-  group: boring-is-all-you-need-v3.0.0-release-${{ github.ref }}
+  group: boring-is-all-you-need-v3.0.1-release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -48,9 +48,9 @@ jobs:
           RELEASE_SHA: ${{ github.sha }}
           SOURCE_REPOSITORY: ${{ github.repository }}
         run: |
-          if ($env:RELEASE_TAG -ne "v3.0.0" -or
+          if ($env:RELEASE_TAG -ne "v3.0.1" -or
               $env:SOURCE_REPOSITORY -cne "Khalilzhang0825/boring-is-all-you-need") {
-            throw "Only the reviewed v3.0.0 tag may enter this workflow."
+            throw "Only the reviewed v3.0.1 tag may enter this workflow."
           }
           $head = (git rev-parse HEAD).Trim()
           $tagged = (git rev-list -n 1 "refs/tags/$env:RELEASE_TAG").Trim()
@@ -123,7 +123,7 @@ jobs:
           ).Hash.ToLowerInvariant()
           $provenancePath = Join-Path (
             Resolve-Path .\dist
-          ) "boring-is-all-you-need-v3.0.0.provenance.json"
+          ) "boring-is-all-you-need-v3.0.1.provenance.json"
           $provenance = [ordered]@{
             schemaVersion = 1
             releaseTag = $env:RELEASE_TAG
@@ -144,8 +144,8 @@ jobs:
 
       - name: Validate the exact no-Git archive
         run: |
-          Expand-Archive -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip -DestinationPath .\archive-check
-          pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\archive-check\boring-is-all-you-need-v3.0.0\tools\validate-release-archive.ps1
+          Expand-Archive -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip -DestinationPath .\archive-check
+          pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\archive-check\boring-is-all-you-need-v3.0.1\tools\validate-release-archive.ps1
           if ($LASTEXITCODE -ne 0) {
             throw "The exact release archive failed no-Git validation."
           }
@@ -153,11 +153,11 @@ jobs:
       - name: Transfer the reviewed release bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: boring-is-all-you-need-v3.0.0-release-bundle
+          name: boring-is-all-you-need-v3.0.1-release-bundle
           path: |
-            dist/boring-is-all-you-need-v3.0.0.zip
-            dist/boring-is-all-you-need-v3.0.0.zip.sha256
-            dist/boring-is-all-you-need-v3.0.0.provenance.json
+            dist/boring-is-all-you-need-v3.0.1.zip
+            dist/boring-is-all-you-need-v3.0.1.zip.sha256
+            dist/boring-is-all-you-need-v3.0.1.provenance.json
             dist/RELEASE_BODY.md
           if-no-files-found: error
           retention-days: 1
@@ -184,7 +184,7 @@ jobs:
       - name: Download only the reviewed release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: boring-is-all-you-need-v3.0.0-release-bundle
+          name: boring-is-all-you-need-v3.0.1-release-bundle
           path: dist
 
       - name: Rebind the transferred archive to the reviewed digest
@@ -192,24 +192,24 @@ jobs:
           EXPECTED_SHA256: ${{ needs.build-and-validate.outputs.archive-sha256 }}
           EXPECTED_RELEASE_SHA: ${{ needs.build-and-validate.outputs.release-sha }}
         run: |
-          $actual = (Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          $sidecar = (Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
+          $actual = (Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = (Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
           if ($actual -ne $env:EXPECTED_SHA256 -or $sidecar -ne $env:EXPECTED_SHA256) {
             throw "The transferred release archive does not match the reviewed digest."
           }
-          $provenance = Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.provenance.json |
+          $provenance = Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.provenance.json |
             ConvertFrom-Json -DateKind String
           $bodyHash = (
             Get-FileHash -LiteralPath .\dist\RELEASE_BODY.md -Algorithm SHA256
           ).Hash.ToLowerInvariant()
           if ([int]$provenance.schemaVersion -ne 1 -or
-              [string]$provenance.releaseTag -cne "v3.0.0" -or
+              [string]$provenance.releaseTag -cne "v3.0.1" -or
               [string]$provenance.reviewedCommit -cne $env:EXPECTED_RELEASE_SHA -or
-              [string]$provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+              [string]$provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
               [string]$provenance.archiveSha256 -cne $env:EXPECTED_SHA256 -or
               [string]$provenance.releaseBodySha256 -cne $bodyHash -or
               [string]$provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-              [string]$provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+              [string]$provenance.sourceRef -cne "refs/tags/v3.0.1" -or
               [string]$provenance.signerWorkflow -cne
                 "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
             throw "The transferred provenance does not match the reviewed release input."
@@ -218,7 +218,7 @@ jobs:
       - name: Attest the reviewed release archive
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
         with:
-          subject-path: dist/boring-is-all-you-need-v3.0.0.zip
+          subject-path: dist/boring-is-all-you-need-v3.0.1.zip
 
   create-draft:
     needs:
@@ -242,7 +242,7 @@ jobs:
       - name: Download only the attested release bundle
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: boring-is-all-you-need-v3.0.0-release-bundle
+          name: boring-is-all-you-need-v3.0.1-release-bundle
           path: dist
 
       - name: Rebind the draft assets to the reviewed digest
@@ -250,24 +250,24 @@ jobs:
           EXPECTED_SHA256: ${{ needs.build-and-validate.outputs.archive-sha256 }}
           EXPECTED_RELEASE_SHA: ${{ needs.build-and-validate.outputs.release-sha }}
         run: |
-          $actual = (Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          $sidecar = (Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
+          $actual = (Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sidecar = (Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
           if ($actual -ne $env:EXPECTED_SHA256 -or $sidecar -ne $env:EXPECTED_SHA256) {
             throw "The draft assets do not match the reviewed digest."
           }
-          $provenance = Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.provenance.json |
+          $provenance = Get-Content -Raw -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.provenance.json |
             ConvertFrom-Json -DateKind String
           $bodyHash = (
             Get-FileHash -LiteralPath .\dist\RELEASE_BODY.md -Algorithm SHA256
           ).Hash.ToLowerInvariant()
           if ([int]$provenance.schemaVersion -ne 1 -or
-              [string]$provenance.releaseTag -cne "v3.0.0" -or
+              [string]$provenance.releaseTag -cne "v3.0.1" -or
               [string]$provenance.reviewedCommit -cne $env:EXPECTED_RELEASE_SHA -or
-              [string]$provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+              [string]$provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
               [string]$provenance.archiveSha256 -cne $env:EXPECTED_SHA256 -or
               [string]$provenance.releaseBodySha256 -cne $bodyHash -or
               [string]$provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-              [string]$provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+              [string]$provenance.sourceRef -cne "refs/tags/v3.0.1" -or
               [string]$provenance.signerWorkflow -cne
                 "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
             throw "The draft provenance does not match the reviewed release input."
@@ -348,14 +348,14 @@ jobs:
                 -not [bool]$State.isDraft -or
                 [bool]$State.isPrerelease -or
                 [string]$State.tagName -cne $env:RELEASE_TAG -or
-                [string]$State.name -cne "Boring Is All You Need v3.0.0" -or
+                [string]$State.name -cne "Boring Is All You Need v3.0.1" -or
                 [string]$State.body -cne (Get-Content -Raw -LiteralPath .\dist\RELEASE_BODY.md) -or
                 [int64]$State.databaseId -le 0) {
               return $false
             }
             $assetNames = @($State.assets | ForEach-Object { [string]$_.name } | Sort-Object)
             if (($assetNames -join "|") -cne
-                "boring-is-all-you-need-v3.0.0.provenance.json|boring-is-all-you-need-v3.0.0.zip|boring-is-all-you-need-v3.0.0.zip.sha256") {
+                "boring-is-all-you-need-v3.0.1.provenance.json|boring-is-all-you-need-v3.0.1.zip|boring-is-all-you-need-v3.0.1.zip.sha256") {
               return $false
             }
             $recoveryRoot = Join-Path $env:RUNNER_TEMP (
@@ -365,11 +365,11 @@ jobs:
             gh release download $env:RELEASE_TAG `
               -R $env:GH_REPO `
               --dir $recoveryRoot `
-              --pattern "boring-is-all-you-need-v3.0.0.*"
+              --pattern "boring-is-all-you-need-v3.0.1.*"
             if ($LASTEXITCODE -ne 0) { return $false }
-            $archivePath = Join-Path $recoveryRoot "boring-is-all-you-need-v3.0.0.zip"
+            $archivePath = Join-Path $recoveryRoot "boring-is-all-you-need-v3.0.1.zip"
             $sidecarPath = $archivePath + ".sha256"
-            $provenancePath = Join-Path $recoveryRoot "boring-is-all-you-need-v3.0.0.provenance.json"
+            $provenancePath = Join-Path $recoveryRoot "boring-is-all-you-need-v3.0.1.provenance.json"
             if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf) -or
                 -not (Test-Path -LiteralPath $sidecarPath -PathType Leaf) -or
                 -not (Test-Path -LiteralPath $provenancePath -PathType Leaf)) {
@@ -378,13 +378,13 @@ jobs:
             $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
             $sidecarHash = (Get-FileHash -LiteralPath $sidecarPath -Algorithm SHA256).Hash.ToLowerInvariant()
             $expectedSidecarHash = (
-              Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.zip.sha256 -Algorithm SHA256
+              Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.zip.sha256 -Algorithm SHA256
             ).Hash.ToLowerInvariant()
             $provenanceHash = (
               Get-FileHash -LiteralPath $provenancePath -Algorithm SHA256
             ).Hash.ToLowerInvariant()
             $expectedProvenanceHash = (
-              Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.0.provenance.json -Algorithm SHA256
+              Get-FileHash -LiteralPath .\dist\boring-is-all-you-need-v3.0.1.provenance.json -Algorithm SHA256
             ).Hash.ToLowerInvariant()
             return $archiveHash -eq $env:EXPECTED_RELEASE_SHA256 -and
               $sidecarHash -eq $expectedSidecarHash -and
@@ -408,7 +408,7 @@ jobs:
           try {
             $request = [ordered]@{
               tag_name = $env:RELEASE_TAG
-              name = "Boring Is All You Need v3.0.0"
+              name = "Boring Is All You Need v3.0.1"
               body = Get-Content -Raw -LiteralPath .\dist\RELEASE_BODY.md
               draft = $true
               prerelease = $false
@@ -434,9 +434,9 @@ jobs:
           }
           gh release upload $env:RELEASE_TAG `
             -R $env:GH_REPO `
-            .\dist\boring-is-all-you-need-v3.0.0.zip `
-            .\dist\boring-is-all-you-need-v3.0.0.zip.sha256 `
-            .\dist\boring-is-all-you-need-v3.0.0.provenance.json
+            .\dist\boring-is-all-you-need-v3.0.1.zip `
+            .\dist\boring-is-all-you-need-v3.0.1.zip.sha256 `
+            .\dist\boring-is-all-you-need-v3.0.1.provenance.json
           if ($LASTEXITCODE -ne 0) {
             throw "The draft was created but its exact assets were not uploaded; preserve it for manual recovery."
           }
