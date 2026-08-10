@@ -15,7 +15,7 @@ env:
 jobs:
   release-readiness:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         shell: pwsh

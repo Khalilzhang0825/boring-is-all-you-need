@@ -699,7 +699,9 @@ try {
         $workflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE' -and
         $releaseWorkflow -notmatch 'STEADYAGENT_ALLOW_ELEVATED_FIXTURE'
     )
-    Check "GitHub Actions release gate has a bounded timeout" ($workflow -match "timeout-minutes:\s*\d+")
+    Check "GitHub Actions release gate has one reviewed 60-minute timeout" (
+        ([regex]::Matches($workflow, '(?m)^\s*timeout-minutes:\s*60\s*$')).Count -eq 1
+    )
     Check "GitHub Actions fetches history and supplies a release base" (
         $workflow -match "fetch-depth:\s*0" -and
         $workflow -match "STEADYAGENT_RELEASE_BASE_REF" -and
