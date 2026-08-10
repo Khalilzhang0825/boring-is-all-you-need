@@ -6,7 +6,7 @@
 
 **Make agent work boring. Ship with evidence, not vibes.**
 
-Boring Is All You Need `v3.0.0` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
+Boring Is All You Need `v3.0.1` is a local-first Codex Desktop harness for Windows. It replaces an existing Codex workflow with one small, recoverable loop: understand, plan, test, change, verify, review real risk, and checkpoint explicit files.
 
 “Boring” is the feature. An agent should not improvise permissions, silently broaden scope, declare success from vibes, or leave a half-applied workflow behind. This project turns those decisions into deterministic scripts, receipts, hashes, rollback paths, and release gates.
 
@@ -82,7 +82,7 @@ Maintainers who want deterministic command blocking can explicitly opt into `-En
 
 ## Local validation snapshot
 
-The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-10 from a clean committed tree. The aggregate entrypoint is `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`; the exact-tag workflow reruns the same gate plus the extracted `git archive` validation before it can create a draft release.
+The v3.0.1 release candidate is validated on PowerShell 7.6.4 on 2026-08-10 from a clean committed tree. The aggregate entrypoint is `pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-readiness.ps1`; the exact-tag workflow reruns the same gate plus the extracted `git archive` validation before it can create a draft release.
 
 | Gate | Result |
 | --- | ---: |
@@ -95,13 +95,13 @@ The v3.0.0 release candidate is validated on PowerShell 7.6.4 on 2026-08-10 from
 | Release workflow state machine | `43/0` |
 | Exact no-Git release archive | `33/0` |
 
-The daily runtime remains deliberately small: one unified `PreToolUse` PowerShell process per matched event and a SessionStart payload around 610 characters with an enforced 800-character ceiling. On the v3.0.0 candidate, `tools\test-agent-hooks.ps1` measured five end-to-end cold starts at a 1,425.6 ms median and 1,726.7 ms maximum on the maintainer's machine, including PowerShell 7 process startup; this is not a cross-machine latency guarantee. Heavy equivalence and archive suites run only in maintainer/CI release gates, not during ordinary prompts.
+The daily runtime remains deliberately small: one unified `PreToolUse` PowerShell process per matched event and a SessionStart payload around 610 characters with an enforced 800-character ceiling. On the v3.0.1 candidate, `tools\test-agent-hooks.ps1` measured five end-to-end cold starts at a 1,425.6 ms median and 1,726.7 ms maximum on the maintainer's machine, including PowerShell 7 process startup; this is not a cross-machine latency guarantee. Heavy equivalence and archive suites run only in maintainer/CI release gates, not during ordinary prompts.
 
 These are local clean-commit release-candidate results, not a claim that GitHub Actions, attestation, or a user's post-restart Codex runtime is Live. The release workflow and the post-install diagnosis below establish those separate layers.
 
 GitHub-hosted Windows runners execute with an administrator token. Install, rollback, and CI fixtures therefore exercise the same supported elevated-token path; isolated custom fixture roots still require `STEADYAGENT_TEST_MODE=1` and a strict system-temp test root.
 
-## What changed in 3.0.0
+## What changed in 3.0.1
 
 - Codex Desktop is the only supported host.
 - The runtime is reduced to exactly three managed hook blocks: one `SessionStart`, one audit-only unified `PreToolUse` inspection, and one `PreCompact`.
@@ -133,38 +133,38 @@ The public product and repository are Boring Is All You Need. The installed root
 
 ## Verify the release before running it
 
-Once v3.0.0 is published, the supported release input will be the `boring-is-all-you-need-v3.0.0.zip` asset attached to that GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v3.0.0` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
+Once v3.0.1 is published, the supported release input will be the `boring-is-all-you-need-v3.0.1.zip` asset attached to that GitHub release. Three least-privilege GitHub Actions jobs build and no-Git-validate it from the exact `v3.0.1` tag, attest the reviewed archive digest, and create the draft release. A retry accepts only a non-prerelease draft whose reviewed-commit body and three asset files are byte-exact; post-create ref-race cleanup is limited to the release ID created by that run.
 
 Download the archive, checksum, and machine-readable provenance assets, then run this copyable verification before extracting or running `install.ps1`:
 
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v3.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v3.0.0 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
+gh release download v3.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v3.0.1 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v3.0.0" -or
+    [string]$Provenance.releaseTag -cne "v3.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v3.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v3.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v3.0.0 `
+  --source-ref refs/tags/v3.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v3.0.0.zip .\boring-is-all-you-need-v3.0.0-release
-Set-Location .\boring-is-all-you-need-v3.0.0-release\boring-is-all-you-need-v3.0.0
+Expand-Archive .\boring-is-all-you-need-v3.0.1.zip .\boring-is-all-you-need-v3.0.1-release
+Set-Location .\boring-is-all-you-need-v3.0.1-release\boring-is-all-you-need-v3.0.1
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\validate-release-archive.ps1 -IntegrityOnly
 ```
 
@@ -196,7 +196,7 @@ To upgrade a verified v2.0.2 installation in place, review the default dry-run f
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's `rollback.ps1` with its active receipt, verify the restoration, and then perform a fresh v3.0.0 installation; preserve the receipt and backup evidence.
+Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's `rollback.ps1` with its active receipt, verify the restoration, and then perform a fresh v3.0.1 installation; preserve the receipt and backup evidence.
 
 To replace an existing legacy SteadyAgent v1 or custom Codex workflow:
 

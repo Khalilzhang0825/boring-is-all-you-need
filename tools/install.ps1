@@ -104,10 +104,10 @@ foreach ($migrationRuntimeCommand in @(
         throw "Migration runtime did not load its frozen primitive set; no migration writes were made."
     }
 }
-$version = "3.0.0"
+$version = "3.0.1"
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 $packageManifestPath = Join-Path $repoRoot "package-assets.sha256"
-$expectedPackageManifestSha256 = "FB94A32F1EA920E91760913041F7F5E4E18B6F746AA368AD6DE76DF3068B4E79"
+$expectedPackageManifestSha256 = "1E82B449E6DEB4518EE623D512DF33F6BF2A8F832060FA0941D8C38314427826"
 $expectedPackageAssetCount = 52
 $programDataRoot = [Environment]::GetFolderPath(
     [Environment+SpecialFolder]::CommonApplicationData
@@ -1387,7 +1387,7 @@ try {
             -not $gitHooksBefore.Equals($desiredGitHooksPath, [StringComparison]::OrdinalIgnoreCase)) {
             $conflicts += ("Git core.hooksPath=" + $gitHooksBefore)
         }
-        Write-Host "DRY-RUN Boring Is All You Need v3.0.0 migration"
+        Write-Host "DRY-RUN Boring Is All You Need v3.0.1 migration"
         Write-Host (
             (
                 "Plan: {0} operations; {1} existing conflict(s); " +
@@ -1486,7 +1486,7 @@ try {
         else {
             Resolve-ActiveAppliedReceipt -TargetRoot $targetFull
         }
-        Write-Host "[OK] Boring Is All You Need v3.0.0 is already installed; no target/config/backup/receipt/state writes."
+        Write-Host "[OK] Boring Is All You Need v3.0.1 is already installed; no target/config/backup/receipt/state writes."
         Write-NewTaskStrictAuditBlock -TargetRoot $targetFull -ReceiptPath $activeReceiptPath
         exit 0
     }
@@ -1504,7 +1504,7 @@ try {
         }
         if (-not $ReplaceExistingWorkflow) {
             Write-Host "[FAIL] A verified v2.0.2 installation is active. No files were written."
-            Write-Host "Review the dry-run, then use -ReplaceExistingWorkflow to authorize the v3.0.0 upgrade."
+            Write-Host "Review the dry-run, then use -ReplaceExistingWorkflow to authorize the v3.0.1 upgrade."
             exit 2
         }
         $trustedUpgradePointerBytes = [IO.File]::ReadAllBytes($activePointerPath)

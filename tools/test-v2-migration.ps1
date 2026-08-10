@@ -511,11 +511,19 @@ function Copy-PackageFixture {
 function Copy-V202PackageFixture {
     param([string]$Destination)
     $archivePath = Join-Path $fixtureRoot 'v2.0.2-package.zip'
-    & git -C $repoRoot cat-file -e 'v2.0.2^{commit}'
-    if ($LASTEXITCODE -ne 0) {
+    $gitTopLevelOutput = @(& git -C $repoRoot rev-parse --show-toplevel)
+    if ($LASTEXITCODE -ne 0 -or $gitTopLevelOutput.Count -ne 1) {
         throw 'The trusted upgrade test requires the repository v2.0.2 tag.'
     }
-    & git -C $repoRoot archive --format=zip "--output=$archivePath" v2.0.2
+    $gitTopLevel = [IO.Path]::GetFullPath(([string]$gitTopLevelOutput[0]).Trim())
+    $expectedV202Commit = '5ef0927f88ab0d110143d8795e0463451b5f27b3'
+    $v202CommitOutput = @(& git -C $gitTopLevel rev-parse 'refs/tags/v2.0.2^{commit}')
+    if ($LASTEXITCODE -ne 0 -or
+        $v202CommitOutput.Count -ne 1 -or
+        ([string]$v202CommitOutput[0]).Trim() -cne $expectedV202Commit) {
+        throw 'The trusted upgrade test requires the exact repository v2.0.2 tag.'
+    }
+    & git -C $gitTopLevel archive --format=zip "--output=$archivePath" $expectedV202Commit
     if ($LASTEXITCODE -ne 0 -or
         -not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
         throw 'Could not materialize the exact v2.0.2 package fixture.'
@@ -1157,10 +1165,10 @@ try {
         -Apply `
         -ReplaceExistingWorkflow `
         -CustomBackupRoot (Join-Path $noCavemanUpgradeCase 'backup-v3')
-    Assert-True 'supported no-Caveman v2.0.2 preimages upgrade to v3.0.0' (
+    Assert-True 'supported no-Caveman v2.0.2 preimages upgrade to v3.0.1' (
         $noCavemanUpgradeV3.ExitCode -eq 0 -and
         $noCavemanUpgradeV3.Output -match 'supported no-Caveman preimages' -and
-        $noCavemanUpgradeV3.Output -match '3[.]0[.]0 installed and verified'
+        $noCavemanUpgradeV3.Output -match '3[.]0[.]1 installed and verified'
     ) $noCavemanUpgradeV3.Output
     $noCavemanInstalledAgents = [IO.File]::ReadAllText(
         (Join-Path $noCavemanUpgradeV3.CodexHome 'AGENTS.md'),
@@ -1507,7 +1515,7 @@ try {
     $upgradeFailureAfter = Get-ManagedSurfaceFingerprint `
         -Roots @($upgradeFailureV2.TargetRoot, $upgradeFailureV2.CodexHome) `
         -Files @($upgradeFailureV2.ManagedPath, $upgradeFailureV2.GitConfigPath, $upgradeFailurePointer)
-    Assert-True 'trusted v2.0.2 to v3.0.0 injected failure is reported' (
+    Assert-True 'trusted v2.0.2 to v3.0.1 injected failure is reported' (
         $upgradeFailureV3.ExitCode -ne 0 -and
         $upgradeFailureV3.Output -match 'Verified the complete v2[.]0[.]2 receipt' -and
         $upgradeFailureV3.Output -match 'Restored the trusted v2[.]0[.]2 active receipt pointer'
@@ -1536,7 +1544,7 @@ try {
         -CustomBackupRoot (Join-Path $upgradeCase 'preview-v3')
     Assert-True 'v3 dry-run reports the installed v2.0.2 replacement surface without writes' (
         $upgradePreview.ExitCode -eq 0 -and
-        $upgradePreview.Output -match 'DRY-RUN Boring Is All You Need v3[.]0[.]0 migration' -and
+        $upgradePreview.Output -match 'DRY-RUN Boring Is All You Need v3[.]0[.]1 migration' -and
         (Get-FileHash -LiteralPath $upgradeV2Receipt -Algorithm SHA256).Hash -ceq $upgradeV2ReceiptHash
     ) $upgradePreview.Output
     $upgradeV3 = Invoke-Installer `
@@ -1544,10 +1552,10 @@ try {
         -Apply `
         -ReplaceExistingWorkflow `
         -CustomBackupRoot (Join-Path $upgradeCase 'backup-v3')
-    Assert-True 'verified v2.0.2 installation upgrades in place to v3.0.0' (
+    Assert-True 'verified v2.0.2 installation upgrades in place to v3.0.1' (
         $upgradeV3.ExitCode -eq 0 -and
         $upgradeV3.Output -match 'Verified the complete v2[.]0[.]2 receipt' -and
-        $upgradeV3.Output -match '3[.]0[.]0 installed and verified'
+        $upgradeV3.Output -match '3[.]0[.]1 installed and verified'
     ) $upgradeV3.Output
     Assert-True 'trusted upgrade preserves the original v2.0.2 receipt evidence' (
         (Test-Path -LiteralPath $upgradeV2Receipt -PathType Leaf) -and
@@ -1780,7 +1788,7 @@ try {
     $dryCase = Join-Path $fixtureRoot "dry"
     $dry = Invoke-Installer -CaseRoot $dryCase
     Assert-True "dry-run exits successfully" ($dry.ExitCode -eq 0) $dry.Output
-    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]0 migration") $dry.Output
+    Assert-True "dry-run identifies V2 migration" ($dry.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]1 migration") $dry.Output
     Assert-True "dry-run performs zero writes" (-not (Test-Path -LiteralPath $dryCase)) $dry.Output
     Assert-True "dry-run reports zero target config state writes rather than zero filesystem writes" (
         $dry.Output -match "0 target/config/backup/receipt/state writes" -and
@@ -2396,7 +2404,7 @@ try {
     $midCrashDryRun = Invoke-ReceiptRollback -InstallResult $midCrash -DryRun
     Assert-True "applying receipt rollback dry-run succeeds" (
         $midCrashDryRun.ExitCode -eq 0 -and
-        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]0 rollback"
+        $midCrashDryRun.Output -match "DRY-RUN Boring Is All You Need v3[.]0[.]1 rollback"
     ) $midCrashDryRun.Output
     Assert-True "applying receipt rollback dry-run performs zero writes" (
         (Get-ManagedSurfaceFingerprint `
@@ -3576,7 +3584,7 @@ Write-Output ([IO.Path]::GetFullPath($SkillSearch))
 param([string]`$ReceiptPath, [string]`$GitConfigPath)
 [IO.File]::WriteAllText('$escapedRollbackSentinel', 'executed', [Text.Encoding]::UTF8)
 Write-Host 'STABLE INSTALLED PROJECTION VERIFIED receipt=applied entries=80 pending=0'
-Write-Host 'DRY-RUN Boring Is All You Need v3.0.0 rollback: 80 files; 0 writes.'
+Write-Host 'DRY-RUN Boring Is All You Need v3.0.1 rollback: 80 files; 0 writes.'
 exit 0
 "@
     [IO.File]::WriteAllText(
@@ -4724,7 +4732,7 @@ exit 0
         "rollback mutation blocks a junction swap after validation",
         "blocked rollback junction swap leaves the escape tree byte-identical",
         "exact v2.0.2 package installs before supported no-Caveman upgrade",
-        "supported no-Caveman v2.0.2 preimages upgrade to v3.0.0",
+        "supported no-Caveman v2.0.2 preimages upgrade to v3.0.1",
         "v3 preserves no-Caveman startup behavior while adding PowerShell 7",
         "v3 rollback after no-Caveman upgrade succeeds",
         "v3 rollback restores exact supported no-Caveman preimages",
@@ -4751,11 +4759,11 @@ exit 0
         "failed pre-takeover cleanup never overwrites the concurrent pointer",
         "failed pre-takeover cleanup preserves orphan v3 evidence without authority",
         "exact v2.0.2 package installs before upgrade failure test",
-        "trusted v2.0.2 to v3.0.0 injected failure is reported",
+        "trusted v2.0.2 to v3.0.1 injected failure is reported",
         "trusted upgrade failure restores exact v2.0.2 bytes and active pointer",
         "exact v2.0.2 package installs before trusted upgrade",
         "v3 dry-run reports the installed v2.0.2 replacement surface without writes",
-        "verified v2.0.2 installation upgrades in place to v3.0.0",
+        "verified v2.0.2 installation upgrades in place to v3.0.1",
         "trusted upgrade preserves the original v2.0.2 receipt evidence",
         "v3 rollback after trusted upgrade succeeds",
         "v3 rollback restores exact v2.0.2 managed bytes",

@@ -1,15 +1,18 @@
 # Release Notes
 
-## v3.0.0
+## v3.0.1
 
-Boring Is All You Need v3.0.0 moves every owned Windows runtime entrypoint to PowerShell 7 and deliberately ends Windows PowerShell 5.1 support.
+The protected `v3.0.0` tag entered the release workflow but failed before artifact transfer, attestation, or draft creation, so no v3.0.0 GitHub Release was published. That tag remains unchanged; v3.0.1 supersedes it with the extracted-archive validation fix described below.
+
+Boring Is All You Need v3.0.1 moves every owned Windows runtime entrypoint to PowerShell 7 and deliberately ends Windows PowerShell 5.1 support.
 
 - requires PowerShell 7.5 or newer and rejects 5.1 through a release-wide `#requires` contract;
 - launches managed Hooks, Git Hooks, installers, rollback, diagnosis, tests, and CI through `pwsh.exe` only;
 - preserves timestamp strings during JSON deserialization so receipt and journal integrity hashes remain stable under PowerShell 7;
 - fixes PowerShell 7 overload binding for the V1 removal manifest and process-environment deletion for isolated Git identity checks;
+- binds the historical v2.0.2 upgrade fixture to the repository top level and exact `5ef0927` commit so extracted-archive validation cannot produce an empty nested Git archive;
 - standardizes PowerShell sources on strict UTF-8 without BOM and keeps extensionless shell Hook entrypoints LF/BOM-free;
-- retains the `.steadyagent` installation root, receipt schema, transactional migration, rollback, and legacy-install detection so verified v2.0.2 installations can upgrade in place; v2.0.0 and v2.0.1 require receipt-bound rollback before a fresh v3.0.0 install.
+- retains the `.steadyagent` installation root, receipt schema, transactional migration, rollback, and legacy-install detection so verified v2.0.2 installations can upgrade in place; v2.0.0 and v2.0.1 require receipt-bound rollback before a fresh v3.0.1 install.
 
 ## v2.0.2
 

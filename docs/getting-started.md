@@ -11,31 +11,31 @@ The release workflow uses separate least-privilege build/validation, attestation
 ```powershell
 gh attestation verify --help | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "GitHub CLI does not provide attestation verification." }
-gh release download v3.0.0 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.0.*"
-if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v3.0.0 release assets." }
-$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.0.provenance.json | ConvertFrom-Json
+gh release download v3.0.1 -R Khalilzhang0825/boring-is-all-you-need -p "boring-is-all-you-need-v3.0.1.*"
+if ($LASTEXITCODE -ne 0) { throw "Could not download the exact v3.0.1 release assets." }
+$Provenance = Get-Content -Raw .\boring-is-all-you-need-v3.0.1.provenance.json | ConvertFrom-Json
 $ReviewedSha = [string]$Provenance.reviewedCommit
-$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.0.zip.sha256).Split(" ")[0].Trim()
-$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.0.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+$Expected = (Get-Content -Raw .\boring-is-all-you-need-v3.0.1.zip.sha256).Split(" ")[0].Trim()
+$Actual = (Get-FileHash .\boring-is-all-you-need-v3.0.1.zip -Algorithm SHA256).Hash.ToLowerInvariant()
 if ([int]$Provenance.schemaVersion -ne 1 -or
-    [string]$Provenance.releaseTag -cne "v3.0.0" -or
+    [string]$Provenance.releaseTag -cne "v3.0.1" -or
     $ReviewedSha -notmatch '^[0-9a-f]{40}$' -or
-    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.0.zip" -or
+    [string]$Provenance.archiveName -cne "boring-is-all-you-need-v3.0.1.zip" -or
     [string]$Provenance.archiveSha256 -cne $Actual -or
     $Expected -cne $Actual -or
     [string]$Provenance.sourceRepository -cne "Khalilzhang0825/boring-is-all-you-need" -or
-    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.0" -or
+    [string]$Provenance.sourceRef -cne "refs/tags/v3.0.1" -or
     [string]$Provenance.signerWorkflow -cne "Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml") {
   throw "Release provenance or digest mismatch."
 }
-gh attestation verify .\boring-is-all-you-need-v3.0.0.zip `
+gh attestation verify .\boring-is-all-you-need-v3.0.1.zip `
   -R Khalilzhang0825/boring-is-all-you-need `
   --signer-workflow Khalilzhang0825/boring-is-all-you-need/.github/workflows/release.yml `
-  --source-ref refs/tags/v3.0.0 `
+  --source-ref refs/tags/v3.0.1 `
   --source-digest $ReviewedSha
 if ($LASTEXITCODE -ne 0) { throw "Release attestation verification failed; do not extract or run this archive." }
-Expand-Archive .\boring-is-all-you-need-v3.0.0.zip .\boring-is-all-you-need-v3.0.0-release
-Set-Location .\boring-is-all-you-need-v3.0.0-release\boring-is-all-you-need-v3.0.0
+Expand-Archive .\boring-is-all-you-need-v3.0.1.zip .\boring-is-all-you-need-v3.0.1-release
+Set-Location .\boring-is-all-you-need-v3.0.1-release\boring-is-all-you-need-v3.0.1
 ```
 
 Stop if the GitHub CLI does not expose `attestation verify`, the provenance fields do not bind the reviewed commit and archive digest, attestation verification fails, or the checksum differs.
@@ -72,7 +72,7 @@ Upgrade a verified v2.0.2 installation, or replace a legacy V1/custom workflow:
 pwsh.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\install.ps1 -Apply -ReplaceExistingWorkflow
 ```
 
-Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's receipt-bound rollback first, verify restoration, and then perform a fresh v3.0.0 installation. Preserve the receipt and backup evidence.
+Direct receipt-bound upgrade from v2.0.0 or v2.0.1 is not supported. Use that installed release's receipt-bound rollback first, verify restoration, and then perform a fresh v3.0.1 installation. Preserve the receipt and backup evidence.
 
 Use ordinary or administrator PowerShell. Apply and rollback accept an elevated token but do not request UAC, change ACLs, or take ownership. The active token must be able to update the default `%ProgramData%\OpenAI\Codex\requirements.toml`.
 
